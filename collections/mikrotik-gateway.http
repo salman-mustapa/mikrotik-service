@@ -1,0 +1,84 @@
+### Variables
+@baseUrl = http://127.0.0.1:8080
+@token = change-me-to-a-long-random-string
+@routerId = main
+
+### 1. Health Check
+GET {{baseUrl}}/health
+
+### 2. Print System Resource (CPU, Uptime, Memory)
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/system/resource/print"
+}
+
+### 3. Print Interfaces dengan Proplist (Hanya nama, tipe, status)
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/interface/print",
+  "args": {
+    ".proplist": ".id,name,type,running,disabled"
+  }
+}
+
+### 4. Print IP Addresses (Filter hanya yang aktif / ?disabled=no)
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/ip/address/print",
+  "args": {
+    "?disabled": "no"
+  }
+}
+
+### 5. Tambah Hotspot User Baru (Create Voucher)
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/ip/hotspot/user/add",
+  "args": {
+    "name": "voucher_test_01",
+    "password": "pass123456",
+    "profile": "default",
+    "comment": "Dibuat via Rust Gateway"
+  }
+}
+
+### 6. Ambil Daftar Hotspot User
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/ip/hotspot/user/print",
+  "args": {
+    ".proplist": ".id,name,profile,uptime,bytes-in,bytes-out"
+  }
+}
+
+### 7. Hapus Hotspot User berdasarkan .id
+POST {{baseUrl}}/routers/{{routerId}}/command
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "command": "/ip/hotspot/user/remove",
+  "args": {
+    ".id": "*1"
+  }
+}
+
+### 8. SSE Streaming Traffic Interface (Buka di browser atau SSE client)
+GET {{baseUrl}}/routers/{{routerId}}/listen?command=/interface/monitor-traffic&interface=ether1
+Authorization: Bearer {{token}}
+Accept: text/event-stream

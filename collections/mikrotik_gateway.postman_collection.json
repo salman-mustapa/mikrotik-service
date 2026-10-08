@@ -1,0 +1,184 @@
+{
+  "info": {
+    "_postman_id": "f8a9e6d2-3c1b-4f8a-9a72-b91c83d6a123",
+    "name": "MikroTik Rust Gateway API",
+    "description": "Collection untuk pengujian REST API & Streaming Gateway MikroTik berbasis Rust.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "change-me-to-a-long-random-string",
+      "type": "string"
+    },
+    {
+      "key": "router_id",
+      "value": "main",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "System Resource Print (CPU & RAM)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"command\": \"/system/resource/print\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/command",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "command"]
+        }
+      }
+    },
+    {
+      "name": "Interface Print (with proplist)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"command\": \"/interface/print\",\n  \"args\": {\n    \".proplist\": \".id,name,type,running,disabled\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/command",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "command"]
+        }
+      }
+    },
+    {
+      "name": "IP Address Print (Filter Active)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"command\": \"/ip/address/print\",\n  \"args\": {\n    \"?disabled\": \"no\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/command",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "command"]
+        }
+      }
+    },
+    {
+      "name": "Hotspot Add User (Create Voucher)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"command\": \"/ip/hotspot/user/add\",\n  \"args\": {\n    \"name\": \"voucher001\",\n    \"password\": \"pass1234\",\n    \"profile\": \"default\",\n    \"comment\": \"Generated via Rust API\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/command",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "command"]
+        }
+      }
+    },
+    {
+      "name": "Hotspot List Users",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"command\": \"/ip/hotspot/user/print\",\n  \"args\": {\n    \".proplist\": \".id,name,profile,uptime,bytes-in,bytes-out\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/command",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "command"]
+        }
+      }
+    },
+    {
+      "name": "SSE Listen Traffic (Server-Sent Events)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/routers/{{router_id}}/listen?command=/interface/monitor-traffic&interface=ether1",
+          "host": ["{{base_url}}"],
+          "path": ["routers", "{{router_id}}", "listen"],
+          "query": [
+            {
+              "key": "command",
+              "value": "/interface/monitor-traffic"
+            },
+            {
+              "key": "interface",
+              "value": "ether1"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

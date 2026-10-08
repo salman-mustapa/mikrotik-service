@@ -1,0 +1,24 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Configuration with credentials (keep config.example.toml committed)
+config.toml
+.env
+.env.local
+
+# Logs and scratch files
+*.log
+scratch/
+
+# OS and Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# PHP Composer / Node (if SDK dependencies are installed locally)
+vendor/
+node_modules/
