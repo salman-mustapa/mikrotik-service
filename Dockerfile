@@ -2,7 +2,7 @@
 # Multi-Stage Build: MikroTik Universal Rust Engine
 # ==========================================
 # Stage 1: Build binary using official Rust Alpine image (musl static)
-FROM rust:1.80-alpine AS builder
+FROM rust:alpine AS builder
 
 WORKDIR /app
 
