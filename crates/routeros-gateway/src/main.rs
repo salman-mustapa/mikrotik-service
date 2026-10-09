@@ -98,9 +98,9 @@ async fn playground() -> Html<&'static str> {
         </p>
       </div>
       <div>
-        <a href="/topology" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);">
+        <button onclick="openVisualizer()" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);">
           🌐 Buka Visualizer Relasi Topologi &rarr;
-        </a>
+        </button>
       </div>
     </div>
   </header>
@@ -195,7 +195,43 @@ async fn playground() -> Html<&'static str> {
 </div>
 
 <script>
+function saveCreds() {
+  localStorage.setItem('ros_token', document.getElementById('token').value);
+  localStorage.setItem('ros_host', document.getElementById('host').value);
+  localStorage.setItem('ros_port', document.getElementById('port').value);
+  localStorage.setItem('ros_user', document.getElementById('user').value);
+  localStorage.setItem('ros_pass', document.getElementById('password').value);
+}
+
+function loadCreds() {
+  if (localStorage.getItem('ros_token')) document.getElementById('token').value = localStorage.getItem('ros_token');
+  if (localStorage.getItem('ros_host')) document.getElementById('host').value = localStorage.getItem('ros_host');
+  if (localStorage.getItem('ros_port')) document.getElementById('port').value = localStorage.getItem('ros_port');
+  if (localStorage.getItem('ros_user')) document.getElementById('user').value = localStorage.getItem('ros_user');
+  if (localStorage.getItem('ros_pass')) document.getElementById('password').value = localStorage.getItem('ros_pass');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadCreds();
+  ['token', 'host', 'port', 'user', 'password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', saveCreds);
+  });
+});
+
+function openVisualizer() {
+  saveCreds();
+  const host = document.getElementById('host').value;
+  const port = document.getElementById('port').value;
+  const user = document.getElementById('user').value;
+  const pass = document.getElementById('password').value;
+  const token = document.getElementById('token').value;
+  const url = `/topology?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}&token=${encodeURIComponent(token)}`;
+  window.open(url, '_blank');
+}
+
 async function execApi(path, payload) {
+  saveCreds();
   const token = document.getElementById('token').value;
   const host = document.getElementById('host').value;
   const port = parseInt(document.getElementById('port').value) || 8728;

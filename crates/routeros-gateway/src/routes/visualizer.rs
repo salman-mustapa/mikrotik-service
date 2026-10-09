@@ -252,16 +252,28 @@ pub async fn visualizer_page() -> Html<&'static str> {
 <body>
   <header>
     <div class="brand">
-      <span>🌐 MikroTik Core Visualizer</span>
+      <a href="/" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">
+        <span>🌐 MikroTik Core Visualizer</span>
+      </a>
       <span class="badge" id="hw-badge">Sub-Millisecond Engine</span>
     </div>
+
+    <!-- Active Router Connection Bar -->
+    <div style="display: flex; align-items: center; gap: 6px; background: rgba(30, 41, 59, 0.7); padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Router:</span>
+      <input type="text" id="target-host" placeholder="Host (IP/Domain)" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 4px 8px; border-radius: 5px; font-size: 0.75rem; width: 140px;">
+      <input type="number" id="target-port" placeholder="Port" value="51121" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 4px 6px; border-radius: 5px; font-size: 0.75rem; width: 65px;">
+      <input type="text" id="target-user" placeholder="User" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 4px 8px; border-radius: 5px; font-size: 0.75rem; width: 80px;">
+      <input type="password" id="target-pass" placeholder="Password" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 4px 8px; border-radius: 5px; font-size: 0.75rem; width: 85px;">
+      <button class="refresh-btn" onclick="loadTopology()" style="padding: 4px 12px; font-size: 0.75rem;">⚡ Connect &amp; Render</button>
+    </div>
+
     <div class="nav-controls">
       <button class="filter-btn active" onclick="setFilter('all', this)">Semua (All)</button>
       <button class="filter-btn" onclick="setFilter('hotspot', this)">🎟️ Hotspot</button>
       <button class="filter-btn" onclick="setFilter('pppoe', this)">🌐 PPPoE</button>
       <button class="filter-btn" onclick="setFilter('dhcp', this)">💻 DHCP</button>
       <button class="filter-btn" onclick="setFilter('wifi', this)">📶 WiFi</button>
-      <button class="refresh-btn" onclick="loadTopology()">🔄 Reload Graph</button>
     </div>
   </header>
 
@@ -315,28 +327,86 @@ let currentFilter = 'all';
 let graphData = { nodes: [], edges: [] };
 let selectedNode = null;
 
+// Parse initial router params from URL or localStorage
+const urlParams = new URLSearchParams(window.location.search);
+const initHost = urlParams.get('host') || localStorage.getItem('ros_host') || 'ath.vpnbersama.us';
+const initPort = urlParams.get('port') || localStorage.getItem('ros_port') || '51121';
+const initUser = urlParams.get('user') || localStorage.getItem('ros_user') || 'salman';
+const initPass = urlParams.get('pass') || localStorage.getItem('ros_pass') || '';
+const initToken = urlParams.get('token') || localStorage.getItem('ros_token') || 'change-me-to-a-long-random-string';
+
+document.getElementById('target-host').value = initHost;
+document.getElementById('target-port').value = initPort;
+document.getElementById('target-user').value = initUser;
+document.getElementById('target-pass').value = initPass;
+
+function getTarget() {
+  const host = document.getElementById('target-host').value;
+  const port = parseInt(document.getElementById('target-port').value) || 8728;
+  const user = document.getElementById('target-user').value;
+  const pass = document.getElementById('target-pass').value;
+  const token = localStorage.getItem('ros_token') || initToken;
+
+  localStorage.setItem('ros_host', host);
+  localStorage.setItem('ros_port', port.toString());
+  localStorage.setItem('ros_user', user);
+  if (pass) localStorage.setItem('ros_pass', pass);
+
+  return { host, port, user, pass, token };
+}
+
+function showNotice(msg, isError = false) {
+  const svg = document.getElementById('graph');
+  const width = svg.clientWidth || window.innerWidth;
+  const height = svg.clientHeight || (window.innerHeight - 60);
+  const color = isError ? '#ef4444' : '#94a3b8';
+  svg.innerHTML = `
+    <text x="${width/2}" y="${height/2}" text-anchor="middle" fill="${color}" font-size="15" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+      ${msg}
+    </text>
+  `;
+}
+
 async function loadTopology() {
+  const { host, port, user, pass, token } = getTarget();
+  if (!host) {
+    showNotice("Silakan masukkan Host dan Kredensial Router di bilah atas untuk menampilkan topologi.");
+    return;
+  }
+
   const t0 = performance.now();
+  showNotice("Menghubungkan ke router MikroTik via persistent pool Rust...");
+
   try {
     const res = await fetch('/api/v1/network/topology-graph', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + (localStorage.getItem('token') || 'change-me-to-a-long-random-string'),
+        'Authorization': 'Bearer ' + token,
+        'X-Router-Host': host,
+        'X-Router-Port': port.toString(),
+        'X-Router-User': user,
+        'X-Router-Pass': pass,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ filter_type: currentFilter })
+      body: JSON.stringify({
+        filter_type: currentFilter,
+        router: { host, port, user, password: pass }
+      })
     });
     const t1 = performance.now();
     const json = await res.json();
-    if (json.success) {
+    if (json.success && json.nodes && json.nodes.length > 0) {
       graphData = json;
       document.getElementById('st-nodes').textContent = `${json.nodes.length} Nodes`;
       document.getElementById('st-edges').textContent = `${json.edges.length} Koneksi`;
       document.getElementById('st-perf').textContent = `Query: ${(t1 - t0).toFixed(1)} ms`;
       renderGraph(json.nodes, json.edges);
+    } else {
+      const errMsg = json.error || (json.nodes && json.nodes.length === 0 ? "Tidak ada node terdeteksi (periksa apakah router aktif & ada perangkat terkoneksi)" : "Gagal mengambil data router");
+      showNotice("⚠️ " + errMsg, true);
     }
   } catch (err) {
-    console.error("Failed to load topology:", err);
+    showNotice("❌ Error koneksi: " + err.message, true);
   }
 }
 
@@ -482,14 +552,23 @@ async function pingCurrentNode() {
   pingBtn.disabled = true;
   pingRes.innerHTML = 'Mengirim 3 paket ICMP dari MikroTik...';
 
+  const { host, port, user, pass, token } = getTarget();
   try {
     const res = await fetch('/api/v1/tools/ping', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + (localStorage.getItem('token') || 'change-me-to-a-long-random-string'),
+        'Authorization': 'Bearer ' + token,
+        'X-Router-Host': host,
+        'X-Router-Port': port.toString(),
+        'X-Router-User': user,
+        'X-Router-Pass': pass,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ address: selectedNode.ip, count: 3 })
+      body: JSON.stringify({
+        address: selectedNode.ip,
+        count: 3,
+        router: { host, port, user, password: pass }
+      })
     });
     const data = await res.json();
     if (data.success && data.data && data.data.length > 0) {
