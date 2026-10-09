@@ -83,8 +83,12 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/address/add", post(ip::add_address))
         .route("/api/v1/ip/address/remove", post(ip::remove_address))
         .route("/api/v1/ip/routes", post(ip::routes))
+        .route("/api/v1/ip/route/add", post(ip::add_route))
+        .route("/api/v1/ip/route/remove", post(ip::remove_route))
         .route("/api/v1/ip/dns", post(ip::dns))
         .route("/api/v1/ip/pools", post(ip::pools))
+        .route("/api/v1/ip/pool/add", post(ip::add_pool))
+        .route("/api/v1/ip/pool/remove", post(ip::remove_pool))
         .route("/api/v1/ip/arp", post(ip::arp))
         .route("/api/v1/ip/arp/add", post(ip::add_arp))
         .route("/api/v1/ip/arp/remove", post(ip::remove_arp))
@@ -105,6 +109,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- DHCP ---
         .route("/api/v1/dhcp/servers", post(dhcp::servers))
+        .route("/api/v1/dhcp/networks", post(dhcp::networks))
+        .route("/api/v1/dhcp/network/add", post(dhcp::add_network))
+        .route("/api/v1/dhcp/network/remove", post(dhcp::remove_network))
         .route("/api/v1/dhcp/leases", post(dhcp::leases))
         .route("/api/v1/dhcp/lease/make-static", post(dhcp::make_static))
         .route("/api/v1/dhcp/lease/remove", post(dhcp::remove_lease))
@@ -121,6 +128,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/host/bind", post(hotspot::bind_host))
         .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))
         .route("/api/v1/hotspot/profiles", post(hotspot::profiles))
+        .route("/api/v1/hotspot/profile/add", post(hotspot::add_profile))
+        .route("/api/v1/hotspot/profile/remove", post(hotspot::remove_profile))
         .route("/api/v1/hotspot/ip-bindings", post(hotspot::ip_bindings))
 
         // --- User Manager (v6 & v7) ---

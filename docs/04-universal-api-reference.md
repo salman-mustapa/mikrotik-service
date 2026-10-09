@@ -674,7 +674,18 @@ Dirancang khusus agar router dengan spesifikasi kecil (seperti hAP mini, hAP lit
 | `POST` | `/api/v1/system/cpu-profiler` | **CPU & RAM Hog Detective**: Menjalankan `/tool/profile` untuk mendeteksi proses apa yang memakan CPU (`networking`, `firewall`, `dns`, `queues`) dan memberikan diagnosa penyebab | `{}` |
 | `POST` | `/api/v1/system/fasttrack/deploy` | **Pasang FastTrack Connection**: Menurunkan beban CPU hingga 80% pada router kecil dengan membypass connection tracking untuk paket established/related | `{}` |
 
+---
 
-
-
-
+### OO. 🏊 Pool, DHCP Network, Profil Hotspot & Routing Statis Lengkap
+Melengkapi operasi CRUD penuh pada level infrastruktur IP RouterOS:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/ip/pool/add` | Tambah IP Pool baru | `{"name": "pool-tamu", "ranges": "192.168.99.10-192.168.99.200", "comment": "Pool Tamu"}` |
+| `POST` | `/api/v1/ip/pool/remove` | Hapus IP Pool | `{"id": "*1"}` |
+| `POST` | `/api/v1/dhcp/networks` | Daftar konfigurasi Network DHCP Server | `{}` |
+| `POST` | `/api/v1/dhcp/network/add` | Tambah Network DHCP Server | `{"address": "192.168.99.0/24", "gateway": "192.168.99.1", "dns_server": "8.8.8.8"}` |
+| `POST` | `/api/v1/dhcp/network/remove` | Hapus Network DHCP Server | `{"id": "*1"}` |
+| `POST` | `/api/v1/hotspot/profile/add` | Tambah Profil Pengguna Hotspot (Limit & Kuota) | `{"name": "paket-5mbps", "rate_limit": "5M/5M", "shared_users": "1"}` |
+| `POST` | `/api/v1/hotspot/profile/remove`| Hapus Profil Hotspot | `{"id": "*1"}` |
+| `POST` | `/api/v1/ip/route/add` | Tambah Static IP Route (Failover / Gateway) | `{"dst_address": "0.0.0.0/0", "gateway": "192.168.1.1", "check_gateway": "ping"}` |
+| `POST` | `/api/v1/ip/route/remove` | Hapus Static Route | `{"id": "*1"}` |

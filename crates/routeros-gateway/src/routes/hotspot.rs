@@ -125,6 +125,60 @@ pub async fn profiles(
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct AddHotspotProfileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub rate_limit: Option<String>,
+    pub shared_users: Option<String>,
+    pub session_timeout: Option<String>,
+    pub keepalive_timeout: Option<String>,
+    pub status_autorefresh: Option<String>,
+    pub comment: Option<String>,
+}
+
+pub async fn add_profile(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddHotspotProfileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![("name", req.name.as_str())];
+    if let Some(rl) = req.rate_limit.as_deref() {
+        args.push(("rate-limit", rl));
+    }
+    if let Some(su) = req.shared_users.as_deref() {
+        args.push(("shared-users", su));
+    }
+    if let Some(st) = req.session_timeout.as_deref() {
+        args.push(("session-timeout", st));
+    }
+    if let Some(kt) = req.keepalive_timeout.as_deref() {
+        args.push(("keepalive-timeout", kt));
+    }
+    if let Some(sa) = req.status_autorefresh.as_deref() {
+        args.push(("status-autorefresh", sa));
+    }
+    if let Some(c) = req.comment.as_deref() {
+        args.push(("comment", c));
+    }
+    client.run(build_command("/ip/hotspot/user/profile/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "Hotspot user profile created" })))
+}
+
+pub async fn remove_profile(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/hotspot/user/profile/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "Hotspot user profile removed" })))
+}
+
 pub async fn ip_bindings(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,

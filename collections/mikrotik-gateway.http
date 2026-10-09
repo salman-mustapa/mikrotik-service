@@ -616,6 +616,67 @@ Content-Type: application/json
 
 {}
 
+### 40. 🏊 Tambah IP Pool
+POST {{baseUrl}}/api/v1/ip/pool/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
 
+{
+  "name": "pool-tamu",
+  "ranges": "192.168.99.10-192.168.99.200",
+  "comment": "Pool Tamu Kantor"
+}
 
+### 41. 🌐 Tambah DHCP Server Network
+POST {{baseUrl}}/api/v1/dhcp/network/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
 
+{
+  "address": "192.168.99.0/24",
+  "gateway": "192.168.99.1",
+  "dns_server": "1.1.1.1,8.8.8.8",
+  "comment": "Network Tamu"
+}
+
+### 42. 🎫 Tambah Hotspot User Profile (Limit Kecepatan & Shared Users)
+POST {{baseUrl}}/api/v1/hotspot/profile/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "paket-5mbps",
+  "rate_limit": "5M/5M",
+  "shared_users": "1",
+  "keepalive_timeout": "2m",
+  "comment": "Paket Hotspot 5Mbps"
+}
+
+### 43. 🧭 Tambah Static IP Route (Failover / Custom Gateway)
+POST {{baseUrl}}/api/v1/ip/route/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "dst_address": "0.0.0.0/0",
+  "gateway": "192.168.1.1",
+  "distance": "1",
+  "check_gateway": "ping",
+  "comment": "Default Gateway ISP 1"
+}
