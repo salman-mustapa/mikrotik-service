@@ -22,6 +22,20 @@ Content-Type: application/json
 
 {}
 
+### 1C. 🌐 Unified Connected Devices & Cross-Layer Correlation Map
+POST {{baseUrl}}/api/v1/network/connected-devices
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "search": "",
+  "filter_status": "all"
+}
+
 ### 2. Universal System Resource (CPU, Uptime, Memory)
 POST {{baseUrl}}/api/v1/system/resource
 Authorization: Bearer {{token}}
@@ -152,8 +166,75 @@ Content-Type: application/json
 
 {}
 
+### 10B. 🔍 Hotspot Hosts (Seluruh Perangkat Terdeteksi: Authorized & Pending)
+POST {{baseUrl}}/api/v1/hotspot/hosts
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 10C. ⚡ Quick Bypass Host MAC (CCTV, Printer, Smart TV)
+POST {{baseUrl}}/api/v1/hotspot/host/bind
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "mac_address": "AA:BB:CC:DD:EE:FF",
+  "binding_type": "bypassed",
+  "comment": "Smart TV Ruang Tamu"
+}
+
 ### 11. PPPoE Secrets List
 POST {{baseUrl}}/api/v1/ppp/secrets
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 11B. 🔒 PPPoE Isolate Customer (Ubah Profile ke ISOLIR & Kick Active Session)
+POST {{baseUrl}}/api/v1/ppp/customer/isolate
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "username": "client_pppoe_01",
+  "isolate_profile": "ISOLIR",
+  "comment": "Menunggak Tagihan"
+}
+
+### 11C. 🔓 PPPoE Restore Customer (Kembalikan ke Profil Aktif & Buka Blokir)
+POST {{baseUrl}}/api/v1/ppp/customer/restore
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "username": "client_pppoe_01",
+  "active_profile": "Paket-20Mbps",
+  "comment": "Lunas"
+}
+
+### 11D. 🔌 PPPoE Server Instances
+POST {{baseUrl}}/api/v1/ppp/servers
 Authorization: Bearer {{token}}
 X-Router-Host: {{routerHost}}
 X-Router-Port: {{routerPort}}

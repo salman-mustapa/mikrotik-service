@@ -107,3 +107,56 @@ pub async fn pools(
     let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddArpReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub address: String,
+    pub mac_address: String,
+    pub interface: String,
+    pub comment: Option<String>,
+}
+
+pub async fn arp(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<FilterReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/arp/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+pub async fn add_arp(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddArpReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("address", req.address.as_str()),
+        ("mac-address", req.mac_address.as_str()),
+        ("interface", req.interface.as_str()),
+    ];
+    if let Some(c) = req.comment.as_deref() {
+        args.push(("comment", c));
+    }
+    client.run(build_command("/ip/arp/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "ARP entry added" })))
+}
+
+pub async fn remove_arp(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/arp/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "ARP entry removed" })))
+}
+

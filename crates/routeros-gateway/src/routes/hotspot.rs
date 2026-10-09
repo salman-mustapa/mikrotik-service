@@ -236,3 +236,67 @@ pub async fn generate_batch(
     })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct BindHostReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub mac_address: String,
+    pub address: Option<String>,
+    pub to_address: Option<String>,
+    #[serde(default = "default_binding_type")]
+    pub binding_type: String, // "bypassed", "regular", "blocked"
+    pub comment: Option<String>,
+}
+
+fn default_binding_type() -> String {
+    "bypassed".into()
+}
+
+pub async fn hosts(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<FilterReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/hotspot/host/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+pub async fn remove_host(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/hotspot/host/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "Host entry removed" })))
+}
+
+pub async fn bind_host(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BindHostReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("mac-address", req.mac_address.as_str()),
+        ("type", req.binding_type.as_str()),
+    ];
+    if let Some(a) = req.address.as_deref() {
+        args.push(("address", a));
+    }
+    if let Some(to) = req.to_address.as_deref() {
+        args.push(("to-address", to));
+    }
+    if let Some(c) = req.comment.as_deref() {
+        args.push(("comment", c));
+    }
+    client.run(build_command("/ip/hotspot/ip-binding/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "Host successfully added to IP binding (bypass/block/regular)" })))
+}
+
+

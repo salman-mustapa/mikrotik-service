@@ -9,6 +9,7 @@ pub mod ip;
 pub mod ipv6;
 pub mod logs;
 pub mod neighbors;
+pub mod network_map;
 pub mod overview;
 pub mod ppp;
 pub mod queues;
@@ -29,8 +30,9 @@ use crate::state::AppState;
 
 pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        // --- Fast-Path Aggregated Snapshot (Sub-millisecond tokio::join!) ---
+        // --- Fast-Path Aggregated Snapshot & Cross-Layer Correlator ---
         .route("/api/v1/overview", post(overview::get_overview))
+        .route("/api/v1/network/connected-devices", post(network_map::connected_devices))
 
         // --- Universal Raw Command, Batch & SSE Stream ---
         .route("/api/v1/command", post(raw::run_raw_command))
@@ -46,13 +48,16 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/install-update", post(system::install_update))
         .route("/api/v1/system/reboot", post(system::reboot))
 
-        // --- IPv4 & Routing ---
+        // --- IPv4, ARP & Routing ---
         .route("/api/v1/ip/addresses", post(ip::addresses))
         .route("/api/v1/ip/address/add", post(ip::add_address))
         .route("/api/v1/ip/address/remove", post(ip::remove_address))
         .route("/api/v1/ip/routes", post(ip::routes))
         .route("/api/v1/ip/dns", post(ip::dns))
         .route("/api/v1/ip/pools", post(ip::pools))
+        .route("/api/v1/ip/arp", post(ip::arp))
+        .route("/api/v1/ip/arp/add", post(ip::add_arp))
+        .route("/api/v1/ip/arp/remove", post(ip::remove_arp))
 
         // --- Static DNS & Cache ---
         .route("/api/v1/dns/static", post(dns::static_records))
@@ -74,23 +79,32 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/lease/make-static", post(dhcp::make_static))
         .route("/api/v1/dhcp/lease/remove", post(dhcp::remove_lease))
 
-        // --- Hotspot & Vouchers ---
+        // --- Hotspot, Vouchers & Hosts ---
         .route("/api/v1/hotspot/users", post(hotspot::users))
         .route("/api/v1/hotspot/user/create", post(hotspot::create_user))
         .route("/api/v1/hotspot/generate-batch", post(hotspot::generate_batch))
         .route("/api/v1/hotspot/user/remove", post(hotspot::remove_user))
         .route("/api/v1/hotspot/active", post(hotspot::active))
         .route("/api/v1/hotspot/kick", post(hotspot::kick))
+        .route("/api/v1/hotspot/hosts", post(hotspot::hosts))
+        .route("/api/v1/hotspot/host/remove", post(hotspot::remove_host))
+        .route("/api/v1/hotspot/host/bind", post(hotspot::bind_host))
         .route("/api/v1/hotspot/profiles", post(hotspot::profiles))
         .route("/api/v1/hotspot/ip-bindings", post(hotspot::ip_bindings))
 
-        // --- PPP & PPPoE ---
+        // --- PPP & PPPoE ISP Management ---
         .route("/api/v1/ppp/secrets", post(ppp::secrets))
         .route("/api/v1/ppp/secret/create", post(ppp::create_secret))
+        .route("/api/v1/ppp/secret/set", post(ppp::set_secret))
         .route("/api/v1/ppp/secret/remove", post(ppp::remove_secret))
+        .route("/api/v1/ppp/customer/isolate", post(ppp::isolate_customer))
+        .route("/api/v1/ppp/customer/restore", post(ppp::restore_customer))
         .route("/api/v1/ppp/active", post(ppp::active))
         .route("/api/v1/ppp/disconnect", post(ppp::disconnect))
+        .route("/api/v1/ppp/servers", post(ppp::pppoe_servers))
+        .route("/api/v1/ppp/server/create", post(ppp::create_pppoe_server))
         .route("/api/v1/ppp/profiles", post(ppp::profiles))
+        .route("/api/v1/ppp/profile/create", post(ppp::create_profile))
 
         // --- WireGuard (RouterOS v7) ---
         .route("/api/v1/wireguard/interfaces", post(wireguard::interfaces))

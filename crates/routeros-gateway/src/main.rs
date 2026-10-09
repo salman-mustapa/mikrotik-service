@@ -134,7 +134,10 @@ async fn playground() -> Html<&'static str> {
         </p>
         <div class="btn-row">
           <button class="btn" style="background: #10b981;" onclick="execApi('/api/v1/overview', {})">⚡ Fast-Path Overview (Sub-ms)</button>
+          <button class="btn" style="background: #0ea5e9;" onclick="execApi('/api/v1/network/connected-devices', {})">🌐 Unified Devices Map (Cross-Layer)</button>
           <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/generate-batch', { qty: 5, prefix: 'V-', profile: 'default' })">🎟️ Generate 5 Vouchers</button>
+          <button class="btn" onclick="execApi('/api/v1/hotspot/hosts', {})">Hotspot Hosts (All Devices)</button>
+          <button class="btn" onclick="execApi('/api/v1/ip/arp', {})">ARP Table</button>
           <button class="btn" onclick="execApi('/api/v1/system/resource', {})">System Resource</button>
           <button class="btn" onclick="execApi('/api/v1/system/identity', {})">Identity</button>
           <button class="btn" onclick="execApi('/api/v1/interfaces/all', {})">All Interfaces</button>
@@ -144,6 +147,7 @@ async fn playground() -> Html<&'static str> {
           <button class="btn" onclick="execApi('/api/v1/hotspot/users', {})">Hotspot Users</button>
           <button class="btn" onclick="execApi('/api/v1/hotspot/active', {})">Hotspot Online</button>
           <button class="btn" onclick="execApi('/api/v1/ppp/secrets', {})">PPPoE Secrets</button>
+          <button class="btn" onclick="execApi('/api/v1/ppp/servers', {})">PPPoE Servers</button>
           <button class="btn" onclick="execApi('/api/v1/wireless/registrations', {})">WiFi Clients</button>
           <button class="btn" onclick="execApi('/api/v1/tools/ping', { address: '8.8.8.8', count: 3 })">Ping Test</button>
           <button class="btn" onclick="execApi('/api/v1/neighbors/all', {})">Neighbors Scan</button>

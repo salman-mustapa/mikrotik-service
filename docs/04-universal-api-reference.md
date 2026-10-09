@@ -49,6 +49,15 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 
 ---
 
+### 🌐 0B. Unified Connected Devices Map (Cross-Layer Device Correlator)
+Menjawab kebutuhan engineer yang membedakan **DHCP Leases, Hotspot Hosts, ARP Table, dan Wireless Clients**:
+Endpoint ini menarik 6 tabel perangkat sekaligus dan mengorelasikannya berdasarkan **MAC address & IP** secara instan:
+| Method | Endpoint | Kegunaan | Payload |
+|---|---|---|---|
+| `POST` | `/api/v1/network/connected-devices` | Unified Map: Menggabungkan DHCP + Hotspot Hosts + Active + Bindings + ARP + WiFi Registration | `{"search": "", "filter_status": "all"}` |
+
+---
+
 ### A. System & Upgrade (`/api/v1/system/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
@@ -62,7 +71,7 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 
 ---
 
-### B. IPv4 & Routing (`/api/v1/ip/*`)
+### B. IPv4, ARP & Routing (`/api/v1/ip/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/ip/addresses` | Daftar IP Address | `{"filter": {"?disabled": "no"}}` |
@@ -71,6 +80,9 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 | `POST` | `/api/v1/ip/routes` | Tabel routing IPv4 | `{}` |
 | `POST` | `/api/v1/ip/dns` | Konfigurasi DNS Server | `{}` |
 | `POST` | `/api/v1/ip/pools` | Daftar IP Pool | `{}` |
+| `POST` | `/api/v1/ip/arp` | **Daftar entri ARP (IP-to-MAC mapping)** | `{}` |
+| `POST` | `/api/v1/ip/arp/add` | Tambah entri ARP statis | `{"address": "192.168.88.50", "mac_address": "AA:BB:CC:DD:EE:FF", "interface": "bridge"}` |
+| `POST` | `/api/v1/ip/arp/remove` | Hapus entri ARP | `{"id": "*1"}` |
 
 ---
 
@@ -106,7 +118,7 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 
 ---
 
-### F. Hotspot & Vouchers (`/api/v1/hotspot/*`)
+### F. Hotspot, Vouchers & Hosts (`/api/v1/hotspot/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/hotspot/users` | Daftar seluruh voucher/user | `{}` |
@@ -115,6 +127,9 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 | `POST` | `/api/v1/hotspot/user/remove` | Hapus voucher/user | `{"id": "*5"}` |
 | `POST` | `/api/v1/hotspot/active` | Daftar user yang **sedang online** | `{}` |
 | `POST` | `/api/v1/hotspot/kick` | **Kick** (putuskan koneksi) user online | `{"id": "*3"}` |
+| `POST` | `/api/v1/hotspot/hosts` | **Daftar seluruh perangkat di subnet Hotspot (Authorized & Pending)** | `{}` |
+| `POST` | `/api/v1/hotspot/host/remove` | Hapus entri host hotspot | `{"id": "*1"}` |
+| `POST` | `/api/v1/hotspot/host/bind` | **Quick Bypass / Bind Host MAC (CCTV, Printer, TV)** | `{"mac_address": "AA:BB:..", "binding_type": "bypassed"}` |
 | `POST` | `/api/v1/hotspot/profiles` | Profil paket voucher | `{}` |
 | `POST` | `/api/v1/hotspot/ip-bindings`| Bypass MAC Address (tanpa login voucher) | `{}` |
 
@@ -130,14 +145,21 @@ Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (
 
 ---
 
-### H. PPP & PPPoE (`/api/v1/ppp/*`)
+### H. PPP & PPPoE ISP Management (`/api/v1/ppp/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/ppp/secrets` | Daftar akun pelanggan PPPoE | `{}` |
 | `POST` | `/api/v1/ppp/secret/create` | Tambah akun PPPoE baru | `{"name": "user1", "password": "123", "service": "pppoe", "profile": "default"}` |
+| `POST` | `/api/v1/ppp/secret/set` | Ubah password/profile/status akun PPPoE | `{"id": "*1", "profile": "Paket-30M", "disabled": false}` |
 | `POST` | `/api/v1/ppp/secret/remove` | Hapus akun PPPoE | `{"id": "*1"}` |
+| `POST` | `/api/v1/ppp/customer/isolate` | **Isolir Pelanggan (Ubah profile ke ISOLIR & Kick session aktif)** | `{"username": "user1", "isolate_profile": "ISOLIR"}` |
+| `POST` | `/api/v1/ppp/customer/restore` | **Buka Isolir Pelanggan (Restore ke profil aktif & aktifkan kembali)** | `{"username": "user1", "active_profile": "Paket-20M"}` |
 | `POST` | `/api/v1/ppp/active` | Pelanggan PPPoE yang sedang online | `{}` |
 | `POST` | `/api/v1/ppp/disconnect` | Putuskan koneksi pelanggan aktif | `{"id": "*4"}` |
+| `POST` | `/api/v1/ppp/servers` | Daftar server PPPoE per interface | `{}` |
+| `POST` | `/api/v1/ppp/server/create` | Buat server PPPoE baru pada interface | `{"service_name": "pppoe-lan", "interface": "ether2"}` |
+| `POST` | `/api/v1/ppp/profiles` | Profil paket PPPoE | `{}` |
+| `POST` | `/api/v1/ppp/profile/create` | Buat profil paket PPPoE (rate limit, pool) | `{"name": "Paket-50M", "rate_limit": "50M/50M"}` |
 | `POST` | `/api/v1/ppp/profiles` | Daftar profil paket PPPoE | `{}` |
 
 ---
