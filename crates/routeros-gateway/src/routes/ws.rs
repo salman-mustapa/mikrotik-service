@@ -45,7 +45,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<String>();
 
     // Background sender task
-    let mut send_task = tokio::spawn(async move {
+    let send_task = tokio::spawn(async move {
         while let Some(msg) = out_rx.recv().await {
             if ws_sink.send(Message::Text(msg)).await.is_err() {
                 break;
@@ -167,12 +167,13 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     old.abort();
                 }
 
+                let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
                     let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
-                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag, "error": e.to_string() }).to_string());
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag_task, "error": e.to_string() }).to_string());
                             return;
                         }
                     };
@@ -189,7 +190,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                                 if let Some(first) = rows.into_iter().next() {
                                     let sent = out_tx_clone.send(json!({
                                         "event": "traffic_frame",
-                                        "tag": stream_tag,
+                                        "tag": stream_tag_task,
                                         "interface": iface_clone,
                                         "data": first.attrs
                                     }).to_string());
@@ -201,7 +202,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                             Err(e) => {
                                 let _ = out_tx_clone.send(json!({
                                     "event": "stream_error",
-                                    "tag": stream_tag,
+                                    "tag": stream_tag_task,
                                     "error": e.to_string()
                                 }).to_string());
                                 break;
@@ -276,12 +277,13 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     old.abort();
                 }
 
+                let log_tag_task = log_tag.clone();
                 let handle = tokio::spawn(async move {
                     let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
-                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag, "error": e.to_string() }).to_string());
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag_task, "error": e.to_string() }).to_string());
                             return;
                         }
                     };
@@ -294,7 +296,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     let mut sub = match sub_res {
                         Ok(s) => s,
                         Err(e) => {
-                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag, "error": e.to_string() }).to_string());
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag_task, "error": e.to_string() }).to_string());
                             return;
                         }
                     };
@@ -304,7 +306,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                             Ok(sentence) => {
                                 let sent = out_tx_clone.send(json!({
                                     "event": "log_entry",
-                                    "tag": log_tag,
+                                    "tag": log_tag_task,
                                     "data": sentence.attrs
                                 }).to_string());
                                 if sent.is_err() {

@@ -189,13 +189,14 @@ pub async fn pcc_setup(
     for (i, wan) in req.wans.iter().enumerate() {
         let alias = &wan_aliases[i];
         let route_mark = format!("to_{}", alias);
+        let route_comment = format!("[PCC-LoadBalance] Route {}", alias);
 
         let mut r_args = vec![
             ("dst-address", "0.0.0.0/0"),
             ("gateway", wan.gateway.as_str()),
             ("routing-mark", route_mark.as_str()),
             ("distance", "1"),
-            ("comment", format!("[PCC-LoadBalance] Route {}", alias).as_str()),
+            ("comment", route_comment.as_str()),
         ];
         if req.auto_failover {
             r_args.push(("check-gateway", "ping"));
@@ -209,6 +210,7 @@ pub async fn pcc_setup(
         for (i, wan) in req.wans.iter().enumerate() {
             let alias = &wan_aliases[i];
             let dist_str = (i + 1).to_string();
+            let comment_str = format!("[PCC-LoadBalance] Failover Backup Metric {}", dist_str);
             let r_fallback = build_command(
                 "/ip/route/add",
                 [
@@ -216,7 +218,7 @@ pub async fn pcc_setup(
                     ("gateway", wan.gateway.as_str()),
                     ("check-gateway", "ping"),
                     ("distance", dist_str.as_str()),
-                    ("comment", format!("[PCC-LoadBalance] Failover Backup Metric {}", dist_str).as_str()),
+                    ("comment", comment_str.as_str()),
                 ],
             );
             client.run(r_fallback).await?;

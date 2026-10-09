@@ -101,12 +101,14 @@ pub async fn stream_logs(
     }
     let sub = client.listen(build_command("/log/print", args)).await?;
 
-    let sse_stream = sub.filter_map(|res| match res {
-        Ok(sentence) => {
-            let json_str = serde_json::to_string(&sentence.attrs).unwrap_or_default();
-            Some(Ok(Event::default().data(json_str)))
+    let sse_stream = sub.filter_map(|res| async move {
+        match res {
+            Ok(sentence) => {
+                let json_str = serde_json::to_string(&sentence.attrs).unwrap_or_default();
+                Some(Ok::<Event, Infallible>(Event::default().data(json_str)))
+            }
+            Err(_) => None,
         }
-        Err(_) => None,
     });
 
     Ok(Sse::new(sse_stream).keep_alive(KeepAlive::default()))
