@@ -12,8 +12,10 @@ services:
       - GATEWAY_LISTEN=0.0.0.0:8080
       - GATEWAY_TOKEN=change-me-to-a-long-random-string
       - RUST_LOG=info
-    volumes:
-      - ./config.toml:/app/config.toml:ro
+    # Opsional: Uncomment jika ingin mapping file config statis dari host.
+    # PENTING: Pastikan config.toml berupa file di host (`cp config.example.toml config.toml`), bukan folder.
+    # volumes:
+    #   - ./config.toml:/app/config.toml:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
       interval: 30s
