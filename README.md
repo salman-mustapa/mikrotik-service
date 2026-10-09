@@ -1,140 +1,254 @@
-# MikroTik Universal Rust Core & API Gateway Engine
-
-Service perantara berkinerja tinggi (*High-Performance Universal Gateway Service*) yang ditulis dengan **Rust** (`tokio` async). Proyek ini bertindak sebagai **jembatan universal terpusat** antara router MikroTik RouterOS dengan seluruh aplikasi klien (**Web React/Vue/Angular, Mobile Flutter/React Native/Swift/Kotlin, Backend Laravel/PHP, Node.js, Python, Go, Java**) tanpa batasan bahasa pemrograman.
-
----
-
-## 🏛️ Arsitektur Sistem Universal
-
 <p align="center">
-  <img src="assets/architecture-diagram.svg" width="100%" alt="MikroTik Universal Rust Gateway Architecture" />
+  <img src="assets/animated-banner.svg" width="100%" alt="MikroTik Universal Rust Engine Banner" />
 </p>
 
-### Diagram Alur Komunikasi
-
-```mermaid
-graph TB
-    subgraph Clients ["Aplikasi Pengembang (Stack Bebas)"]
-        W["Web Apps: React / Vue / Svelte"]
-        M["Mobile Apps: Flutter / React Native"]
-        B["Backend: Laravel / Node.js / Python / Go"]
-    end
-
-    subgraph RustEngine ["MikroTik Universal Rust Gateway (Port 8080)"]
-        AUTH["Bearer Token Auth"]
-        WS["WebSocket Engine (/ws)"]
-        FAST["Fast-Path Overview (/api/v1/overview)"]
-        REST["Universal REST API Engine"]
-        POOL["Dynamic Connection Pool (Zero-Churn TCP)"]
-        MUX["Wire Protocol Parser & .tag Multiplexer"]
-    end
-
-    subgraph Hardware ["Perangkat Router MikroTik"]
-        R1["Router Lokal (Port 8728)"]
-        R2["Router Remote VPN (Port 51121)"]
-    end
-
-    W -->|"HTTP JSON / WebSocket"| RustEngine
-    M -->|"HTTP JSON / WebSocket"| RustEngine
-    B -->|"HTTP POST JSON"| RustEngine
-
-    AUTH --> REST
-    AUTH --> FAST
-    REST --> POOL
-    FAST --> POOL
-    WS --> POOL
-    POOL --> MUX
-    MUX <-->|"Persistent Multiplexed Stream"| R1
-    MUX <-->|"Persistent Multiplexed Stream"| R2
-```
+<p align="center">
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
+  <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-192%20Active-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
+</p>
 
 ---
 
-## ⚡ Mengapa Menggunakan Rust Core Gateway Ini?
+## 🌟 Ikhtisar (Overview)
+
+**MikroTik Universal Rust Gateway Engine** adalah service perantara jaringan tingkat perusahaan (*Enterprise NOC Gateway*) yang dibangun murni menggunakan **Rust** asinkron (`tokio`, `axum`).
+
+Service ini dirancang sebagai **jembatan universal berperforma tinggi** antara perangkat keras MikroTik RouterOS (dari seri hemat daya seperti *hAP lite, hAP mini, RB750Gr3* hingga *CCR, Cloud Hosted Router (CHR)* dan *x86*) dengan **seluruh ekosistem aplikasi pengembang** tanpa batasan bahasa pemrograman:
+* 🌐 **Web Frontend**: Vue.js, React, Next.js, Nuxt, Svelte, Angular.
+* 📱 **Mobile Apps**: Flutter (Dart), React Native, Kotlin, Swift.
+* ⚡ **Backend Stacks**: Laravel (PHP), Express / Nest.js (Node.js), Go, Python (FastAPI/Django), Java (Spring).
+
+---
+
+## 💡 Mengapa Menggunakan Engine Rust Ini?
 
 <p align="center">
   <img src="assets/tag-multiplexing-flow.svg" width="100%" alt="Tag Multiplexing vs Naive Single-Socket Churn" />
 </p>
 
-1. **Universal Across Any Stack**: Tidak ada ketergantungan library khusus bahasa tertentu. Seluruh klien di stack mana pun cukup mengirimkan request HTTP standar dengan parameter yang konsisten:
-   `host`, `port`, `user`, `password` (melalui JSON body atau HTTP headers `X-Router-*`).
-2. **Kecepatan Sub-Millisecond (< 1-3 ms)**: Tidak ada lagi overhead koneksi lambat di mana klien harus buka-tutup socket TCP dan kalkulasi MD5 setiap kali memuat halaman. Rust menjaga koneksi TCP tetap hidup (*warm persistent pool*).
-3. **Fast-Path Aggregated Snapshot (`/api/v1/overview`)**: Menggabungkan 6 query router (CPU, RAM, Identity, RouterBOARD, Hotspot Online, PPPoE Online, Interface Link) secara paralel simultan menggunakan `.tag` multiplexer via `tokio::join!`. Dashboard NOC & billing termuat instan dalam 2ms tanpa 6x round-trip terpisah.
-4. **Full-Duplex WebSocket Engine (`/ws`)**: Streaming real-time monitoring traffic interface dan eksekusi command dua arah tanpa overhead polling HTTP.
-5. **Batch Voucher Generator (`/api/v1/hotspot/generate-batch`)**: Pembuatan ratusan voucher hotspot sekaligus dalam hitungan milidetik secara asinkron.
-6. **Aman untuk Router & Klien**: Mengurangi beban CPU MikroTik hingga ~85% sehingga voucher pelanggan dan pengguna online tidak terputus. Kredensial router juga tidak perlu terekspos langsung ke browser pengguna.
+| Fitur Konvensional (Library PHP/Node.js) | 🦀 MikroTik Universal Rust Engine |
+|---|---|
+| **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda `.tag`. |
+| **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang/freeze saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Timeout Guard** dan FastTrack connection bypass. |
+| **Kecepatan Respons**: 200 ms – 1.5 detik per request. | **Sub-Milidetik**: Rata-rata respons **< 1.5 milidetik** berkat protokol biner tingkat rendah (*raw wire format*). |
+| **Ketergantungan Stack**: Terikat library spesifik (misal `routeros-api.php`). | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
+| **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`). |
 
 ---
 
-## 📑 Daftar Isi Dokumentasi
+## 🏛️ Arsitektur & Alur Kerja
 
-Dokumentasi teknis lengkap tersedia di folder [`docs/`](docs/):
+<p align="center">
+  <img src="assets/architecture-diagram.svg" width="100%" alt="MikroTik Universal Rust Gateway Architecture" />
+</p>
 
-1. **[01. Arsitektur & Alur Kerja Sistem](docs/01-arsitektur-dan-alur.md)**
-   - Perbandingan arsitektur socket konvensional vs Rust Gateway.
-   - Cara kerja multiplexing tag `.tag` pada satu koneksi TCP.
-2. **[02. Protokol Biner RouterOS (Port 8728)](docs/02-protokol-routeros-binary.md)**
-   - Format biner length-prefix (1–5 byte), Words, dan Sentences (`!re`, `!done`, `!trap`).
-   - Alur autentikasi otomatis: RouterOS v6 (MD5 challenge) & RouterOS v7 (plain).
-3. **[03. Spesifikasi Gateway REST, WebSocket & SSE API](docs/03-gateway-api-spesifikasi.md)**
-   - Mekanisme passing kredensial (Headers vs Body vs ID).
-   - Protokol frame WebSocket bidirectional (`/ws`).
-   - Format response terstandarisasi dan error handling trap.
-4. **[04. Referensi Lengkap Universal API](docs/04-universal-api-reference.md)**
-   - Seluruh daftar endpoint modular: Overview, System, IPv4, IPv6, DHCP, Hotspot & Batch Voucher, PPP, Firewall, Queues, Interfaces, Tools, dan WebSocket.
-5. **[05. Panduan Integrasi Multi-Stack](docs/05-integrasi-multi-stack.md)**
-   - Contoh kode integrasi siap pakai untuk JavaScript/TypeScript, Mobile Flutter/Dart, Python, PHP/Laravel, dan Go.
-6. **[06. Katalog Lengkap Command MikroTik](docs/06-katalog-command-mikrotik.md)**
-   - Kamus referensi seluruh path command MikroTik RouterOS API beserta filter query dan atributnya.
+```mermaid
+graph TB
+    subgraph Stacks ["Aplikasi Klien (Bebas Stack)"]
+        W["Web: Vue / React / Nuxt"]
+        M["Mobile: Flutter / React Native"]
+        B["Backend: Laravel / Express / Go / Python"]
+    end
+
+    subgraph RustEngine ["Rust Universal Gateway Core (Port 8080)"]
+        AUTH["Bearer Token Middleware"]
+        WS["Full-Duplex WebSocket (/ws)"]
+        REST["192 Modular REST API Endpoints"]
+        POOL["Async Multiplexed Connection Pool"]
+        GUARD["15s Anti-Hang Timeout Guard"]
+    end
+
+    subgraph Hardware ["Perangkat RouterOS (v6.x & v7.x)"]
+        R1["Router Lokal (Port 8728)"]
+        R2["Router Remote VPN (Port 51121)"]
+        R3["Cloud Hosted Router / CCR"]
+    end
+
+    W -->|"HTTP JSON / WS"| RustEngine
+    M -->|"HTTP JSON / WS"| RustEngine
+    B -->|"HTTP POST JSON"| RustEngine
+
+    AUTH --> REST
+    AUTH --> WS
+    REST --> POOL
+    WS --> POOL
+    POOL --> GUARD
+    GUARD <-->|"Binary Wire Protocol"| R1
+    GUARD <-->|"Binary Wire Protocol"| R2
+    GUARD <-->|"Binary Wire Protocol"| R3
+```
 
 ---
 
-## 🚀 API Collections untuk Pengujian
+## 🎯 Matriks Fitur Unggulan
 
-Koleksi pengujian siap pakai tersedia di folder [`collections/`](collections/):
-- **[`collections/mikrotik-gateway.http`](collections/mikrotik-gateway.http)**: Pengujian instan di VS Code (REST Client) atau JetBrains HTTP Client.
-- **[`collections/mikrotik_gateway.postman_collection.json`](collections/mikrotik_gateway.postman_collection.json)**: Siap di-import langsung ke Postman, Insomnia, atau Bruno.
+### 1. 📵 Anti-Tethering & Anti-WiFi Sharing (`/api/v1/security/anti-tethering/*`)
+* Menyuntikkan aturan Mangle `action=change-ttl new-ttl=set:1` dan memaksa `shared-users=1`.
+* **Memblokir** upaya berbagi internet voucher melalui **QR Code WiFi Sharing, Bluetooth Tethering, maupun USB Tethering**.
+
+### 2. ⚖️ 1-Klik Multi-WAN PCC Load Balancing Wizard (`/api/v1/load-balance/*`)
+* Mengotomatisasi konfigurasi rumit **Per Connection Classifier (PCC)** Multi-WAN dalam 1 panggilan API (< 30ms).
+* Mendukung rasio bobot tidak seimbang (misal ISP1 50M vs ISP2 100M dengan bobot `1:2`), otomatis failover ping `check-gateway`, dan NAT Masquerade.
+* Endpoint pemantau live balance ratio (`/api/v1/load-balance/status`) dan tombol reset aman (`/api/v1/load-balance/remove`).
+
+### 3. 🔍 Inspeksi Mendalam Queue & Kecepatan User (`/api/v1/queues/*`)
+* Mengetahui limit max (`5M/10M`), kecepatan real-time upload & download saat ini, persentase utilisasi antrean, kuota total transfer, dan packet drops.
+* Menampilkan status antrean langsung: `THROTTLED (Merah di Winbox)`, `ACTIVE`, atau `IDLE`.
+* Rekapitulasi eksekutif NOC untuk seluruh router: Total bandwidth dialokasikan vs konsumsi real-time dan **Top 5 Downloaders Terberat**.
+
+### 4. 🚫 1-Klik App & Content Blocker (`/api/v1/security/app-block`)
+* Blokir instan untuk aplikasi dan konten: **WhatsApp, TikTok, YouTube, Judi Online, Torrent/P2P, atau Domain Custom**.
+
+### 5. 🧙‍♂️ 1-Klik Complete Hotspot Template Wizard (`/api/v1/hotspot/wizard/setup`)
+* Membangun infrastruktur Hotspot lengkap dari nol dalam < 50ms: IP Address, Pool, DHCP Server, DHCP Network, Profil Hotspot, User Admin, Profil Anti-Tethering, dan Masquerade.
+
+### 6. 🔀 Dst-NAT Port Forwarding Wizard (`/api/v1/firewall/port-forward`)
+* Sekali klik membuat aturan Dst-NAT port forwarding (CCTV, Web Server, Billing) sekaligus membuka firewall filter forward accept dengan komentar `[Dst-NAT]`.
+
+### 7. 🚀 FastTrack CPU Accelerator & Profiler (`/api/v1/system/*`)
+* Memangkas beban CPU hingga 80% pada router kecil (hAP lite/mini/RB750Gr3) dengan membypass connection tracking untuk paket established/related.
+
+### 8. 📡 Access Point & Infrastructure Detector (`/api/v1/network/infrastructure/scan`)
+* Mendeteksi AP (Ubiquiti, TP-Link, Ruijie, Tenda), Switch, dan kamera di balik bridge/Hotspot serta fitur **Auto-Bypass AP** ke IP-Binding agar admin bisa remote AP tanpa login voucher.
+
+### 9. ✈️ Telegram Bot & Automated Netwatch (`/api/v1/telegram/*`)
+* Monitoring status UP/DOWN link ISP dan AP lokal, notifikasi otomatis terkirim ke bot Telegram via `/tool/fetch`.
+
+### 10. 🎮 Pisah Trafik Game vs Sosmed (`/api/v1/traffic/preset/game-social-separation`)
+* Paket Game Online (Mobile Legends, PUBG, Free Fire, Valorant) diprioritaskan di Jalur 1, sementara streaming dan medsos dialihkan ke Prioritas 8.
+
+### 11. 🌐 Visualizer Topologi Interaktif + Embeddable SDK (`/topology` & `/sdk/mikrotik-widget.js`)
+* Dashboard visual graf relasi topologi real-time bergaya Obsidian Dark Mode. Dilengkapi fitur **Live ICMP Ping** langsung dari router ke target IP. Dapat di-embed ke Laravel/Vue dengan 1 baris JavaScript.
 
 ---
 
-## 🛠️ Menjalankan Service di Komputer Anda
+## 🐳 Panduan Instalasi Cepat dengan Docker (1-Command)
 
-### 1. Jalankan Gateway
+Service telah dibungkus rapi dalam image Docker multi-stage ultra-ringan (**< 25 MB**) berbasis Alpine Linux:
+
+### 1. Jalankan Menggunakan Docker Compose (Direkomendasikan)
+```bash
+docker compose up -d
+```
+
+### 2. Atau Jalankan Langsung dengan Docker Run
+```bash
+docker run -d \
+  --name mikrotik-universal-gateway \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e GATEWAY_LISTEN=0.0.0.0:8080 \
+  -e GATEWAY_TOKEN=change-me-to-a-long-random-string \
+  -e RUST_LOG=info \
+  salmanmustapa/mikrotik-universal-gateway:latest
+```
+
+Server langsung aktif di `http://localhost:8080`.
+* Buka **Live Web Playground**: `http://localhost:8080/`
+* Buka **Visualizer Topologi**: `http://localhost:8080/topology`
+* Cek **Health Check**: `http://localhost:8080/health`
+
+---
+
+## 💻 Panduan Menjalankan Secara Manual (Tanpa Docker)
+
 ```powershell
-# Menggunakan config default
+# Clone repositori
+git clone https://github.com/salman-mustapa/mikrotik-service.git
+cd mikrotik-service
+
+# Jalankan gateway dengan config.toml
 cargo run -p routeros-gateway -- config.toml
 ```
-Server akan aktif di `http://127.0.0.1:8080`.
-Buka browser Anda ke `http://127.0.0.1:8080/` untuk mengakses **Interactive Live Playground**.
 
-### 2. Contoh Fast-Path Overview
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/overview \
-  -H "Authorization: Bearer change-me-to-a-long-random-string" \
-  -H "X-Router-Host: ath.vpnbersama.us" \
-  -H "X-Router-Port: 51121" \
-  -H "X-Router-User: admin" \
-  -H "X-Router-Pass: secret" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+---
+
+## 🔌 Contoh Integrasi Multi-Stack
+
+### 1. Laravel (PHP)
+```php
+use Illuminate\Support\Facades\Http;
+
+$response = Http::withToken('change-me-to-a-long-random-string')
+    ->withHeaders([
+        'X-Router-Host' => '192.168.88.1',
+        'X-Router-Port' => '8728',
+        'X-Router-User' => 'admin',
+        'X-Router-Pass' => 'password123',
+    ])
+    ->post('http://127.0.0.1:8080/api/v1/queues/inspect-user', [
+        'query' => '192.168.88.50'
+    ]);
+
+$userData = $response->json();
+echo "Kecepatan Saat Ini: " . $userData['current_speed']['download_formatted'];
 ```
 
-### 3. Contoh WebSocket Full-Duplex (/ws)
+### 2. Vue 3 / Nuxt / Express (JavaScript / TypeScript)
 ```javascript
-const ws = new WebSocket("ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string");
+const res = await fetch('http://127.0.0.1:8080/api/v1/overview', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer change-me-to-a-long-random-string',
+    'X-Router-Host': '192.168.88.1',
+    'X-Router-Port': '8728',
+    'X-Router-User': 'admin',
+    'X-Router-Pass': 'password123',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({})
+});
 
-ws.onopen = () => {
-  // Subscribe live interface traffic
-  ws.send(JSON.stringify({
-    action: "subscribe_traffic",
-    router: { host: "ath.vpnbersama.us", port: 51121, user: "admin", password: "secret" },
-    interface: "ether1",
-    tag: "traffic-eth1"
-  }));
-};
-
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-  console.log("Live stream frame:", msg);
-};
+const overview = await res.json();
+console.log("Router CPU Load:", overview.system.cpu_load);
 ```
+
+### 3. Mobile Flutter / Dart
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+Future<void> fetchRouterOverview() async {
+  final res = await http.post(
+    Uri.parse('http://10.0.2.2:8080/api/v1/overview'),
+    headers: {
+      'Authorization': 'Bearer change-me-to-a-long-random-string',
+      'X-Router-Host': '192.168.88.1',
+      'X-Router-Port': '8728',
+      'X-Router-User': 'admin',
+      'X-Router-Pass': 'password123',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({}),
+  );
+  print(jsonDecode(res.body));
+}
+```
+
+---
+
+## 📑 Dokumentasi Teknis Lengkap
+
+Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:
+* **[01. Arsitektur & Alur Kerja Sistem](docs/01-arsitektur-dan-alur.md)**
+* **[02. Protokol Biner RouterOS (Port 8728)](docs/02-protokol-routeros-binary.md)**
+* **[03. Spesifikasi Gateway REST, WebSocket & SSE](docs/03-gateway-api-spesifikasi.md)**
+* **[04. Referensi Lengkap Universal API (192 Endpoints)](docs/04-universal-api-reference.md)**
+* **[05. Panduan Integrasi Multi-Stack (Laravel, Vue, Express, Flutter, Go)](docs/05-integrasi-multi-stack.md)**
+* **[06. Katalog Lengkap Command MikroTik](docs/06-katalog-command-mikrotik.md)**
+
+---
+
+## 🧪 Koleksi Pengujian Siap Pakai
+
+* **[`collections/mikrotik-gateway.http`](collections/mikrotik-gateway.http)**: 49 skenario pengujian instan di VS Code REST Client atau JetBrains HTTP Client.
+* **[`collections/mikrotik_gateway.postman_collection.json`](collections/mikrotik_gateway.postman_collection.json)**: Siap di-import ke Postman, Insomnia, atau Bruno.
+
+---
+
+## 📄 Lisensi
+Proyek ini dilisensikan di bawah lisensi **MIT License**.
+Dikembangkan untuk komunitas Network Operations Center (NOC) dan Software Developers modern.

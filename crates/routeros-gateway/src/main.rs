@@ -245,7 +245,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let path = std::env::args().nth(1).unwrap_or_else(|| "config.toml".into());
-    let cfg: Config = toml::from_str(&std::fs::read_to_string(&path)?)?;
+    let mut cfg: Config = if std::path::Path::new(&path).exists() {
+        toml::from_str(&std::fs::read_to_string(&path)?)?
+    } else {
+        Config {
+            listen: "0.0.0.0:8080".into(),
+            api_token: "change-me-to-a-long-random-string".into(),
+            routers: vec![],
+        }
+    };
+
+    if let Ok(env_listen) = std::env::var("GATEWAY_LISTEN") {
+        cfg.listen = env_listen;
+    }
+    if let Ok(env_token) = std::env::var("GATEWAY_TOKEN") {
+        cfg.api_token = env_token;
+    }
+
     let listen_addr = cfg.listen.clone();
 
     let state = Arc::new(AppState::new(cfg));

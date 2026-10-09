@@ -1,0 +1,9 @@
+target/
+.git/
+.github/
+.gemini/
+scratch/
+docs/
+*.log
+*.tmp
+*.http
