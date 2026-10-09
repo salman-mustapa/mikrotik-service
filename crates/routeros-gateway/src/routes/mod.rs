@@ -3,6 +3,7 @@ pub mod batch;
 pub mod bridge;
 pub mod dhcp;
 pub mod dns;
+pub mod dude;
 pub mod expert;
 pub mod firewall;
 pub mod hotspot;
@@ -10,6 +11,7 @@ pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
 pub mod logs;
+pub mod maintenance;
 pub mod neighbors;
 pub mod network_map;
 pub mod overview;
@@ -17,6 +19,7 @@ pub mod ppp;
 pub mod queues;
 pub mod raw;
 pub mod scripts;
+pub mod security_advisor;
 pub mod system;
 pub mod tools;
 pub mod user_manager;
@@ -212,6 +215,24 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Logs & Streaming ---
         .route("/api/v1/logs/all", post(logs::all))
         .route("/api/v1/logs/stream", get(logs::stream_logs))
+
+        // --- Security & CVE Vulnerability Advisor ---
+        .route("/api/v1/security/vulnerability-audit", post(security_advisor::vulnerability_audit))
+        .route("/api/v1/security/deploy-antibruteforce", post(security_advisor::deploy_antibruteforce))
+
+        // --- The Dude Network Monitor & Database Maintenance ---
+        .route("/api/v1/dude/status", post(dude::status))
+        .route("/api/v1/dude/toggle", post(dude::toggle))
+        .route("/api/v1/dude/export-db", post(dude::export_db))
+        .route("/api/v1/dude/import-db", post(dude::import_db))
+        .route("/api/v1/dude/vacuum", post(dude::vacuum))
+        .route("/api/v1/dude/devices", post(dude::devices))
+
+        // --- Disaster Recovery, Netinstall & Architecture Tools ---
+        .route("/api/v1/maintenance/netinstall-prep", post(maintenance::netinstall_prep))
+        .route("/api/v1/maintenance/pre-upgrade-snapshot", post(maintenance::pre_upgrade_snapshot))
+        .route("/api/v1/maintenance/architecture-package-url", post(maintenance::architecture_package_url))
+        .route("/api/v1/maintenance/reset-configuration", post(maintenance::reset_configuration))
 
         .with_state(state)
 }

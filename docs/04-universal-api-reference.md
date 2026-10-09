@@ -456,3 +456,65 @@ ws.onmessage = (event) => {
 };
 ```
 
+---
+
+### BB. 🛡️ Security, CVE Vulnerability Audit & Anti-Bruteforce (`/api/v1/security/*`)
+Mendeteksi kerentanan versi RouterOS secara mendalam (CVE database), mendeteksi celah servis, dan memasang aturan pertahanan anti-bruteforce multi-stage otomatis:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/security/vulnerability-audit` | **Deep CVE Scan**: Audit versi OS (v6/v7), arsitektur CPU, cek celah CVE-2018-14847, Chimay-Red, CVE-2023-30799, CVE-2024-54772, CVE-2026-16347, open DNS resolver, akun admin default | `{}` |
+| `POST` | `/api/v1/security/deploy-antibruteforce` | **Deploy Pertahanan Anti-Bruteforce**: Suntik aturan multi-stage connection-rate limiting untuk WinBox (8291), API (8728), SSH (22) dan otomatis blacklist IP penyerang | `{"protect_winbox": true, "protect_ssh": true, "protect_api": true, "blacklist_timeout": "7d"}` |
+
+Contoh Output `/api/v1/security/vulnerability-audit`:
+```json
+{
+  "success": true,
+  "router_fingerprint": {
+    "version": "6.49.6",
+    "architecture": "mipsbe",
+    "board_name": "RB951Ui-2HnD",
+    "free_storage_mb": 42
+  },
+  "security_score": 60,
+  "threat_level": "VULNERABLE",
+  "detected_cves": [
+    {
+      "cve_id": "CVE-2023-30799",
+      "title": "WinBox Privilege Escalation to Super-Admin",
+      "severity": "HIGH",
+      "affected_versions": "RouterOS v6.49.7 and prior / v7.0 through v7.9",
+      "remediation": "Upgrade immediately to RouterOS >= 6.49.8 (v6) or >= 7.10 (v7)"
+    }
+  ],
+  "service_vulnerabilities": [
+    "Telnet aktif: Protokol tanpa enkripsi, rentan terhadap sniffing kredensial di jaringan LAN/WISP."
+  ],
+  "architecture_advisories": []
+}
+```
+
+---
+
+### CC. 📡 The Dude Network Monitor & Database Maintenance (`/api/v1/dude/*`)
+Mengelola server The Dude di MikroTik, memantau node/perangkat jaringan, dan menangani masalah kerusakan database SQLite The Dude:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/dude/status` | Cek status server The Dude (`enabled`, path database, operational status) | `{}` |
+| `POST` | `/api/v1/dude/toggle` | **Matikan/Nyalakan The Dude**: Disarankan mematikan Dude sebelum backup/vacuum agar database tidak corrupt | `{"enabled": false}` |
+| `POST` | `/api/v1/dude/export-db` | **Backup Database Dude**: Ekspor database SQLite ke file `.db` | `{"backup_file": "dude_backup_2026.db"}` |
+| `POST` | `/api/v1/dude/import-db` | **Restore Database Dude**: Impor file backup database | `{"backup_file": "dude_backup_2026.db"}` |
+| `POST` | `/api/v1/dude/vacuum` | **Vacuum / Compact Database**: Mengurangi fragmentasi disk dan mengecilkan ukuran `dude.db` | `{"file": "dude.db"}` |
+| `POST` | `/api/v1/dude/devices` | Ambil daftar seluruh router & server yang sedang dimonitor oleh The Dude | `{}` |
+
+---
+
+### DD. 🔄 Disaster Recovery, Netinstall & Architecture Package Resolver (`/api/v1/maintenance/*`)
+Alat tanggap bencana untuk pemulihan router mati, hard reset, dan resolusi paket CPU arsitektur MikroTik:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/maintenance/netinstall-prep` | **Etherboot / Netinstall Mode**: Mengatur RouterBOARD boot-device ke `try-ethernet-once-then-nand`. Pada reboot berikutnya router otomatis masuk mode Netinstall tanpa perlu menekan tombol reset fisik! | `{}` |
+| `POST` | `/api/v1/maintenance/pre-upgrade-snapshot` | **Snapshot Ganda Pra-Upgrade**: Membuat file binary `.backup` dan text `.rsc` dengan timestamp sebelum upgrade berisiko | `{}` |
+| `POST` | `/api/v1/maintenance/architecture-package-url` | **Arch Package CDN Resolver**: Mendeteksi CPU arsitektur router (`arm`, `arm64`, `tile`, `mipsbe`, `mmips`, `smips`, `x86`, `chr`, `powerpc`) dan membuat URL download resmi langsung dari CDN MikroTik | `{"target_version": "7.15.3"}` |
+| `POST` | `/api/v1/maintenance/reset-configuration` | **Factory Reset Terkontrol**: Eksekusi reset RouterOS dengan opsi simpan user atau tanpa default konfigurasi | `{"keep_users": true, "no_defaults": true, "skip_backup": false}` |
+
+

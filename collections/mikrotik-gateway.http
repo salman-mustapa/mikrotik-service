@@ -382,3 +382,66 @@ Content-Type: application/json
 
 {}
 
+### 23. 🔎 Deep CVE Vulnerability & Hardware Arch Audit
+POST {{baseUrl}}/api/v1/security/vulnerability-audit
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 24. 🛡️ Deploy Anti-Bruteforce Defense (Multi-Stage Rate Limiting)
+POST {{baseUrl}}/api/v1/security/deploy-antibruteforce
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "protect_winbox": true,
+  "protect_ssh": true,
+  "protect_api": true,
+  "blacklist_timeout": "7d"
+}
+
+### 25. 📡 The Dude Server Status & Monitored Devices
+POST {{baseUrl}}/api/v1/dude/status
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 26. 🔄 Netinstall Boot-Device Prep (Etherboot)
+POST {{baseUrl}}/api/v1/maintenance/netinstall-prep
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 27. 📦 Architecture Package Resolver & Official CDN URLs
+POST {{baseUrl}}/api/v1/maintenance/architecture-package-url
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "target_version": "7.15.3"
+}
+
+
