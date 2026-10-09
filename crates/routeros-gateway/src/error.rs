@@ -66,7 +66,7 @@ impl IntoResponse for ApiError {
                 }),
             ),
             ApiError::RouterLogin(m) => (
-                StatusCode::BAD_GATEWAY,
+                StatusCode::UNAUTHORIZED,
                 json!({
                     "success": false,
                     "error": format!("router authentication failed: {m}"),
@@ -74,7 +74,7 @@ impl IntoResponse for ApiError {
                 }),
             ),
             ApiError::RouterFatal(m) => (
-                StatusCode::BAD_GATEWAY,
+                StatusCode::SERVICE_UNAVAILABLE,
                 json!({
                     "success": false,
                     "error": format!("router connection dropped: {m}"),
