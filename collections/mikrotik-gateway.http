@@ -1,84 +1,186 @@
 ### Variables
 @baseUrl = http://127.0.0.1:8080
 @token = change-me-to-a-long-random-string
-@routerId = main
 
-### 1. Health Check
+### Target Router Variables (Bisa diubah ke IP mana saja, e.g. 192.168.88.1 atau ath.vpnbersama.us)
+@routerHost = ath.vpnbersama.us
+@routerPort = 51121
+@routerUser = admin
+@routerPass = password_anda
+
+### 1. Health Check (Tanpa Auth)
 GET {{baseUrl}}/health
 
-### 2. Print System Resource (CPU, Uptime, Memory)
-POST {{baseUrl}}/routers/{{routerId}}/command
+### 2. Universal System Resource (CPU, Uptime, Memory)
+POST {{baseUrl}}/api/v1/system/resource
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "command": "/system/resource/print"
-}
-
-### 3. Print Interfaces dengan Proplist (Hanya nama, tipe, status)
-POST {{baseUrl}}/routers/{{routerId}}/command
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{
-  "command": "/interface/print",
-  "args": {
-    ".proplist": ".id,name,type,running,disabled"
+  "router": {
+    "host": "{{routerHost}}",
+    "port": {{routerPort}},
+    "user": "{{routerUser}}",
+    "password": "{{routerPass}}"
   }
 }
 
-### 4. Print IP Addresses (Filter hanya yang aktif / ?disabled=no)
-POST {{baseUrl}}/routers/{{routerId}}/command
+### 3. Universal Get Identity Router (Menggunakan Header X-Router-*)
+POST {{baseUrl}}/api/v1/system/identity
 Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 4. Check for RouterOS Updates
+POST {{baseUrl}}/api/v1/system/check-update
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 5. IPv4 Addresses List
+POST {{baseUrl}}/api/v1/ip/addresses
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
 Content-Type: application/json
 
 {
-  "command": "/ip/address/print",
-  "args": {
+  "filter": {
     "?disabled": "no"
   }
 }
 
-### 5. Tambah Hotspot User Baru (Create Voucher)
-POST {{baseUrl}}/routers/{{routerId}}/command
+### 6. IPv6 Addresses List
+POST {{baseUrl}}/api/v1/ipv6/addresses
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 7. DHCP Leases List (Perangkat Lokal)
+POST {{baseUrl}}/api/v1/dhcp/leases
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 8. Hotspot Voucher List
+POST {{baseUrl}}/api/v1/hotspot/users
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 9. Hotspot Create Voucher Baru
+POST {{baseUrl}}/api/v1/hotspot/user/create
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "vc_member_01",
+  "password": "secretpassword",
+  "profile": "default",
+  "timelimit": "3h",
+  "comment": "Dibuat via Universal Gateway"
+}
+
+### 10. Hotspot Active Users (Sedang Online)
+POST {{baseUrl}}/api/v1/hotspot/active
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 11. PPPoE Secrets List
+POST {{baseUrl}}/api/v1/ppp/secrets
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 12. Firewall Block IP (Masukkan ke Address List)
+POST {{baseUrl}}/api/v1/firewall/block-ip
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "address": "198.51.100.25",
+  "list": "BLACKLIST_ATTACK",
+  "timeout": "1d",
+  "comment": "Brute force attack"
+}
+
+### 13. Simple Queue List (Bandwidth Limiter)
+POST {{baseUrl}}/api/v1/queues/simple
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 14. Universal Raw Command Runner (Perintah Bebas Apa Saja)
+POST {{baseUrl}}/api/v1/command
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "command": "/ip/hotspot/user/add",
+  "router": {
+    "host": "{{routerHost}}",
+    "port": {{routerPort}},
+    "user": "{{routerUser}}",
+    "password": "{{routerPass}}"
+  },
+  "command": "/tool/ping",
   "args": {
-    "name": "voucher_test_01",
-    "password": "pass123456",
-    "profile": "default",
-    "comment": "Dibuat via Rust Gateway"
+    "address": "8.8.8.8",
+    "count": "3"
   }
 }
 
-### 6. Ambil Daftar Hotspot User
-POST {{baseUrl}}/routers/{{routerId}}/command
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{
-  "command": "/ip/hotspot/user/print",
-  "args": {
-    ".proplist": ".id,name,profile,uptime,bytes-in,bytes-out"
-  }
-}
-
-### 7. Hapus Hotspot User berdasarkan .id
-POST {{baseUrl}}/routers/{{routerId}}/command
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{
-  "command": "/ip/hotspot/user/remove",
-  "args": {
-    ".id": "*1"
-  }
-}
-
-### 8. SSE Streaming Traffic Interface (Buka di browser atau SSE client)
-GET {{baseUrl}}/routers/{{routerId}}/listen?command=/interface/monitor-traffic&interface=ether1
+### 15. Realtime Traffic Streaming (SSE) - Buka di browser / SSE client
+GET {{baseUrl}}/api/v1/interfaces/stream?host={{routerHost}}&port={{routerPort}}&user={{routerUser}}&password={{routerPass}}&interface=ether1
 Authorization: Bearer {{token}}
 Accept: text/event-stream

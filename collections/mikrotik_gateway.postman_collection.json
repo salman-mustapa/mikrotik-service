@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "f8a9e6d2-3c1b-4f8a-9a72-b91c83d6a123",
-    "name": "MikroTik Rust Gateway API",
-    "description": "Collection untuk pengujian REST API & Streaming Gateway MikroTik berbasis Rust.",
+    "_postman_id": "a9182c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "name": "MikroTik Universal Rust Gateway API",
+    "description": "Universal REST API & SSE collection for interacting with MikroTik RouterOS across any tech stack (React, Vue, Laravel, Node, Python, Flutter, etc.)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,8 +17,23 @@
       "type": "string"
     },
     {
-      "key": "router_id",
-      "value": "main",
+      "key": "router_host",
+      "value": "ath.vpnbersama.us",
+      "type": "string"
+    },
+    {
+      "key": "router_port",
+      "value": "51121",
+      "type": "string"
+    },
+    {
+      "key": "router_user",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "router_pass",
+      "value": "password_anda",
       "type": "string"
     }
   ],
@@ -36,146 +51,228 @@
     {
       "name": "Health Check",
       "request": {
-        "auth": {
-          "type": "noauth"
-        },
+        "auth": { "type": "noauth" },
         "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/health",
-          "host": ["{{base_url}}"],
-          "path": ["health"]
-        }
+        "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
       }
     },
     {
-      "name": "System Resource Print (CPU & RAM)",
+      "name": "System - Resources (CPU & RAM)",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"command\": \"/system/resource/print\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/command",
-          "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "command"]
-        }
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/system/resource", "host": ["{{base_url}}"], "path": ["api", "v1", "system", "resource"] }
       }
     },
     {
-      "name": "Interface Print (with proplist)",
+      "name": "System - Identity",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"command\": \"/interface/print\",\n  \"args\": {\n    \".proplist\": \".id,name,type,running,disabled\"\n  }\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/command",
-          "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "command"]
-        }
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/system/identity", "host": ["{{base_url}}"], "path": ["api", "v1", "system", "identity"] }
       }
     },
     {
-      "name": "IP Address Print (Filter Active)",
+      "name": "System - Check for Updates",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"command\": \"/ip/address/print\",\n  \"args\": {\n    \"?disabled\": \"no\"\n  }\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/command",
-          "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "command"]
-        }
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/system/check-update", "host": ["{{base_url}}"], "path": ["api", "v1", "system", "check-update"] }
       }
     },
     {
-      "name": "Hotspot Add User (Create Voucher)",
+      "name": "IP - Addresses (IPv4)",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"command\": \"/ip/hotspot/user/add\",\n  \"args\": {\n    \"name\": \"voucher001\",\n    \"password\": \"pass1234\",\n    \"profile\": \"default\",\n    \"comment\": \"Generated via Rust API\"\n  }\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/command",
-          "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "command"]
-        }
+        "body": { "mode": "raw", "raw": "{\n  \"filter\": {\n    \"?disabled\": \"no\"\n  }\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/ip/addresses", "host": ["{{base_url}}"], "path": ["api", "v1", "ip", "addresses"] }
       }
     },
     {
-      "name": "Hotspot List Users",
+      "name": "IPv6 - Addresses",
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"command\": \"/ip/hotspot/user/print\",\n  \"args\": {\n    \".proplist\": \".id,name,profile,uptime,bytes-in,bytes-out\"\n  }\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/command",
-          "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "command"]
-        }
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/ipv6/addresses", "host": ["{{base_url}}"], "path": ["api", "v1", "ipv6", "addresses"] }
       }
     },
     {
-      "name": "SSE Listen Traffic (Server-Sent Events)",
+      "name": "DHCP - Leases",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/dhcp/leases", "host": ["{{base_url}}"], "path": ["api", "v1", "dhcp", "leases"] }
+      }
+    },
+    {
+      "name": "Hotspot - Users (Vouchers)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/hotspot/users", "host": ["{{base_url}}"], "path": ["api", "v1", "hotspot", "users"] }
+      }
+    },
+    {
+      "name": "Hotspot - Create User Voucher",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"voucher001\",\n  \"password\": \"pass1234\",\n  \"profile\": \"default\",\n  \"timelimit\": \"3h\",\n  \"comment\": \"Generated via API\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/hotspot/user/create", "host": ["{{base_url}}"], "path": ["api", "v1", "hotspot", "user", "create"] }
+      }
+    },
+    {
+      "name": "Hotspot - Active Users Online",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/hotspot/active", "host": ["{{base_url}}"], "path": ["api", "v1", "hotspot", "active"] }
+      }
+    },
+    {
+      "name": "PPP - Secrets",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/ppp/secrets", "host": ["{{base_url}}"], "path": ["api", "v1", "ppp", "secrets"] }
+      }
+    },
+    {
+      "name": "Firewall - Block IP (Address List)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"address\": \"103.1.2.3\",\n  \"list\": \"BLACKLIST_ATTACK\",\n  \"timeout\": \"7d\",\n  \"comment\": \"Blocked via Gateway\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/firewall/block-ip", "host": ["{{base_url}}"], "path": ["api", "v1", "firewall", "block-ip"] }
+      }
+    },
+    {
+      "name": "Queues - Simple",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": { "raw": "{{base_url}}/api/v1/queues/simple", "host": ["{{base_url}}"], "path": ["api", "v1", "queues", "simple"] }
+      }
+    },
+    {
+      "name": "Universal Raw Command",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"router\": {\n    \"host\": \"{{router_host}}\",\n    \"port\": {{router_port}},\n    \"user\": \"{{router_user}}\",\n    \"password\": \"{{router_pass}}\"\n  },\n  \"command\": \"/system/resource/print\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/command", "host": ["{{base_url}}"], "path": ["api", "v1", "command"] }
+      }
+    },
+    {
+      "name": "Realtime Traffic Stream (SSE)",
       "request": {
         "method": "GET",
         "header": [
-          {
-            "key": "Accept",
-            "value": "text/event-stream"
-          }
+          { "key": "Accept", "value": "text/event-stream" }
         ],
         "url": {
-          "raw": "{{base_url}}/routers/{{router_id}}/listen?command=/interface/monitor-traffic&interface=ether1",
+          "raw": "{{base_url}}/api/v1/interfaces/stream?host={{router_host}}&port={{router_port}}&user={{router_user}}&password={{router_pass}}&interface=ether1",
           "host": ["{{base_url}}"],
-          "path": ["routers", "{{router_id}}", "listen"],
+          "path": ["api", "v1", "interfaces", "stream"],
           "query": [
-            {
-              "key": "command",
-              "value": "/interface/monitor-traffic"
-            },
-            {
-              "key": "interface",
-              "value": "ether1"
-            }
+            { "key": "host", "value": "{{router_host}}" },
+            { "key": "port", "value": "{{router_port}}" },
+            { "key": "user", "value": "{{router_user}}" },
+            { "key": "password", "value": "{{router_pass}}" },
+            { "key": "interface", "value": "ether1" }
           ]
         }
       }
