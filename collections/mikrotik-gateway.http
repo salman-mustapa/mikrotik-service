@@ -444,4 +444,103 @@ Content-Type: application/json
   "target_version": "7.15.3"
 }
 
+### 28. 📡 Scan Infrastructure (Access Points, Switches & Cameras)
+POST {{baseUrl}}/api/v1/network/infrastructure/scan
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 29. 🔓 Auto-Bypass Access Point di Hotspot
+POST {{baseUrl}}/api/v1/network/infrastructure/auto-bypass-ap
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "mac_address": "50:D4:F7:AA:BB:CC",
+  "address": "192.168.88.2",
+  "comment": "[Auto-AP] TP-Link EAP Lantai 1"
+}
+
+### 30. ✈️ Setup Automated Netwatch dengan Telegram Alert
+POST {{baseUrl}}/api/v1/telegram/setup-netwatch
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "host": "192.168.88.2",
+  "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+  "chat_id": "-100123456789",
+  "device_name": "AP Ruijie Hall"
+}
+
+### 31. 🎮 Deploy Pisah Trafik Game & Sosmed (Mangle + Queue Tree)
+POST {{baseUrl}}/api/v1/traffic/preset/game-social-separation
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "total_bandwidth": "50M",
+  "game_reserved": "10M"
+}
+
+### 32. 🔦 Live Torch Packet Sniffer
+POST {{baseUrl}}/api/v1/tools/torch
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "interface": "ether1",
+  "port": "443"
+}
+
+### 33. 🔍 IP Scan Range
+POST {{baseUrl}}/api/v1/tools/ip-scan
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "interface": "ether2",
+  "address_range": "192.168.88.0/24",
+  "duration": "3s"
+}
+
+### 34. 💻 Terminal Batch Script Runner (Copas Script Winbox)
+POST {{baseUrl}}/api/v1/scripts/terminal-exec
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "script": "/ip firewall address-list add list=TEST_LIST address=1.2.3.4"
+}
+
+
 

@@ -7,6 +7,7 @@ pub mod dude;
 pub mod expert;
 pub mod firewall;
 pub mod hotspot;
+pub mod infrastructure;
 pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
@@ -14,6 +15,7 @@ pub mod logs;
 pub mod maintenance;
 pub mod neighbors;
 pub mod network_map;
+pub mod noc_tools;
 pub mod overview;
 pub mod ppp;
 pub mod queues;
@@ -21,8 +23,10 @@ pub mod raw;
 pub mod scripts;
 pub mod security_advisor;
 pub mod system;
+pub mod telegram_alerts;
 pub mod tools;
 pub mod topology;
+pub mod traffic_shaper;
 pub mod user_manager;
 pub mod users;
 pub mod visualizer;
@@ -236,6 +240,35 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/maintenance/pre-upgrade-snapshot", post(maintenance::pre_upgrade_snapshot))
         .route("/api/v1/maintenance/architecture-package-url", post(maintenance::architecture_package_url))
         .route("/api/v1/maintenance/reset-configuration", post(maintenance::reset_configuration))
+
+        // --- Access Point & Infrastructure Device Detector ---
+        .route("/api/v1/network/infrastructure/scan", post(infrastructure::scan_infrastructure))
+        .route("/api/v1/network/infrastructure/auto-bypass-ap", post(infrastructure::auto_bypass_ap))
+
+        // --- Telegram Bot & Netwatch Automation ---
+        .route("/api/v1/telegram/send-message", post(telegram_alerts::send_message))
+        .route("/api/v1/telegram/setup-netwatch", post(telegram_alerts::setup_netwatch))
+        .route("/api/v1/telegram/list-monitors", post(telegram_alerts::list_monitors))
+        .route("/api/v1/telegram/remove-monitor", post(telegram_alerts::remove_monitor))
+
+        // --- Traffic Engineering, Mangle & Queue Tree ---
+        .route("/api/v1/traffic/mangle/rules", post(traffic_shaper::mangle_rules))
+        .route("/api/v1/traffic/mangle/add", post(traffic_shaper::add_mangle))
+        .route("/api/v1/traffic/queue-tree", post(traffic_shaper::queue_tree))
+        .route("/api/v1/traffic/queue-tree/add", post(traffic_shaper::add_queue_tree))
+        .route("/api/v1/traffic/preset/game-social-separation", post(traffic_shaper::deploy_game_social_separation))
+
+        // --- NOC Pro Diagnostic Tools Suite ---
+        .route("/api/v1/tools/torch", post(noc_tools::torch))
+        .route("/api/v1/tools/ip-scan", post(noc_tools::ip_scan))
+        .route("/api/v1/tools/romon/status", post(noc_tools::romon_status))
+        .route("/api/v1/tools/romon/set", post(noc_tools::romon_set))
+        .route("/api/v1/tools/romon/discover", post(noc_tools::romon_discover))
+        .route("/api/v1/system/watchdog", post(noc_tools::watchdog))
+        .route("/api/v1/system/ntp", post(noc_tools::ntp_config))
+        .route("/api/v1/ip/dhcp-client/all", post(noc_tools::dhcp_clients))
+        .route("/api/v1/ip/dhcp-client/add", post(noc_tools::add_dhcp_client))
+        .route("/api/v1/scripts/terminal-exec", post(noc_tools::terminal_exec))
 
         .with_state(state)
 }

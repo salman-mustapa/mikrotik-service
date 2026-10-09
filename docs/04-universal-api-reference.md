@@ -566,5 +566,55 @@ const visualizerUrl = 'http://127.0.0.1:8080/topology';
 3. **Penyaringan Kategori Dinamis**: Tombol filter instan untuk `Semua`, `Hotspot`, `PPPoE`, `DHCP`, dan `WiFi`.
 4. **Anti-Hang Protection Engine**: Seluruh pembacaan data berjalan di atas persistent pool biner Rust dengan penjaga batas waktu (*15-second timeout guard*), sehingga RouterOS tidak akan pernah mengalami CPU lock 100% atau freeze meskipun diakses oleh banyak klien secara bersamaan.
 
+---
+
+### FF. 📡 Access Point & Infrastructure Device Detector (`/api/v1/network/infrastructure/*`)
+Mendeteksi perangkat infrastruktur seperti Access Point (Ubiquiti, TP-Link, Ruijie, Tenda), Switch, dan IP Camera yang di-bridge di jaringan Hotspot/PPPoE:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/network/infrastructure/scan` | **Pindai Semua AP & Switch**: Mengorelasikan MNDP/LLDP Neighbors, Hotspot Hosts bridge mode, ARP table, dan signature vendor OUI MAC address | `{}` |
+| `POST` | `/api/v1/network/infrastructure/auto-bypass-ap` | **Auto-Bypass AP di Hotspot**: Memasukkan MAC AP ke `/ip/hotspot/ip-binding` (`type=bypassed`) agar admin bisa remote Web GUI AP tanpa login voucher | `{"mac_address": "EC:08:6B:11:22:33", "comment": "[Auto-AP] Ruijie Lantai 2"}` |
+
+---
+
+### GG. ✈️ Telegram Bot & Automated Netwatch Alerting (`/api/v1/telegram/*`)
+Integrasi notifikasi pesan instan Telegram langsung dari router MikroTik:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/telegram/send-message` | **Kirim Pesan Telegram Instan**: Mengeksekusi `/tool/fetch` di MikroTik untuk mengirim pesan ke Telegram bot | `{"bot_token": "...", "chat_id": "...", "message": "Halo dari Router!"}` |
+| `POST` | `/api/v1/telegram/setup-netwatch` | **Pasang Netwatch Otomatis**: Memasang pemantauan UP/DOWN IP tertentu dengan skrip notifikasi Telegram otomatis | `{"host": "192.168.88.2", "bot_token": "...", "chat_id": "...", "device_name": "AP-Utama"}` |
+| `POST` | `/api/v1/telegram/list-monitors` | Daftar monitor Netwatch yang sedang aktif | `{}` |
+| `POST` | `/api/v1/telegram/remove-monitor` | Hapus monitor Netwatch | `{"id": "*1"}` |
+
+---
+
+### HH. 🎮 Traffic Shaper: Mangle, Queue Tree & Pisah Trafik (`/api/v1/traffic/*`)
+Manajemen rekayasa trafik tingkat lanjut, penandaan paket (packet marking), dan pemisahan prioritas:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/traffic/mangle/rules` | Daftar aturan firewall mangle | `{}` |
+| `POST` | `/api/v1/traffic/mangle/add` | Tambah aturan mangle (`mark-connection`, `mark-packet`) | `{"chain": "prerouting", "action": "mark-packet", "new_packet_mark": "pkt_game"}` |
+| `POST` | `/api/v1/traffic/queue-tree` | Daftar aturan hierarkis Queue Tree | `{}` |
+| `POST` | `/api/v1/traffic/queue-tree/add` | Tambah Queue Tree | `{"name": "Games", "parent": "global", "packet_mark": "pkt_game", "priority": 1}` |
+| `POST` | `/api/v1/traffic/preset/game-social-separation` | **Deploy Pisah Trafik Game & Sosmed Otomatis**: Menjamin latency game online (Mobile Legends, PUBG, Valorant, dll.) tetap stabil dan memisahkan kuota streaming | `{"total_bandwidth": "50M", "game_reserved": "10M"}` |
+
+---
+
+### II. 🧰 NOC Pro Diagnostic Suite (`/api/v1/tools/*` & `/api/v1/system/*`)
+Perangkat diagnostik lengkap untuk Network Operations Center (NOC):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/tools/torch` | **Live Torch Sniffer**: Memantau aliran bandwidth per IP/port secara real-time pada interface | `{"interface": "ether1", "port": "443"}` |
+| `POST` | `/api/v1/tools/ip-scan` | **IP Scanner**: Memindai perangkat aktif pada subnet IP tertentu dari router | `{"interface": "ether2", "address_range": "192.168.88.0/24"}` |
+| `POST` | `/api/v1/tools/romon/status` | Cek status RoMON (Router Management Overlay Network) | `{}` |
+| `POST` | `/api/v1/tools/romon/set` | Aktifkan/nonaktifkan RoMON | `{"enabled": true}` |
+| `POST` | `/api/v1/tools/romon/discover` | Temukan router tetangga dalam jaringan overlay RoMON | `{}` |
+| `POST` | `/api/v1/system/watchdog` | Konfigurasi hardware watchdog (reboot otomatis jika ISP putus) | `{"watchdog_timer": true, "ping_address": "8.8.8.8"}` |
+| `POST` | `/api/v1/system/ntp` | Sinkronisasi waktu jam NTP Client (Penting untuk log & voucher) | `{"enabled": true, "servers": "0.pool.ntp.org", "time_zone_name": "Asia/Jakarta"}` |
+| `POST` | `/api/v1/ip/dhcp-client/all` | Daftar DHCP Client WAN | `{}` |
+| `POST` | `/api/v1/ip/dhcp-client/add` | Tambah DHCP Client pada interface WAN | `{"interface": "ether1", "add_default_route": true}` |
+| `POST` | `/api/v1/scripts/terminal-exec` | **Terminal Paste Script Runner**: Menjalankan batch script panjang arbitrary hasil copas terminal Winbox secara atomik | `{"script": "/ip firewall filter add chain=input action=accept..."}` |
+
+
 
 

@@ -148,6 +148,11 @@ async fn playground() -> Html<&'static str> {
           <button class="btn" style="background: #e11d48;" onclick="execApi('/api/v1/security/vulnerability-audit', {})">🔎 Deep CVE & Arch Audit</button>
           <button class="btn" style="background: #be123c;" onclick="execApi('/api/v1/security/deploy-antibruteforce', { blacklist_timeout: '7d' })">🛡️ Deploy Anti-Bruteforce</button>
           <button class="btn" style="background: #0284c7;" onclick="execApi('/api/v1/dude/status', {})">📡 The Dude Status</button>
+          <button class="btn" style="background: #059669;" onclick="execApi('/api/v1/network/infrastructure/scan', {})">📡 Scan AP & Infra Devices</button>
+          <button class="btn" style="background: #2563eb;" onclick="execApi('/api/v1/traffic/preset/game-social-separation', { total_bandwidth: '50M', game_reserved: '10M' })">🎮 Pisah Trafik Game & Sosmed</button>
+          <button class="btn" style="background: #d97706;" onclick="execApi('/api/v1/tools/torch', { interface: 'ether1' })">🔦 Live Torch Sniffer (ether1)</button>
+          <button class="btn" style="background: #7c3aed;" onclick="execApi('/api/v1/tools/romon/status', {})">🌐 RoMON Status</button>
+          <button class="btn" style="background: #0d9488;" onclick="execApi('/api/v1/telegram/list-monitors', {})">✈️ Netwatch Telegram Alerts</button>
           <button class="btn" style="background: #ea580c;" onclick="execApi('/api/v1/maintenance/netinstall-prep', {})">🔄 Etherboot / Netinstall Prep</button>
           <button class="btn" style="background: #4f46e5;" onclick="execApi('/api/v1/maintenance/architecture-package-url', {})">📦 Arch Package CDN URLs</button>
           <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/generate-batch', { qty: 5, prefix: 'V-', profile: 'default' })">🎟️ Generate 5 Vouchers</button>
