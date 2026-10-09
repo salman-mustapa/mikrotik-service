@@ -157,9 +157,10 @@ async fn playground() -> Html<&'static str> {
           <button class="btn" style="background: #e11d48;" onclick="execApi('/api/v1/security/anti-tethering/enable', { hotspot_interface: 'bridge' })">📵 Anti-Tethering (TTL=1)</button>
           <button class="btn" style="background: #0ea5e9;" onclick="execApi('/api/v1/firewall/port-forward', { dst_port: '8080', to_addresses: '192.168.88.50', to_ports: '80' })">🔀 Port Forwarding (Dst-NAT)</button>
           <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/wizard/setup', { interface: 'ether2', local_address: '192.168.50.1/24', dhcp_pool_range: '192.168.50.10-192.168.50.254', dns_name: 'login.wifi' })">🧙‍♂️ 1-Klik Hotspot Setup</button>
-          <button class="btn" style="background: #10b981;" onclick="execApi('/api/v1/system/fasttrack/deploy', {})">🚀 FastTrack CPU Accelerator</button>
-          <button class="btn" style="background: #ea580c;" onclick="execApi('/api/v1/maintenance/netinstall-prep', {})">🔄 Etherboot / Netinstall Prep</button>
-          <button class="btn" style="background: #4f46e5;" onclick="execApi('/api/v1/maintenance/architecture-package-url', {})">📦 Arch Package CDN URLs</button>
+          <button class="btn" style="background: #0284c7;" onclick="execApi('/api/v1/queues/inspect-user', { query: '192.168.88.50' })">🔍 Cek Limit & Speed User</button>
+          <button class="btn" style="background: #0d9488;" onclick="execApi('/api/v1/queues/overview-summary', {})">📊 Rekap Bandwidth & Top Downloaders</button>
+          <button class="btn" style="background: #6366f1;" onclick="execApi('/api/v1/load-balance/pcc/setup', { lan_interface: 'bridge', wans: [{ interface: 'ether1', gateway: '192.168.1.1', weight: 1 }, { interface: 'ether2', gateway: '192.168.2.1', weight: 1 }] })">⚖️ 1-Klik Multi-WAN PCC Load Balance</button>
+          <button class="btn" style="background: #4f46e5;" onclick="execApi('/api/v1/load-balance/status', {})">📈 Status Load Balance</button>
           <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/generate-batch', { qty: 5, prefix: 'V-', profile: 'default' })">🎟️ Generate 5 Vouchers</button>
           <button class="btn" onclick="execApi('/api/v1/hotspot/hosts', {})">Hotspot Hosts (All Devices)</button>
           <button class="btn" onclick="execApi('/api/v1/ip/arp', {})">ARP Table</button>

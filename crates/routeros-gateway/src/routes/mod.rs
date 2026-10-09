@@ -14,6 +14,7 @@ pub mod infrastructure;
 pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
+pub mod load_balance;
 pub mod logs;
 pub mod maintenance;
 pub mod nat_wizard;
@@ -193,11 +194,14 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/firewall/block-ip", post(firewall::block_ip))
         .route("/api/v1/firewall/unblock-ip", post(firewall::unblock_ip))
 
-        // --- Queues (Bandwidth Limiting) ---
+        // --- Queues (Bandwidth Limiting & Live Inspection) ---
         .route("/api/v1/queues/simple", post(queues::simple))
         .route("/api/v1/queues/simple/add", post(queues::add_simple))
         .route("/api/v1/queues/simple/set-limit", post(queues::set_limit))
         .route("/api/v1/queues/simple/remove", post(queues::remove_simple))
+        .route("/api/v1/queues/inspect-user", post(queues::inspect_user))
+        .route("/api/v1/queues/overview-summary", post(queues::overview_summary))
+        .route("/api/v1/queues/test-limit", post(queues::test_limit))
 
         // --- Interfaces & Realtime Traffic ---
         .route("/api/v1/interfaces/all", post(interfaces::all))
@@ -306,6 +310,11 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Resource Hog Detective & FastTrack CPU Optimizer ---
         .route("/api/v1/system/cpu-profiler", post(resource_detective::cpu_profiler))
         .route("/api/v1/system/fasttrack/deploy", post(resource_detective::deploy_fasttrack))
+
+        // --- Multi-WAN PCC Load Balancing Wizard & Status ---
+        .route("/api/v1/load-balance/pcc/setup", post(load_balance::pcc_setup))
+        .route("/api/v1/load-balance/status", post(load_balance::status))
+        .route("/api/v1/load-balance/remove", post(load_balance::remove))
 
         .with_state(state)
 }

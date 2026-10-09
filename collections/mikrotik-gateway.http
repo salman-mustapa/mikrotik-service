@@ -680,3 +680,83 @@ Content-Type: application/json
   "check_gateway": "ping",
   "comment": "Default Gateway ISP 1"
 }
+
+### 44. 🔍 Inspeksi Mendalam Limit & Kecepatan User (IP / Username)
+POST {{baseUrl}}/api/v1/queues/inspect-user
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "query": "192.168.88.50"
+}
+
+### 45. 📊 Rekap Eksekutif Bandwidth Seluruh Router & Top Downloader
+POST {{baseUrl}}/api/v1/queues/overview-summary
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 46. 🧪 Uji Validasi Efektivitas Limit Antrean pada IP Target
+POST {{baseUrl}}/api/v1/queues/test-limit
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "target_ip": "192.168.88.50"
+}
+
+### 47. ⚖️ 1-Klik Wizard Multi-WAN PCC Load Balancing (2 WAN / Multi-WAN)
+POST {{baseUrl}}/api/v1/load-balance/pcc/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "lan_interface": "bridge",
+  "wans": [
+    { "interface": "ether1", "gateway": "192.168.1.1", "weight": 1, "name": "ISP1_Fiber" },
+    { "interface": "ether2", "gateway": "192.168.2.1", "weight": 1, "name": "ISP2_Backup" }
+  ],
+  "matcher": "both-addresses",
+  "auto_failover": true,
+  "add_masquerade": true
+}
+
+### 48. 📈 Cek Real-Time Status & Rasio Keseimbangan Trafik Multi-WAN
+POST {{baseUrl}}/api/v1/load-balance/status
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 49. 🧹 Hapus Konfigurasi Load Balancing (Kembali ke Single-WAN Normal)
+POST {{baseUrl}}/api/v1/load-balance/remove
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+

@@ -689,3 +689,24 @@ Melengkapi operasi CRUD penuh pada level infrastruktur IP RouterOS:
 | `POST` | `/api/v1/hotspot/profile/remove`| Hapus Profil Hotspot | `{"id": "*1"}` |
 | `POST` | `/api/v1/ip/route/add` | Tambah Static IP Route (Failover / Gateway) | `{"dst_address": "0.0.0.0/0", "gateway": "192.168.1.1", "check_gateway": "ping"}` |
 | `POST` | `/api/v1/ip/route/remove` | Hapus Static Route | `{"id": "*1"}` |
+
+---
+
+### PP. 🔍 Queue & User Bandwidth Live Inspection (`/api/v1/queues/*`)
+Menjawab kebutuhan administrator untuk mengetahui rincian limit kecepatan user, penggunaan kuota real-time, dan status bottleneck:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/queues/inspect-user` | **Inspeksi Lengkap Limit & Kecepatan User**: Mengetahui limit max (`5M/10M`), kecepatan real-time upload & download saat ini, persentase utilisasi antrean, kuota total transfer, packet drops, dan status antrean (`THROTTLED` / `ACTIVE` / `IDLE`) | `{"query": "192.168.88.50"}` atau `{"query": "salman"}` |
+| `POST` | `/api/v1/queues/overview-summary` | **Executive NOC Bandwidth Dashboard**: Menghitung total bandwidth yang dialokasikan router vs konsumsi real-time, top 5 user downloader terberat, dan daftar antrean yang sedang bottleneck | `{}` |
+| `POST` | `/api/v1/queues/test-limit` | **Uji Validasi Limit Kecepatan**: Memverifikasi apakah target IP dibatasi dengan benar sesuai batas max-limit yang ditetapkan | `{"target_ip": "192.168.88.50"}` |
+
+---
+
+### QQ. ⚖️ 1-Klik Multi-WAN PCC Load Balancing Wizard (`/api/v1/load-balance/*`)
+Mengotomatisasi kerumitan konfigurasi Per Connection Classifier (PCC) 2-WAN atau Multi-WAN menjadi 1 kali panggilan API (< 30 milidetik):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/load-balance/pcc/setup` | **Wizard PCC Multi-WAN Sekali Klik**: Otomatis membuat aturan Mangle hashing, routing mark, fallback routing distance, check-gateway ping failover, dan NAT masquerade. Mendukung rasio bobot tidak seimbang (misal 50M vs 100M dengan weight 1:2) | `{"lan_interface": "bridge", "wans": [{"interface": "ether1", "gateway": "192.168.1.1", "weight": 1}, {"interface": "ether2", "gateway": "192.168.2.1", "weight": 1}], "matcher": "both-addresses", "auto_failover": true}` |
+| `POST` | `/api/v1/load-balance/status` | **Monitor Keseimbangan Trafik Multi-WAN**: Membaca packet & byte counters pada setiap jalur PCC dan interface WAN untuk memastikan beban terdistribusi seimbang | `{}` |
+| `POST` | `/api/v1/load-balance/remove` | **Hapus Konfigurasi Load Balancing**: Menghapus seluruh aturan `[PCC-LoadBalance]` dan mengembalikan router ke mode single WAN secara aman tanpa menyentuh aturan lain | `{}` |
+
