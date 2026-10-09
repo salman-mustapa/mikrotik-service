@@ -294,3 +294,91 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v1/interfaces/stream?host={{routerHost}}&port={{routerPort}}&user={{routerUser}}&password={{routerPass}}&interface=ether1
 Authorization: Bearer {{token}}
 Accept: text/event-stream
+
+### 16. 🩺 Expert Quick Diagnose (Ping, DNS, Default Route, CPU Score)
+POST {{baseUrl}}/api/v1/expert/quick-diagnose
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "ping_target": "8.8.8.8"
+}
+
+### 17. 📊 Expert Traffic Matrix (Semua Port Fisik Sekaligus)
+POST {{baseUrl}}/api/v1/expert/traffic-matrix
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 18. 🛡️ Expert Security Hardening Audit
+POST {{baseUrl}}/api/v1/expert/security-audit
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 19. 🔒 Disable Unsecure Telnet Service (Hardening)
+POST {{baseUrl}}/api/v1/system/service/toggle
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "service_name": "telnet",
+  "disabled": true
+}
+
+### 20. 🖨️ Cetak Template Voucher Hotspot (HTML Thermal & Grid Cards)
+POST {{baseUrl}}/api/v1/hotspot/voucher-template/render
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "template_type": "card_grid",
+  "hotspot_name": "KAFE KITA WIFI",
+  "dns_name": "login.wifi",
+  "currency": "Rp",
+  "vouchers": [
+    { "username": "VIP-a1b2", "password": "pass", "profile": "1-Jam", "price": "3.000", "timelimit": "1h" },
+    { "username": "VIP-c3d4", "password": "pass", "profile": "3-Jam", "price": "5.000", "timelimit": "3h" }
+  ]
+}
+
+### 21. 🌉 Bridge Interface List
+POST {{baseUrl}}/api/v1/bridge/all
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 22. 👤 User Manager Users List (v6 & v7)
+POST {{baseUrl}}/api/v1/user-manager/users
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+

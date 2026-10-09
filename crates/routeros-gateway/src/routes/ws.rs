@@ -266,6 +266,59 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                 });
             }
 
+            "listen_logs" => {
+                let topic_filter = req.params.get("topic").cloned();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let log_tag = tag.clone();
+
+                if let Some(old) = active_streams.remove(&log_tag) {
+                    old.abort();
+                }
+
+                let handle = tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let mut args = vec![("follow-only", "")];
+                    if let Some(t) = topic_filter.as_deref() {
+                        args.push(("topics", t));
+                    }
+                    let sub_res = client.listen(build_command("/log/print", args)).await;
+                    let mut sub = match sub_res {
+                        Ok(s) => s,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": log_tag, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    while let Some(item) = sub.next().await {
+                        match item {
+                            Ok(sentence) => {
+                                let sent = out_tx_clone.send(json!({
+                                    "event": "log_entry",
+                                    "tag": log_tag,
+                                    "data": sentence.attrs
+                                }).to_string());
+                                if sent.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                });
+
+                active_streams.insert(log_tag, handle);
+            }
+
             other => {
                 let _ = out_tx.send(json!({ "event": "error", "tag": tag, "error": format!("Unknown action '{other}'") }).to_string());
             }

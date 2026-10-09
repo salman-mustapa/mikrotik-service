@@ -135,6 +135,9 @@ async fn playground() -> Html<&'static str> {
         <div class="btn-row">
           <button class="btn" style="background: #10b981;" onclick="execApi('/api/v1/overview', {})">⚡ Fast-Path Overview (Sub-ms)</button>
           <button class="btn" style="background: #0ea5e9;" onclick="execApi('/api/v1/network/connected-devices', {})">🌐 Unified Devices Map (Cross-Layer)</button>
+          <button class="btn" style="background: #f59e0b; color: #000;" onclick="execApi('/api/v1/expert/quick-diagnose', {})">🩺 Expert Quick Diagnose</button>
+          <button class="btn" style="background: #06b6d4;" onclick="execApi('/api/v1/expert/traffic-matrix', {})">📊 All Ports Traffic Matrix</button>
+          <button class="btn" style="background: #e11d48;" onclick="execApi('/api/v1/expert/security-audit', {})">🛡️ Security Hardening Audit</button>
           <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/generate-batch', { qty: 5, prefix: 'V-', profile: 'default' })">🎟️ Generate 5 Vouchers</button>
           <button class="btn" onclick="execApi('/api/v1/hotspot/hosts', {})">Hotspot Hosts (All Devices)</button>
           <button class="btn" onclick="execApi('/api/v1/ip/arp', {})">ARP Table</button>

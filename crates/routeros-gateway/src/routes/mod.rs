@@ -1,7 +1,9 @@
 pub mod backup;
 pub mod batch;
+pub mod bridge;
 pub mod dhcp;
 pub mod dns;
+pub mod expert;
 pub mod firewall;
 pub mod hotspot;
 pub mod interfaces;
@@ -17,7 +19,10 @@ pub mod raw;
 pub mod scripts;
 pub mod system;
 pub mod tools;
+pub mod user_manager;
 pub mod users;
+pub mod voucher_template;
+pub mod vpn;
 pub mod wireguard;
 pub mod wireless;
 pub mod ws;
@@ -34,18 +39,28 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/overview", post(overview::get_overview))
         .route("/api/v1/network/connected-devices", post(network_map::connected_devices))
 
+        // --- Expert Network Diagnostics & Macros ---
+        .route("/api/v1/expert/quick-diagnose", post(expert::quick_diagnose))
+        .route("/api/v1/expert/traffic-matrix", post(expert::traffic_matrix))
+        .route("/api/v1/expert/security-audit", post(expert::security_audit))
+
         // --- Universal Raw Command, Batch & SSE Stream ---
         .route("/api/v1/command", post(raw::run_raw_command))
         .route("/api/v1/batch", post(batch::execute_batch))
         .route("/api/v1/listen", get(raw::run_raw_listen))
 
-        // --- System Management ---
+        // --- System Management & Hardening ---
         .route("/api/v1/system/resource", post(system::resource))
         .route("/api/v1/system/routerboard", post(system::routerboard))
         .route("/api/v1/system/identity", post(system::identity))
         .route("/api/v1/system/identity/set", post(system::set_identity))
         .route("/api/v1/system/check-update", post(system::check_update))
         .route("/api/v1/system/install-update", post(system::install_update))
+        .route("/api/v1/system/package/download", post(system::download_update))
+        .route("/api/v1/system/package/channel", post(system::set_channel))
+        .route("/api/v1/system/packages", post(system::packages))
+        .route("/api/v1/system/services", post(system::services))
+        .route("/api/v1/system/service/toggle", post(system::toggle_service))
         .route("/api/v1/system/reboot", post(system::reboot))
 
         // --- IPv4, ARP & Routing ---
@@ -89,8 +104,26 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/hosts", post(hotspot::hosts))
         .route("/api/v1/hotspot/host/remove", post(hotspot::remove_host))
         .route("/api/v1/hotspot/host/bind", post(hotspot::bind_host))
+        .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))
         .route("/api/v1/hotspot/profiles", post(hotspot::profiles))
         .route("/api/v1/hotspot/ip-bindings", post(hotspot::ip_bindings))
+
+        // --- User Manager (v6 & v7) ---
+        .route("/api/v1/user-manager/users", post(user_manager::users))
+        .route("/api/v1/user-manager/user/create", post(user_manager::create_user))
+        .route("/api/v1/user-manager/user/remove", post(user_manager::remove_user))
+        .route("/api/v1/user-manager/sessions", post(user_manager::sessions))
+        .route("/api/v1/user-manager/profiles", post(user_manager::profiles))
+
+        // --- Bridge & VLANs ---
+        .route("/api/v1/bridge/all", post(bridge::bridges))
+        .route("/api/v1/bridge/add", post(bridge::add_bridge))
+        .route("/api/v1/bridge/remove", post(bridge::remove_bridge))
+        .route("/api/v1/bridge/ports", post(bridge::ports))
+        .route("/api/v1/bridge/port/add", post(bridge::add_port))
+        .route("/api/v1/bridge/port/remove", post(bridge::remove_port))
+        .route("/api/v1/bridge/vlans", post(bridge::vlans))
+        .route("/api/v1/bridge/vlan/add", post(bridge::add_vlan))
 
         // --- PPP & PPPoE ISP Management ---
         .route("/api/v1/ppp/secrets", post(ppp::secrets))
@@ -105,6 +138,17 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ppp/server/create", post(ppp::create_pppoe_server))
         .route("/api/v1/ppp/profiles", post(ppp::profiles))
         .route("/api/v1/ppp/profile/create", post(ppp::create_profile))
+
+        // --- VPN Servers (SSTP, L2TP, OpenVPN & EoIP) ---
+        .route("/api/v1/vpn/sstp", post(vpn::sstp_server))
+        .route("/api/v1/vpn/sstp/set", post(vpn::set_sstp_server))
+        .route("/api/v1/vpn/l2tp", post(vpn::l2tp_server))
+        .route("/api/v1/vpn/l2tp/set", post(vpn::set_l2tp_server))
+        .route("/api/v1/vpn/ovpn", post(vpn::ovpn_server))
+        .route("/api/v1/vpn/ovpn/set", post(vpn::set_ovpn_server))
+        .route("/api/v1/vpn/eoip", post(vpn::eoip_tunnels))
+        .route("/api/v1/vpn/eoip/add", post(vpn::add_eoip))
+        .route("/api/v1/vpn/eoip/remove", post(vpn::remove_eoip))
 
         // --- WireGuard (RouterOS v7) ---
         .route("/api/v1/wireguard/interfaces", post(wireguard::interfaces))
@@ -165,8 +209,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/users/remove", post(users::remove_user))
         .route("/api/v1/users/groups", post(users::groups))
 
-        // --- Logs ---
+        // --- Logs & Streaming ---
         .route("/api/v1/logs/all", post(logs::all))
+        .route("/api/v1/logs/stream", get(logs::stream_logs))
 
         .with_state(state)
 }

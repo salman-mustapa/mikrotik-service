@@ -290,3 +290,169 @@ Mengeksekusi perintah RouterOS arbitrary apa pun secara bebas tanpa batas:
   }
 }
 ```
+
+---
+
+### T. Filterisasi Log & Live Log Streaming (`/api/v1/logs/*`)
+Sistem pencarian log bertenaga tinggi dengan filter topik, severity level, pencarian teks, dan live streaming (SSE/WebSocket):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/logs/all` | Filter & ambil entri log terbaru | `{"topics": "hotspot,info", "search": "login", "severity": "error", "limit": 100}` |
+| `GET` | `/api/v1/logs/stream` | **SSE Live Log Stream** (Realtime per detik) | Query params: `host`, `port`, `user`, `password`, `topics=hotspot` |
+
+Payload contoh `POST /api/v1/logs/all`:
+```json
+{
+  "router_id": "main",
+  "topics": "hotspot,info",
+  "search": "logged in",
+  "limit": 50
+}
+```
+
+---
+
+### U. RouterOS Package, Upgrade & Service Hardening (`/api/v1/system/*`)
+Manajemen update OS mikrofonik dan pemadaman service berbahaya (hardening):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/system/package/download` | Download file update RouterOS di latar belakang | `{}` |
+| `POST` | `/api/v1/system/package/channel` | Ganti update channel (stable, testing, development) | `{"channel": "stable"}` |
+| `POST` | `/api/v1/system/packages` | Daftar semua package terinstal (wireless, routing, dll.) | `{}` |
+| `POST` | `/api/v1/system/services` | Daftar service router (`api`, `winbox`, `ssh`, `telnet`, `ftp`) | `{}` |
+| `POST` | `/api/v1/system/service/toggle` | **Matikan/Nyalakan Service** (Security Hardening) | `{"name": "telnet", "disabled": true}` |
+
+---
+
+### V. Printable Voucher Template Engine (`POST /api/v1/hotspot/voucher-template/render`)
+Merender voucher Hotspot langsung menjadi format dokumen HTML/CSS siap cetak (Mikhmon style):
+| Format Preset | Deskripsi | Ukuran Kertas |
+|---|---|---|
+| `thermal_58mm` | Struk Kasir Gulung | Lebar 58mm POS Printer |
+| `thermal_80mm` | Struk Kasir Lebar | Lebar 80mm POS Printer |
+| `grid_a4` | Lembar Kartu A4 (12 kartu per halaman) | Standar A4 Office Printer |
+| `custom` | Custom HTML template dengan placeholder | Fleksibel |
+
+Tersedia placeholder otomatis: `{{username}}`, `{{password}}`, `{{price}}`, `{{timelimit}}`, `{{datalimit}}`, `{{dns_name}}`, `{{hotspot_name}}`.
+
+Contoh Request:
+```json
+{
+  "format": "thermal_58mm",
+  "hotspot_name": "WIFI WARUNG KOPI",
+  "dns_name": "wifi.warung.net",
+  "vouchers": [
+    { "username": "VIP-9481", "password": "123", "timelimit": "5 Jam", "price": "Rp 5.000" },
+    { "username": "VIP-9482", "password": "456", "timelimit": "24 Jam", "price": "Rp 15.000" }
+  ]
+}
+```
+Response mengembalikan field `html` yang siap langsung di-pipe ke iframe browser, WebView Android/iOS, atau cetak Bluetooth Thermal ESC/POS.
+
+---
+
+### W. User Manager v6 & v7 Dual Compatibility (`/api/v1/user-manager/*`)
+Mendukung RADIUS User Manager RouterOS v7 (`/user-manager/*`) dan otomatis fallback ke RouterOS v6 (`/tool/user-manager/*`):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/user-manager/users` | Daftar user RADIUS User Manager | `{}` |
+| `POST` | `/api/v1/user-manager/user/create` | Buat akun User Manager baru | `{"name": "user01", "password": "123", "group": "default"}` |
+| `POST` | `/api/v1/user-manager/user/remove` | Hapus akun User Manager | `{"id": "*1"}` |
+| `POST` | `/api/v1/user-manager/sessions` | Sesi aktif user RADIUS User Manager | `{}` |
+| `POST` | `/api/v1/user-manager/profiles` | Profil paket User Manager | `{}` |
+
+---
+
+### X. Bridge & VLAN Management (`/api/v1/bridge/*`)
+Manajemen interface Bridge, penugasan port ethernet ke Bridge, serta Trunking VLAN:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/bridge/all` | Daftar seluruh bridge interface | `{}` |
+| `POST` | `/api/v1/bridge/add` | Tambah bridge baru | `{"name": "br-hotspot", "vlan_filtering": true}` |
+| `POST` | `/api/v1/bridge/remove` | Hapus bridge | `{"id": "*1"}` |
+| `POST` | `/api/v1/bridge/ports` | Daftar port yang tergabung ke bridge | `{}` |
+| `POST` | `/api/v1/bridge/port/add` | Masukkan interface ethernet ke bridge | `{"bridge": "bridge1", "interface": "ether3", "pvid": "100"}` |
+| `POST` | `/api/v1/bridge/port/remove` | Keluarkan interface dari bridge | `{"id": "*1"}` |
+| `POST` | `/api/v1/bridge/vlans` | Daftar VLAN filtering pada bridge | `{}` |
+| `POST` | `/api/v1/bridge/vlan/add` | Konfigurasi Tagged/Untagged VLAN | `{"bridge": "bridge1", "vlan_ids": "100", "tagged": "ether1", "untagged": "ether2"}` |
+
+---
+
+### Y. VPN Servers & EoIP Tunnels (`/api/v1/vpn/*`)
+Konfigurasi VPN gateway server dan tunneling layer-2:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/vpn/sstp` | Cek status SSTP Server | `{}` |
+| `POST` | `/api/v1/vpn/sstp/set` | Aktifkan/konfigurasi SSTP VPN Server | `{"enabled": true, "port": "443", "default_profile": "default-encryption"}` |
+| `POST` | `/api/v1/vpn/l2tp` | Cek status L2TP/IPsec Server | `{}` |
+| `POST` | `/api/v1/vpn/l2tp/set` | Aktifkan/konfigurasi L2TP Server | `{"enabled": true, "use_ipsec": "yes", "ipsec_secret": "mySecretKey"}` |
+| `POST` | `/api/v1/vpn/ovpn` | Cek status OpenVPN Server | `{}` |
+| `POST` | `/api/v1/vpn/ovpn/set` | Aktifkan/konfigurasi OpenVPN Server | `{"enabled": true, "port": "1194", "mode": "ip"}` |
+| `POST` | `/api/v1/vpn/eoip` | Daftar tunnel Ethernet-over-IP (EoIP) | `{}` |
+| `POST` | `/api/v1/vpn/eoip/add` | Buat tunnel EoIP layer-2 baru | `{"name": "eoip-branch", "remote_address": "203.0.113.5", "tunnel_id": "10"}` |
+| `POST` | `/api/v1/vpn/eoip/remove` | Hapus tunnel EoIP | `{"id": "*1"}` |
+
+---
+
+### Z. 🚀 Expert Network Shorthand Macros (`/api/v1/expert/*`)
+Macro ultra-cepat yang dirancang khusus untuk Network Engineer profesional, menggabungkan puluhan perintah diagnostik rumit ke dalam 1 respon instan:
+
+#### 1. Quick Diagnose (`POST /api/v1/expert/quick-diagnose`)
+Melakukan audit kesehatan router secara lengkap: status WAN, default gateway, ping test ke ISP Gateway & Internet (8.8.8.8), CPU health, dan resource check dalam hitungan milidetik.
+```json
+{
+  "router_id": "main",
+  "ping_targets": ["8.8.8.8", "1.1.1.1"]
+}
+```
+
+#### 2. Traffic Matrix (`POST /api/v1/expert/traffic-matrix`)
+Mengambil matrix kecepatan seluruh interface router secara bersamaan (Tx bps, Rx bps, packets/sec, status link, and errors):
+```json
+{
+  "router_id": "main"
+}
+```
+
+#### 3. Security Audit (`POST /api/v1/expert/security-audit`)
+Pemeriksaan otomatis celah keamanan MikroTik:
+- Mendeteksi service berbahaya yang masih aktif (`telnet`, `ftp`, `api` port standar 8728).
+- Memeriksa apakah user `admin` masih menggunakan password default / kosong.
+- Memeriksa apakah DNS allow-remote-requests terbuka ke publik tanpa firewall drop.
+- Menghitung skor keamanan (contoh: `score: 85/100`) dan memberikan daftar rekomendasi tindakan.
+```json
+{
+  "router_id": "main"
+}
+```
+
+---
+
+### AA. ⚡ WebSocket Real-Time Event Hub (`/ws`)
+Koneksi duplex WebSocket berkecepatan tinggi untuk streaming metrik tanpa polling HTTP overhead:
+
+```javascript
+const ws = new WebSocket('ws://127.0.0.1:8080/ws');
+
+// Kirim perintah listen traffic interface
+ws.send(JSON.stringify({
+  action: "monitor_traffic",
+  router: { host: "192.168.88.1", user: "admin", password: "123" },
+  tag: "wan-monitor",
+  params: { interface: "ether1" }
+}));
+
+// Atau kirim perintah live logs stream
+ws.send(JSON.stringify({
+  action: "listen_logs",
+  router: { host: "192.168.88.1", user: "admin", password: "123" },
+  tag: "log-stream",
+  params: { topic: "critical" }
+}));
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log("Realtime packet:", data);
+};
+```
+

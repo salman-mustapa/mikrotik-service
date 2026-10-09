@@ -102,3 +102,97 @@ pub async fn reboot(
     client.run(build_command("/system/reboot", std::iter::empty::<(&str, &str)>())).await?;
     Ok(Json(json!({ "success": true, "message": "Reboot command sent" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct ChannelReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub channel: String, // "stable", "testing", "long-term", "development"
+}
+
+pub async fn download_update(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/system/package/update/download", std::iter::empty::<(&str, &str)>())).await?;
+    Ok(Json(json!({ "success": true, "message": "Package download initiated in background" })))
+}
+
+pub async fn set_channel(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ChannelReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/system/package/update/set", [("channel", req.channel.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": format!("Update channel set to '{}'", req.channel) })))
+}
+
+pub async fn packages(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/system/package/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<_> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ToggleServiceReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub service_name: String, // "telnet", "ftp", "www", "ssh", "api", "winbox"
+    pub disabled: bool,
+    pub port: Option<u16>,
+    pub address: Option<String>,
+}
+
+pub async fn services(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/service/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<_> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+pub async fn toggle_service(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ToggleServiceReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client.run(build_command("/ip/service/print", [("?name", req.service_name.as_str())])).await?;
+    let id = rows.first().and_then(|r| r.get(".id")).ok_or_else(|| {
+        ApiError::BadRequest(format!("Service '{}' not found", req.service_name))
+    })?;
+
+    let dis_str = if req.disabled { "yes" } else { "no" };
+    let mut args = vec![(".id", id), ("disabled", dis_str)];
+    let port_str = req.port.map(|p| p.to_string());
+    if let Some(p) = port_str.as_deref() {
+        args.push(("port", p));
+    }
+    if let Some(a) = req.address.as_deref() {
+        args.push(("address", a));
+    }
+
+    client.run(build_command("/ip/service/set", args)).await?;
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("Service '{}' updated (disabled: {})", req.service_name, req.disabled)
+    })))
+}
+
