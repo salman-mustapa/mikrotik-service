@@ -22,8 +22,10 @@ pub mod scripts;
 pub mod security_advisor;
 pub mod system;
 pub mod tools;
+pub mod topology;
 pub mod user_manager;
 pub mod users;
+pub mod visualizer;
 pub mod voucher_template;
 pub mod vpn;
 pub mod wireguard;
@@ -41,6 +43,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Fast-Path Aggregated Snapshot & Cross-Layer Correlator ---
         .route("/api/v1/overview", post(overview::get_overview))
         .route("/api/v1/network/connected-devices", post(network_map::connected_devices))
+        .route("/api/v1/network/topology-graph", post(topology::topology_graph))
 
         // --- Expert Network Diagnostics & Macros ---
         .route("/api/v1/expert/quick-diagnose", post(expert::quick_diagnose))

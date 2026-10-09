@@ -90,11 +90,19 @@ async fn playground() -> Html<&'static str> {
 </head>
 <body>
 <div class="container">
-  <header>
-    <h1><span>🦀 MikroTik Universal Rust Engine</span> <span class="badge">v0.2.0 Active</span></h1>
-    <p style="color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem;">
-      High-performance sub-millisecond gateway connecting any web, mobile, or backend stack to RouterOS.
-    </p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h1><span>🦀 MikroTik Universal Rust Engine</span> <span class="badge">v0.2.0 Active</span></h1>
+        <p style="color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem;">
+          High-performance sub-millisecond gateway connecting any web, mobile, or backend stack to RouterOS.
+        </p>
+      </div>
+      <div>
+        <a href="/topology" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);">
+          🌐 Buka Visualizer Relasi Topologi &rarr;
+        </a>
+      </div>
+    </div>
   </header>
 
   <div class="grid">
@@ -235,10 +243,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protected = routes::build_api_router(state.clone())
         .layer(middleware::from_fn_with_state(state.clone(), auth));
 
-    // Combined router with web playground, health check, websocket & permissive CORS
+    // Combined router with web playground, health check, visualizer, websocket & permissive CORS
     let app = Router::new()
         .route("/", get(playground))
         .route("/health", get(health))
+        .route("/topology", get(routes::visualizer::visualizer_page))
+        .route("/visualizer", get(routes::visualizer::visualizer_page))
+        .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
         .route("/ws", get(routes::ws::ws_handler))
         .merge(protected)
         .layer(tower_http::cors::CorsLayer::permissive())

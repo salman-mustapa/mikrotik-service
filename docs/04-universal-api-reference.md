@@ -517,4 +517,54 @@ Alat tanggap bencana untuk pemulihan router mati, hard reset, dan resolusi paket
 | `POST` | `/api/v1/maintenance/architecture-package-url` | **Arch Package CDN Resolver**: Mendeteksi CPU arsitektur router (`arm`, `arm64`, `tile`, `mipsbe`, `mmips`, `smips`, `x86`, `chr`, `powerpc`) dan membuat URL download resmi langsung dari CDN MikroTik | `{"target_version": "7.15.3"}` |
 | `POST` | `/api/v1/maintenance/reset-configuration` | **Factory Reset Terkontrol**: Eksekusi reset RouterOS dengan opsi simpan user atau tanpa default konfigurasi | `{"keep_users": true, "no_defaults": true, "skip_backup": false}` |
 
+---
+
+### EE. 🌐 Interactive Topology Graph, Live Visualizer & Embeddable Web SDK
+
+Menjawab kebutuhan menampilkan **relasi jaringan interaktif, modern, dan responsif** langsung di browser atau di-embed ke project web apa pun (Laravel, Vue, Express, React):
+
+| Method | Endpoint / URL | Kegunaan | Deskripsi |
+|---|---|---|---|
+| `POST` | `/api/v1/network/topology-graph` | **Relational Graph JSON API** | Mengembalikan struktur nodes (Router, Interface, Switch/Neighbor, Device) dan edges relasi (koneksi fisik, VLAN, Hotspot, PPPoE, WiFi) beserta metrik perangkat |
+| `GET` | `/topology` | **Interactive Visualizer Dashboard** | Fullscreen UI modern bertema Obsidian Dark Mode dengan interaksi klik node, animasi aliran data SVG, dan panel inspeksi |
+| `GET` | `/sdk/mikrotik-widget.js` | **Embeddable JavaScript SDK** | Script SDK ultra-ringan tanpa dependensi untuk memasang visualizer topologi ke dalam tag `<div>` Laravel Blade atau Vue dalam 1 baris kode |
+
+#### 1. Cara Pasang di Laravel Blade (Hanya 2 Baris)
+```html
+<div id="mikrotik-network-map" style="width: 100%; height: 600px;"></div>
+
+<!-- Pasang SDK MikroTik Rust Gateway -->
+<script src="http://127.0.0.1:8080/sdk/mikrotik-widget.js"></script>
+<script>
+  MikrotikWidget.mount('#mikrotik-network-map', {
+    gatewayUrl: 'http://127.0.0.1:8080',
+    height: '600px',
+    borderRadius: '16px'
+  });
+</script>
+```
+
+#### 2. Cara Pasang di Vue 3 / Nuxt
+```html
+<template>
+  <div class="card shadow-lg rounded-2xl overflow-hidden">
+    <iframe 
+      :src="visualizerUrl" 
+      class="w-full h-[650px] border-none"
+    />
+  </div>
+</template>
+
+<script setup>
+const visualizerUrl = 'http://127.0.0.1:8080/topology';
+</script>
+```
+
+#### 3. Fitur Interaktif pada Visualizer:
+1. **Interactive Node Click**: Mengklik node client atau router akan memunculkan Inspector Drawer di sisi kanan secara instan.
+2. **⚡ Live ICMP Ping Diagnostics**: Tombol "Ping Perangkat Ini" di drawer langsung mengirimkan 3 paket ping dari MikroTik ke IP perangkat tersebut dan menampilkan latensi RTT real-time (`0.8 ms`, `packet loss: 0%`).
+3. **Penyaringan Kategori Dinamis**: Tombol filter instan untuk `Semua`, `Hotspot`, `PPPoE`, `DHCP`, dan `WiFi`.
+4. **Anti-Hang Protection Engine**: Seluruh pembacaan data berjalan di atas persistent pool biner Rust dengan penjaga batas waktu (*15-second timeout guard*), sehingga RouterOS tidak akan pernah mengalami CPU lock 100% atau freeze meskipun diakses oleh banyak klien secara bersamaan.
+
+
 

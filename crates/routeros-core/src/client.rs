@@ -186,21 +186,27 @@ impl Client {
 
         let mut rows = Vec::new();
         let mut trap = None;
-        while let Some(msg) = rx.recv().await {
-            let s = msg?;
-            match s.kind {
-                Kind::Re => rows.push(s),
-                Kind::Trap => trap = Some(s),
-                Kind::Done => {
-                    return match trap {
-                        Some(t) => Err(trap_error(&t)),
-                        None => Ok((rows, s)),
+        loop {
+            let recv_res = tokio::time::timeout(std::time::Duration::from_secs(15), rx.recv()).await;
+            match recv_res {
+                Ok(Some(msg)) => {
+                    let s = msg?;
+                    match s.kind {
+                        Kind::Re => rows.push(s),
+                        Kind::Trap => trap = Some(s),
+                        Kind::Done => {
+                            return match trap {
+                                Some(t) => Err(trap_error(&t)),
+                                None => Ok((rows, s)),
+                            };
+                        }
+                        Kind::Empty | Kind::Fatal => {}
                     }
                 }
-                Kind::Empty | Kind::Fatal => {}
+                Ok(None) => return Err(Error::Closed),
+                Err(_) => return Err(Error::Fatal("Command execution timed out after 15 seconds".into())),
             }
         }
-        Err(Error::Closed)
     }
 
     /// Start a long-running command (`/listen`, `monitor-traffic`, `follow`, ...).
