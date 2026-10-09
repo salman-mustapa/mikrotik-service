@@ -1,13 +1,23 @@
+pub mod backup;
+pub mod batch;
 pub mod dhcp;
+pub mod dns;
 pub mod firewall;
 pub mod hotspot;
 pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
+pub mod logs;
+pub mod neighbors;
 pub mod ppp;
 pub mod queues;
 pub mod raw;
+pub mod scripts;
 pub mod system;
+pub mod tools;
+pub mod users;
+pub mod wireguard;
+pub mod wireless;
 
 use std::sync::Arc;
 use axum::routing::{get, post};
@@ -17,8 +27,9 @@ use crate::state::AppState;
 
 pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        // --- Universal Raw Command & SSE Stream ---
+        // --- Universal Raw Command, Batch & SSE Stream ---
         .route("/api/v1/command", post(raw::run_raw_command))
+        .route("/api/v1/batch", post(batch::execute_batch))
         .route("/api/v1/listen", get(raw::run_raw_listen))
 
         // --- System Management ---
@@ -37,6 +48,12 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/routes", post(ip::routes))
         .route("/api/v1/ip/dns", post(ip::dns))
         .route("/api/v1/ip/pools", post(ip::pools))
+
+        // --- Static DNS & Cache ---
+        .route("/api/v1/dns/static", post(dns::static_records))
+        .route("/api/v1/dns/static/add", post(dns::add_static))
+        .route("/api/v1/dns/static/remove", post(dns::remove_static))
+        .route("/api/v1/dns/cache/flush", post(dns::flush_cache))
 
         // --- IPv6 ---
         .route("/api/v1/ipv6/addresses", post(ipv6::addresses))
@@ -69,7 +86,19 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ppp/disconnect", post(ppp::disconnect))
         .route("/api/v1/ppp/profiles", post(ppp::profiles))
 
-        // --- Firewall & Security ---
+        // --- WireGuard (RouterOS v7) ---
+        .route("/api/v1/wireguard/interfaces", post(wireguard::interfaces))
+        .route("/api/v1/wireguard/peers", post(wireguard::peers))
+        .route("/api/v1/wireguard/peer/add", post(wireguard::add_peer))
+        .route("/api/v1/wireguard/peer/remove", post(wireguard::remove_peer))
+
+        // --- Wireless & WiFi ---
+        .route("/api/v1/wireless/interfaces", post(wireless::interfaces))
+        .route("/api/v1/wireless/registrations", post(wireless::registrations))
+        .route("/api/v1/wireless/security-profiles", post(wireless::security_profiles))
+        .route("/api/v1/wireless/access-list", post(wireless::access_list))
+
+        // --- Firewall & Keamanan ---
         .route("/api/v1/firewall/filters", post(firewall::filters))
         .route("/api/v1/firewall/nat", post(firewall::nat))
         .route("/api/v1/firewall/address-lists", post(firewall::address_lists))
@@ -86,5 +115,38 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/interfaces/all", post(interfaces::all))
         .route("/api/v1/interfaces/sample-traffic", post(interfaces::sample_traffic))
         .route("/api/v1/interfaces/stream", get(interfaces::stream_traffic))
+
+        // --- Network Tools & Diagnostics ---
+        .route("/api/v1/tools/ping", post(tools::ping))
+        .route("/api/v1/tools/traceroute", post(tools::traceroute))
+        .route("/api/v1/tools/profile", post(tools::profile))
+        .route("/api/v1/tools/netwatch", post(tools::netwatch))
+        .route("/api/v1/tools/bandwidth-test", post(tools::bandwidth_test))
+
+        // --- Neighbors Discovery ---
+        .route("/api/v1/neighbors/all", post(neighbors::all))
+
+        // --- Scripts & Schedulers (Cron) ---
+        .route("/api/v1/scripts/all", post(scripts::scripts))
+        .route("/api/v1/scripts/run", post(scripts::run_script))
+        .route("/api/v1/scripts/add", post(scripts::add_script))
+        .route("/api/v1/schedulers/all", post(scripts::schedulers))
+        .route("/api/v1/schedulers/add", post(scripts::add_scheduler))
+
+        // --- Backup, Export & Files ---
+        .route("/api/v1/backup/create", post(backup::create_backup))
+        .route("/api/v1/backup/export", post(backup::export_config))
+        .route("/api/v1/files/all", post(backup::files))
+        .route("/api/v1/files/remove", post(backup::remove_file))
+
+        // --- Router Administrator Users ---
+        .route("/api/v1/users/all", post(users::users))
+        .route("/api/v1/users/create", post(users::create_user))
+        .route("/api/v1/users/remove", post(users::remove_user))
+        .route("/api/v1/users/groups", post(users::groups))
+
+        // --- Logs ---
+        .route("/api/v1/logs/all", post(logs::all))
+
         .with_state(state)
 }

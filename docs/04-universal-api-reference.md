@@ -1,14 +1,14 @@
-# Referensi Lengkap Universal API Gateway
+# Referensi Lengkap Universal API Gateway (Semua Fitur MikroTik)
 
 Gateway MikroTik Rust mengekspos endpoint REST dan SSE universal. Semua request dapat dijalankan oleh stack bahasa apa pun (Web, Mobile, Backend) dengan format JSON standar.
 
 ---
 
-## 1. Mekanisme Spesifikasi Router Target
+## 1. Mekanisme Kredensial Router Target
 
 Setiap request ke endpoint `/api/v1/*` dapat menentukan router target melalui **salah satu dari 3 cara**:
 
-### Cara A: Melalui HTTP Headers (Sangat direkomendasikan untuk REST & Mobile)
+### Opsi A: Melalui HTTP Headers (Direkomendasikan untuk REST & Mobile)
 ```http
 Authorization: Bearer <API_TOKEN>
 X-Router-Host: ath.vpnbersama.us
@@ -18,7 +18,7 @@ X-Router-Pass: password123
 Content-Type: application/json
 ```
 
-### Cara B: Melalui JSON Body (Objek `router`)
+### Opsi B: Melalui JSON Body
 ```json
 {
   "router": {
@@ -30,19 +30,18 @@ Content-Type: application/json
 }
 ```
 
-### Cara C: Melalui Router ID (Jika sudah didaftarkan di `config.toml`)
+### Opsi C: Melalui Router ID (Yang sudah terdaftar di `config.toml`)
 ```json
 {
   "router_id": "main"
 }
 ```
-*(Atau header `X-Router-Id: main`)*
 
 ---
 
-## 2. Katalog Endpoint Modular
+## 2. Katalog Lengkap Seluruh Modul Endpoint
 
-### A. System Management (`/api/v1/system/*`)
+### A. System & Upgrade (`/api/v1/system/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/system/resource` | CPU, RAM, Uptime, Versi OS, Arch | `{}` |
@@ -67,7 +66,17 @@ Content-Type: application/json
 
 ---
 
-### C. IPv6 Management (`/api/v1/ipv6/*`)
+### C. Static DNS & Cache (`/api/v1/dns/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/dns/static` | Daftar static DNS record | `{}` |
+| `POST` | `/api/v1/dns/static/add` | Tambah static DNS baru (domain intranet/hotspot) | `{"name": "login.wifi", "address": "192.168.88.1"}` |
+| `POST` | `/api/v1/dns/static/remove` | Hapus static DNS record | `{"id": "*1"}` |
+| `POST` | `/api/v1/dns/cache/flush` | Bersihkan cache DNS router | `{}` |
+
+---
+
+### D. IPv6 Management (`/api/v1/ipv6/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/ipv6/addresses` | Daftar IPv6 Address | `{}` |
@@ -79,17 +88,17 @@ Content-Type: application/json
 
 ---
 
-### D. DHCP Server & Leases (`/api/v1/dhcp/*`)
+### E. DHCP Server & Leases (`/api/v1/dhcp/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/dhcp/servers` | Daftar server DHCP | `{}` |
-| `POST` | `/api/v1/dhcp/leases` | Daftar klien yang mendapat IP DHCP | `{}` |
+| `POST` | `/api/v1/dhcp/leases` | Klien yang mendapat IP DHCP | `{}` |
 | `POST` | `/api/v1/dhcp/lease/make-static`| Kunci IP dinamis jadi IP statis | `{"id": "*2"}` |
 | `POST` | `/api/v1/dhcp/lease/remove` | Hapus lease klien | `{"id": "*2"}` |
 
 ---
 
-### E. Hotspot & Vouchers (`/api/v1/hotspot/*`)
+### F. Hotspot & Vouchers (`/api/v1/hotspot/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/hotspot/users` | Daftar seluruh voucher/user | `{}` |
@@ -102,7 +111,17 @@ Content-Type: application/json
 
 ---
 
-### F. PPP & PPPoE (`/api/v1/ppp/*`)
+### G. Wireless & WiFi / CAPsMAN (`/api/v1/wireless/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/wireless/interfaces` | Daftar interface wireless/wifi | `{}` |
+| `POST` | `/api/v1/wireless/registrations` | **WiFi Clients** (Sinyal dBm, CCQ, Tx/Rx rate, Uptime) | `{}` |
+| `POST` | `/api/v1/wireless/security-profiles` | Profil keamanan WiFi WPA2/WPA3 | `{}` |
+| `POST` | `/api/v1/wireless/access-list` | Filter MAC address access list | `{}` |
+
+---
+
+### H. PPP & PPPoE (`/api/v1/ppp/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/ppp/secrets` | Daftar akun pelanggan PPPoE | `{}` |
@@ -114,7 +133,17 @@ Content-Type: application/json
 
 ---
 
-### G. Firewall & Keamanan (`/api/v1/firewall/*`)
+### I. WireGuard VPN (RouterOS v7) (`/api/v1/wireguard/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/wireguard/interfaces` | Daftar interface WireGuard | `{}` |
+| `POST` | `/api/v1/wireguard/peers` | Daftar peer WireGuard | `{}` |
+| `POST` | `/api/v1/wireguard/peer/add` | Tambah peer WireGuard | `{"interface": "wg0", "public_key": "...", "allowed_address": "10.0.0.2/32"}` |
+| `POST` | `/api/v1/wireguard/peer/remove` | Hapus peer WireGuard | `{"id": "*1"}` |
+
+---
+
+### J. Firewall & Keamanan (`/api/v1/firewall/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/firewall/filters` | Aturan firewall filter | `{}` |
@@ -125,7 +154,7 @@ Content-Type: application/json
 
 ---
 
-### H. Simple Queues (`/api/v1/queues/*`)
+### K. Simple Queues (`/api/v1/queues/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/queues/simple` | Daftar aturan limit bandwidth | `{}` |
@@ -135,17 +164,86 @@ Content-Type: application/json
 
 ---
 
-### I. Interfaces & Realtime Traffic Streaming
+### L. Interfaces & Realtime Traffic Streaming (`/api/v1/interfaces/*`)
 | Method | Endpoint | Kegunaan |
 |---|---|---|
 | `POST` | `/api/v1/interfaces/all` | Daftar semua interface ethernet & bridge |
-| `POST` | `/api/v1/interfaces/sample-traffic` | Ambil 1 snapshot kecepatan traffic saat ini (`{"interface": "ether1"}`) |
+| `POST` | `/api/v1/interfaces/sample-traffic` | Snapshot kecepatan traffic saat ini (`{"interface": "ether1"}`) |
 | `GET` | `/api/v1/interfaces/stream` | **SSE Live Stream Traffic** (Query params: `host`, `port`, `user`, `password`, `interface=ether1`) |
 
 ---
 
-### J. Universal Raw Command Runner (`/api/v1/command`)
-Dapat menjalankan perintah RouterOS apa saja tanpa batas:
+### M. Network Tools & Diagnostik (`/api/v1/tools/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/tools/ping` | Ping ke IP target dari router | `{"address": "8.8.8.8", "count": 4}` |
+| `POST` | `/api/v1/tools/traceroute` | Traceroute dari router | `{"address": "1.1.1.1"}` |
+| `POST` | `/api/v1/tools/profile` | **CPU Profiler** (melihat apa yang menghabiskan CPU) | `{}` |
+| `POST` | `/api/v1/tools/netwatch` | Monitoring status UP/DOWN host otomatis | `{}` |
+| `POST` | `/api/v1/tools/bandwidth-test` | Tes kecepatan bandwidth antar MikroTik | `{"address": "192.168.1.2", "direction": "both"}` |
+
+---
+
+### N. Neighbor Discovery & Winbox Scan (`/api/v1/neighbors/*`)
+| Method | Endpoint | Kegunaan |
+|---|---|---|
+| `POST` | `/api/v1/neighbors/all` | Mendeteksi semua router/switch sekitar via CDP/MNDP/LLDP |
+
+---
+
+### O. Scripting & Schedulers Cron (`/api/v1/scripts/*` & `/api/v1/schedulers/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/scripts/all` | Daftar skrip sistem | `{}` |
+| `POST` | `/api/v1/scripts/run` | Jalankan skrip RouterOS | `{"number_or_name": "backup-script"}` |
+| `POST` | `/api/v1/scripts/add` | Tambah skrip baru | `{"name": "test", "source": ":put hello"}` |
+| `POST` | `/api/v1/schedulers/all` | Daftar scheduler cron otomatis | `{}` |
+| `POST` | `/api/v1/schedulers/add` | Tambah scheduler cron | `{"name": "daily-reset", "on_event": "...", "interval": "1d"}` |
+
+---
+
+### P. Backup, Export & Storage Files (`/api/v1/backup/*` & `/api/v1/files/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/backup/create` | Buat file backup `.backup` di router | `{"name": "backup-auto"}` |
+| `POST` | `/api/v1/backup/export` | Ekspor konfigurasi skrip `.rsc` | `{"file": "config.rsc"}` |
+| `POST` | `/api/v1/files/all` | Daftar file di storage MikroTik | `{}` |
+| `POST` | `/api/v1/files/remove` | Hapus file di storage | `{"id": "*1"}` |
+
+---
+
+### Q. Router Administrator Users (`/api/v1/users/*`)
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/users/all` | Daftar akun admin router | `{}` |
+| `POST` | `/api/v1/users/create` | Tambah akun admin baru | `{"name": "noc", "password": "...", "group": "full"}` |
+| `POST` | `/api/v1/users/remove` | Hapus akun admin | `{"id": "*1"}` |
+| `POST` | `/api/v1/users/groups` | Daftar grup permission | `{}` |
+
+---
+
+### R. Batch Pipeline Execution (`POST /api/v1/batch`)
+Mengeksekusi banyak perintah sekaligus dalam 1 kali HTTP request secara paralel:
+```json
+{
+  "router": {
+    "host": "ath.vpnbersama.us",
+    "port": 51121,
+    "user": "admin",
+    "password": "secretpassword"
+  },
+  "commands": [
+    { "command": "/ip/hotspot/user/add", "args": { "name": "user01", "password": "123", "profile": "default" } },
+    { "command": "/ip/hotspot/user/add", "args": { "name": "user02", "password": "123", "profile": "default" } },
+    { "command": "/ip/hotspot/user/add", "args": { "name": "user03", "password": "123", "profile": "default" } }
+  ]
+}
+```
+
+---
+
+### S. Universal Raw Command Runner (`POST /api/v1/command`)
+Mengeksekusi perintah RouterOS arbitrary apa pun secara bebas tanpa batas:
 ```json
 {
   "router": {

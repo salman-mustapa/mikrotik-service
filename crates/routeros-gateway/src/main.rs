@@ -7,7 +7,7 @@ use std::sync::Arc;
 use axum::extract::{Request, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::json;
@@ -40,8 +40,167 @@ async fn health() -> Json<serde_json::Value> {
     Json(json!({
         "status": "ok",
         "service": "mikrotik-universal-rust-gateway",
-        "version": "0.1.0"
+        "version": "0.2.0"
     }))
+}
+
+async fn playground() -> Html<&'static str> {
+    Html(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MikroTik Universal Rust Gateway - Live Playground</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc;
+      --muted: #94a3b8; --primary: #3b82f6; --primary-hover: #2563eb;
+      --success: #10b981; --danger: #ef4444; --code-bg: #090d16;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 2rem 1rem; line-height: 1.5; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+    h1 { font-size: 1.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .badge { background: #1e3a8a; color: #93c5fd; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #cbd5e1; }
+    .form-group { margin-bottom: 0.85rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--muted); }
+    input, select, textarea {
+      width: 100%; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--code-bg); color: var(--text); font-size: 0.9rem;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    .btn {
+      background: var(--primary); color: white; border: none; padding: 0.5rem 1rem;
+      border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 1rem; overflow-x: auto; font-size: 0.85rem; color: #38bdf8; min-height: 250px; max-height: 480px;
+    }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>🦀 MikroTik Universal Rust Engine</span> <span class="badge">v0.2.0 Active</span></h1>
+    <p style="color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem;">
+      High-performance sub-millisecond gateway connecting any web, mobile, or backend stack to RouterOS.
+    </p>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h2>🔐 Connection Target Parameters</h2>
+        <div class="form-group">
+          <label>Gateway Bearer Token</label>
+          <input type="text" id="token" value="change-me-to-a-long-random-string">
+        </div>
+        <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 0.5rem;">
+          <div class="form-group">
+            <label>Router Host (IP / Domain)</label>
+            <input type="text" id="host" value="ath.vpnbersama.us">
+          </div>
+          <div class="form-group">
+            <label>API Port</label>
+            <input type="number" id="port" value="51121">
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <div class="form-group">
+            <label>Router Username</label>
+            <input type="text" id="user" value="admin">
+          </div>
+          <div class="form-group">
+            <label>Router Password</label>
+            <input type="password" id="password" placeholder="Enter router password">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>⚡ Quick Action Testers</h2>
+        <p style="font-size: 0.8rem; color: var(--muted); margin-bottom: 0.75rem;">
+          Klik salah satu aksi untuk mengeksekusi langsung ke router melalui persistent pool Rust:
+        </p>
+        <div class="btn-row">
+          <button class="btn" onclick="execApi('/api/v1/system/resource', {})">System Resource</button>
+          <button class="btn" onclick="execApi('/api/v1/system/identity', {})">Identity</button>
+          <button class="btn" onclick="execApi('/api/v1/interfaces/all', {})">All Interfaces</button>
+          <button class="btn" onclick="execApi('/api/v1/ip/addresses', {})">IPv4 Addresses</button>
+          <button class="btn" onclick="execApi('/api/v1/ipv6/addresses', {})">IPv6 Addresses</button>
+          <button class="btn" onclick="execApi('/api/v1/dhcp/leases', {})">DHCP Leases</button>
+          <button class="btn" onclick="execApi('/api/v1/hotspot/users', {})">Hotspot Users</button>
+          <button class="btn" onclick="execApi('/api/v1/hotspot/active', {})">Hotspot Online</button>
+          <button class="btn" onclick="execApi('/api/v1/ppp/secrets', {})">PPPoE Secrets</button>
+          <button class="btn" onclick="execApi('/api/v1/wireless/registrations', {})">WiFi Clients</button>
+          <button class="btn" onclick="execApi('/api/v1/tools/ping', { address: '8.8.8.8', count: 3 })">Ping Test</button>
+          <button class="btn" onclick="execApi('/api/v1/neighbors/all', {})">Neighbors Scan</button>
+          <button class="btn" onclick="execApi('/api/v1/system/check-update', {})">Check Updates</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h2>📊 Live API Response Output</h2>
+          <span id="timing" style="font-size: 0.8rem; color: var(--muted);">Ready</span>
+        </div>
+        <pre id="output">// Results will appear here in clean JSON...</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function execApi(path, payload) {
+  const token = document.getElementById('token').value;
+  const host = document.getElementById('host').value;
+  const port = parseInt(document.getElementById('port').value) || 8728;
+  const user = document.getElementById('user').value;
+  const password = document.getElementById('password').value;
+
+  const out = document.getElementById('output');
+  const timing = document.getElementById('timing');
+  out.textContent = "Executing request via Rust persistent pool...";
+  timing.textContent = "Running...";
+
+  const t0 = performance.now();
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'X-Router-Host': host,
+        'X-Router-Port': port.toString(),
+        'X-Router-User': user,
+        'X-Router-Pass': password,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const t1 = performance.now();
+    const data = await res.json();
+    timing.innerHTML = `<span class="live-dot"></span> Status: ${res.status} | Time: ${(t1 - t0).toFixed(1)} ms`;
+    out.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    timing.textContent = "Failed";
+    out.textContent = "Error: " + err.message;
+  }
+}
+</script>
+</body>
+</html>"#)
 }
 
 #[tokio::main]
@@ -63,8 +222,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protected = routes::build_api_router(state.clone())
         .layer(middleware::from_fn_with_state(state.clone(), auth));
 
-    // Combined router with health check & permissive CORS for web/mobile browsers
+    // Combined router with web playground, health check & permissive CORS
     let app = Router::new()
+        .route("/", get(playground))
         .route("/health", get(health))
         .merge(protected)
         .layer(tower_http::cors::CorsLayer::permissive())
