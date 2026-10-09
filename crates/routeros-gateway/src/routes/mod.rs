@@ -1,3 +1,5 @@
+pub mod anti_tethering;
+pub mod app_blocker;
 pub mod backup;
 pub mod batch;
 pub mod bridge;
@@ -7,12 +9,14 @@ pub mod dude;
 pub mod expert;
 pub mod firewall;
 pub mod hotspot;
+pub mod hotspot_wizard;
 pub mod infrastructure;
 pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
 pub mod logs;
 pub mod maintenance;
+pub mod nat_wizard;
 pub mod neighbors;
 pub mod network_map;
 pub mod noc_tools;
@@ -20,6 +24,7 @@ pub mod overview;
 pub mod ppp;
 pub mod queues;
 pub mod raw;
+pub mod resource_detective;
 pub mod scripts;
 pub mod security_advisor;
 pub mod system;
@@ -269,6 +274,29 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/dhcp-client/all", post(noc_tools::dhcp_clients))
         .route("/api/v1/ip/dhcp-client/add", post(noc_tools::add_dhcp_client))
         .route("/api/v1/scripts/terminal-exec", post(noc_tools::terminal_exec))
+
+        // --- App & Content Blocker (WhatsApp, TikTok, YouTube, Judi, Torrent) ---
+        .route("/api/v1/security/app-block", post(app_blocker::block_app))
+        .route("/api/v1/security/app-unblock", post(app_blocker::unblock_app))
+        .route("/api/v1/security/blocked-apps", post(app_blocker::list_blocked_apps))
+
+        // --- Anti-Tethering & Anti-WiFi Sharing (TTL=1) ---
+        .route("/api/v1/security/anti-tethering/enable", post(anti_tethering::enable_anti_tethering))
+        .route("/api/v1/security/anti-tethering/disable", post(anti_tethering::disable_anti_tethering))
+        .route("/api/v1/security/anti-tethering/status", post(anti_tethering::status_anti_tethering))
+
+        // --- NAT & Port Forwarding Wizard ---
+        .route("/api/v1/firewall/port-forward", post(nat_wizard::add_port_forward))
+        .route("/api/v1/firewall/port-forward/list", post(nat_wizard::list_port_forwards))
+        .route("/api/v1/firewall/port-forward/remove", post(nat_wizard::remove_port_forward))
+        .route("/api/v1/firewall/srcnat/masquerade", post(nat_wizard::add_masquerade))
+
+        // --- One-Click Complete Hotspot Setup Wizard ---
+        .route("/api/v1/hotspot/wizard/setup", post(hotspot_wizard::setup_hotspot_wizard))
+
+        // --- Resource Hog Detective & FastTrack CPU Optimizer ---
+        .route("/api/v1/system/cpu-profiler", post(resource_detective::cpu_profiler))
+        .route("/api/v1/system/fasttrack/deploy", post(resource_detective::deploy_fasttrack))
 
         .with_state(state)
 }

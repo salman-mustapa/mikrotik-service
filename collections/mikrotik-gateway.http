@@ -542,5 +542,80 @@ Content-Type: application/json
   "script": "/ip firewall address-list add list=TEST_LIST address=1.2.3.4"
 }
 
+### 35. 🚫 Blokir Aplikasi / Konten Sekali Klik (WhatsApp, TikTok, Judi Online)
+POST {{baseUrl}}/api/v1/security/app-block
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "app_type": "whatsapp"
+}
+
+### 36. 📵 Aktifkan Anti-Tethering & Anti-WiFi Sharing (TTL=1)
+POST {{baseUrl}}/api/v1/security/anti-tethering/enable
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "hotspot_interface": "bridge",
+  "enforce_shared_users_one": true
+}
+
+### 37. 🔀 Konfigurasi Dst-NAT Port Forwarding (CCTV / Web Server)
+POST {{baseUrl}}/api/v1/firewall/port-forward
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "dst_port": "8080",
+  "to_addresses": "192.168.88.50",
+  "to_ports": "80",
+  "protocol": "tcp",
+  "comment": "Akses Web CCTV"
+}
+
+### 38. 🧙‍♂️ 1-Klik Complete Hotspot Provisioning Template Wizard
+POST {{baseUrl}}/api/v1/hotspot/wizard/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "interface": "ether2",
+  "local_address": "192.168.50.1/24",
+  "dhcp_pool_range": "192.168.50.10-192.168.50.254",
+  "dns_name": "wifi.kafe.net",
+  "hotspot_name": "KAFE-WIFI",
+  "admin_user": "admin",
+  "admin_password": "mypassword123"
+}
+
+### 39. 🚀 Profiler Beban CPU & Deploy FastTrack Accelerator
+POST {{baseUrl}}/api/v1/system/cpu-profiler
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+
 
 

@@ -615,6 +615,66 @@ Perangkat diagnostik lengkap untuk Network Operations Center (NOC):
 | `POST` | `/api/v1/ip/dhcp-client/add` | Tambah DHCP Client pada interface WAN | `{"interface": "ether1", "add_default_route": true}` |
 | `POST` | `/api/v1/scripts/terminal-exec` | **Terminal Paste Script Runner**: Menjalankan batch script panjang arbitrary hasil copas terminal Winbox secara atomik | `{"script": "/ip firewall filter add chain=input action=accept..."}` |
 
+---
+
+### JJ. 🚫 App & Content Blocker (`/api/v1/security/app-*`)
+Pemblokiran aplikasi dan konten berbahaya/mengganggu sekali klik dengan penandaan komentar otomatis di Winbox (`[App-Blocker]`):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/security/app-block` | **Blokir Aplikasi Sekali Klik**: Pilihan `whatsapp`, `tiktok`, `youtube`, `judi_online`, `torrent_p2p`, atau `custom` | `{"app_type": "whatsapp"}` atau `{"app_type": "custom", "custom_domain": "roblox.com"}` |
+| `POST` | `/api/v1/security/app-unblock` | **Buka Blokir Aplikasi**: Menghapus aturan filter firewall aplikasi terkait secara otomatis | `{"app_type": "whatsapp"}` |
+| `POST` | `/api/v1/security/blocked-apps` | Daftar seluruh aturan pemblokiran aplikasi yang sedang aktif | `{}` |
+
+---
+
+### KK. 📵 Anti-Tethering & Anti-WiFi Sharing Protection (`/api/v1/security/anti-tethering/*`)
+Mencegah pengguna Hotspot/Voucher berbagi koneksi internet menggunakan **WiFi QR Code Sharing, Bluetooth Tethering, atau USB Tethering**:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/security/anti-tethering/enable` | **Aktifkan Proteksi Anti-Tethering**: Menyuntikkan aturan Mangle `change-ttl new-ttl=set:1` pada interface Hotspot dan memaksa profil user `shared-users=1` | `{"hotspot_interface": "bridge-hotspot", "enforce_shared_users_one": true}` |
+| `POST` | `/api/v1/security/anti-tethering/disable` | Nonaktifkan proteksi anti-tethering | `{}` |
+| `POST` | `/api/v1/security/anti-tethering/status` | Cek status aktifnya proteksi anti-tethering | `{}` |
+
+*Penjelasan Mekanisme Teknis: Nilai TTL paket data yang keluar menuju HP pengguna dipaksa menjadi 1. Jika HP tersebut mencoba mem-forward internet ke HP lain (tethering/QR share), OS HP akan mengurangi TTL menjadi 0, sehingga paket data otomatis dibuang (dropped) dan internet di HP kedua tidak jalan sama sekali.*
+
+---
+
+### LL. 🔀 NAT & Port Forwarding Wizard (`/api/v1/firewall/port-forward/*`)
+Membuka akses perangkat lokal (CCTV, Web Server, Game Server, Billing) ke internet publik:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/firewall/port-forward` | **Port Forwarding Sekali Klik**: Otomatis membuat aturan Dst-NAT dan membuka Firewall Filter forward accept | `{"dst_port": "8000", "to_addresses": "192.168.88.50", "to_ports": "80", "protocol": "tcp"}` |
+| `POST` | `/api/v1/firewall/port-forward/list` | Daftar seluruh aturan Dst-NAT port forwarding aktif | `{}` |
+| `POST` | `/api/v1/firewall/port-forward/remove`| Hapus aturan port forwarding | `{"id": "*1"}` |
+| `POST` | `/api/v1/firewall/srcnat/masquerade` | Tambah aturan dasar Src-NAT Masquerade untuk WAN | `{"out_interface": "ether1"}` |
+
+---
+
+### MM. 🧙‍♂️ 1-Klik Complete Hotspot Setup Template Wizard (`POST /api/v1/hotspot/wizard/setup`)
+Membangun infrastruktur Hotspot lengkap dari nol dalam 1 kali eksekusi atomik (< 50 milidetik). Semua aturan otomatis diberi penanda komentar rapi `[Wizard]`:
+```json
+{
+  "interface": "ether2",
+  "local_address": "192.168.50.1/24",
+  "dhcp_pool_range": "192.168.50.10-192.50.254",
+  "dns_name": "wifi.kafe.net",
+  "hotspot_name": "KAFE-WIFI",
+  "admin_user": "admin",
+  "admin_password": "mypassword123"
+}
+```
+*Langkah yang otomatis dijalankan: Assign IP Gateway ➔ IP Pool ➔ DHCP Server & Network ➔ Hotspot Profile ➔ Hotspot Server Instance ➔ User Profile (Anti-Share) ➔ Admin User ➔ Src-NAT Masquerade.*
+
+---
+
+### NN. 🚀 Resource Hog Detective & FastTrack CPU Accelerator (`/api/v1/system/*`)
+Dirancang khusus agar router dengan spesifikasi kecil (seperti hAP mini, hAP lite, RB750Gr3) tidak mengalami lonjakan CPU 100% atau freeze:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/system/cpu-profiler` | **CPU & RAM Hog Detective**: Menjalankan `/tool/profile` untuk mendeteksi proses apa yang memakan CPU (`networking`, `firewall`, `dns`, `queues`) dan memberikan diagnosa penyebab | `{}` |
+| `POST` | `/api/v1/system/fasttrack/deploy` | **Pasang FastTrack Connection**: Menurunkan beban CPU hingga 80% pada router kecil dengan membypass connection tracking untuk paket established/related | `{}` |
+
+
 
 
 
