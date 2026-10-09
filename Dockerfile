@@ -10,7 +10,7 @@ WORKDIR /app
 RUN apk add --no-cache musl-dev
 
 # Copy manifests first to optimize Docker layer caching
-COPY Cargo.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY crates/routeros-core/Cargo.toml ./crates/routeros-core/
 COPY crates/routeros-gateway/Cargo.toml ./crates/routeros-gateway/
 

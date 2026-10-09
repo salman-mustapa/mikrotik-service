@@ -1,7 +1,6 @@
 # Rust build artifacts
 target/
 **/*.rs.bk
-Cargo.lock
 
 # Configuration with credentials (keep config.example.toml committed)
 config.toml

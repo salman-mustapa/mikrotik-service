@@ -390,6 +390,7 @@ pub async fn overview_summary(
             "current_download": format_bps(it.cur_down),
             "current_upload": format_bps(it.cur_up),
             "max_limit_download": if it.max_down > 0 { format_bps(it.max_down) } else { "Unlimited".into() },
+            "max_limit_upload": if it.max_up > 0 { format_bps(it.max_up) } else { "Unlimited".into() },
             "total_bytes": format_bytes(it.bytes_down),
             "is_throttled": it.is_throttled
         })
