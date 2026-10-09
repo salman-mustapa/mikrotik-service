@@ -136,3 +136,103 @@ pub async fn ip_bindings(
     let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct GenerateBatchReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub qty: usize,
+    #[serde(default = "default_batch_prefix")]
+    pub prefix: String,
+    #[serde(default = "default_batch_len")]
+    pub length: usize,
+    #[serde(default = "default_profile")]
+    pub profile: String,
+    pub timelimit: Option<String>,
+    pub datalimit: Option<String>,
+    pub server: Option<String>,
+    pub comment: Option<String>,
+}
+
+fn default_batch_prefix() -> String {
+    "V-".into()
+}
+
+fn default_batch_len() -> usize {
+    6
+}
+
+pub async fn generate_batch(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<GenerateBatchReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let qty = req.qty.clamp(1, 1000);
+    let charset = b"abcdefghjkmnpqrstuvwxyz23456789";
+    let len = req.length.clamp(4, 16);
+
+    let mut vouchers = Vec::with_capacity(qty);
+    let mut futures = Vec::with_capacity(qty);
+
+    let seed_base = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(123456789);
+
+    for i in 0..qty {
+        let mut code = String::with_capacity(len);
+        let mut val = seed_base.wrapping_add((i as u128).wrapping_mul(9876543211));
+        for _ in 0..len {
+            val = val.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let idx = (val as usize) % charset.len();
+            code.push(charset[idx] as char);
+        }
+        let username = format!("{}{}", req.prefix, code);
+        let password = username.clone();
+
+        let mut args = vec![
+            ("name".to_string(), username.clone()),
+            ("password".to_string(), password.clone()),
+            ("profile".to_string(), req.profile.clone()),
+        ];
+        if let Some(t) = req.timelimit.as_deref() {
+            args.push(("limit-uptime".to_string(), t.to_string()));
+        }
+        if let Some(d) = req.datalimit.as_deref() {
+            args.push(("limit-bytes-total".to_string(), d.to_string()));
+        }
+        if let Some(s) = req.server.as_deref() {
+            args.push(("server".to_string(), s.to_string()));
+        }
+        let c_str = req.comment.as_deref().unwrap_or("Batch-Generated");
+        args.push(("comment".to_string(), c_str.to_string()));
+
+        let words: Vec<String> = build_command(
+            "/ip/hotspot/user/add",
+            args.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        );
+        futures.push(client.run(words));
+
+        vouchers.push(json!({
+            "username": username,
+            "password": password,
+            "profile": req.profile,
+            "timelimit": req.timelimit,
+            "datalimit": req.datalimit,
+        }));
+    }
+
+    let results = futures::future::join_all(futures).await;
+    let success_count = results.into_iter().filter(|r| r.is_ok()).count();
+
+    Ok(Json(json!({
+        "success": true,
+        "total_requested": qty,
+        "total_created": success_count,
+        "vouchers": vouchers,
+    })))
+}
+

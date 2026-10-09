@@ -72,20 +72,19 @@ Perilaku login MikroTik mengalami evolusi penting yang diantisipasi secara otoma
 
 ```mermaid
 flowchart TD
-    Start([Mulai Login]) --> SendPlain["Kirim /login<br/>=name=user<br/>=password=pass"]
+    Start([Mulai Login]) --> SendPlain["Kirim /login: user & password"]
     SendPlain --> Recv{"Router Menjawab Apa?"}
 
-    Recv -- "!done (tanpa =ret=)" --> SuccessV7["RouterOS >= 6.43 & RouterOS v7:<br/>Login Langsung Berhasil!"]
+    Recv -->|"!done tanpa ret"| SuccessV7["RouterOS v7 & v6.43 keatas: Login Langsung Berhasil"]
+    Recv -->|"!done dengan ret=CHALLENGE"| LegacyV6["RouterOS Legacy v6.42 kebawah: Butuh MD5 Challenge"]
     
-    Recv -- "!done dengan =ret=CHALLENGE" --> LegacyV6["RouterOS Legacy (< 6.43):<br/>Butuh MD5 Challenge Response"]
-    
-    LegacyV6 --> CalcMD5["Hitung Response MD5:<br/>0x00 + password + challenge"]
-    CalcMD5 --> SendChallenge["Kirim /login<br/>=name=user<br/>=response=00{md5_hex}"]
+    LegacyV6 --> CalcMD5["Hitung MD5: 0x00 + password + challenge"]
+    CalcMD5 --> SendChallenge["Kirim /login response=00{md5}"]
     SendChallenge --> Recv2{"Router Menjawab?"}
     
-    Recv2 -- "!done" --> SuccessV6["Login Berhasil!"]
-    Recv2 -- "!trap" --> Fail["Login Gagal (Username/Password Salah)"]
-    Recv -- "!trap" --> Fail
+    Recv2 -->|"!done"| SuccessV6["Login Berhasil"]
+    Recv2 -->|"!trap"| Fail["Login Gagal: Password / User Salah"]
+    Recv -->|"!trap"| Fail
 ```
 
 Kode deteksi otomatis ini terletak di method `login` pada [`crates/routeros-core/src/client.rs`](file:///d:/MyPorto/mikrotik/crates/routeros-core/src/client.rs#L140-L167).

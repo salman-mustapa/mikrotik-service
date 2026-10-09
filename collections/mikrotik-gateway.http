@@ -11,6 +11,17 @@
 ### 1. Health Check (Tanpa Auth)
 GET {{baseUrl}}/health
 
+### 1B. ⚡ Fast-Path Overview Snapshot (Sub-Millisecond Aggregation)
+POST {{baseUrl}}/api/v1/overview
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
 ### 2. Universal System Resource (CPU, Uptime, Memory)
 POST {{baseUrl}}/api/v1/system/resource
 Authorization: Bearer {{token}}
@@ -110,6 +121,24 @@ Content-Type: application/json
   "profile": "default",
   "timelimit": "3h",
   "comment": "Dibuat via Universal Gateway"
+}
+
+### 9B. 🎟️ Hotspot Generate Batch Vouchers (Pipelined Mass Creation)
+POST {{baseUrl}}/api/v1/hotspot/generate-batch
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "qty": 20,
+  "prefix": "VIP-",
+  "length": 6,
+  "profile": "default",
+  "timelimit": "1h",
+  "comment": "Batch-Promo"
 }
 
 ### 10. Hotspot Active Users (Sedang Online)

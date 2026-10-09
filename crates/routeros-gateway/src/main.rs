@@ -133,6 +133,8 @@ async fn playground() -> Html<&'static str> {
           Klik salah satu aksi untuk mengeksekusi langsung ke router melalui persistent pool Rust:
         </p>
         <div class="btn-row">
+          <button class="btn" style="background: #10b981;" onclick="execApi('/api/v1/overview', {})">⚡ Fast-Path Overview (Sub-ms)</button>
+          <button class="btn" style="background: #8b5cf6;" onclick="execApi('/api/v1/hotspot/generate-batch', { qty: 5, prefix: 'V-', profile: 'default' })">🎟️ Generate 5 Vouchers</button>
           <button class="btn" onclick="execApi('/api/v1/system/resource', {})">System Resource</button>
           <button class="btn" onclick="execApi('/api/v1/system/identity', {})">Identity</button>
           <button class="btn" onclick="execApi('/api/v1/interfaces/all', {})">All Interfaces</button>
@@ -222,10 +224,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protected = routes::build_api_router(state.clone())
         .layer(middleware::from_fn_with_state(state.clone(), auth));
 
-    // Combined router with web playground, health check & permissive CORS
+    // Combined router with web playground, health check, websocket & permissive CORS
     let app = Router::new()
         .route("/", get(playground))
         .route("/health", get(health))
+        .route("/ws", get(routes::ws::ws_handler))
         .merge(protected)
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);

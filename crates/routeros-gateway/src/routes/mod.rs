@@ -9,6 +9,7 @@ pub mod ip;
 pub mod ipv6;
 pub mod logs;
 pub mod neighbors;
+pub mod overview;
 pub mod ppp;
 pub mod queues;
 pub mod raw;
@@ -18,6 +19,7 @@ pub mod tools;
 pub mod users;
 pub mod wireguard;
 pub mod wireless;
+pub mod ws;
 
 use std::sync::Arc;
 use axum::routing::{get, post};
@@ -27,6 +29,9 @@ use crate::state::AppState;
 
 pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
+        // --- Fast-Path Aggregated Snapshot (Sub-millisecond tokio::join!) ---
+        .route("/api/v1/overview", post(overview::get_overview))
+
         // --- Universal Raw Command, Batch & SSE Stream ---
         .route("/api/v1/command", post(raw::run_raw_command))
         .route("/api/v1/batch", post(batch::execute_batch))
@@ -72,6 +77,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Hotspot & Vouchers ---
         .route("/api/v1/hotspot/users", post(hotspot::users))
         .route("/api/v1/hotspot/user/create", post(hotspot::create_user))
+        .route("/api/v1/hotspot/generate-batch", post(hotspot::generate_batch))
         .route("/api/v1/hotspot/user/remove", post(hotspot::remove_user))
         .route("/api/v1/hotspot/active", post(hotspot::active))
         .route("/api/v1/hotspot/kick", post(hotspot::kick))

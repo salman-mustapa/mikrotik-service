@@ -1,0 +1,332 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Card Gradients -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95" />
+    </linearGradient>
+
+    <linearGradient id="rustCoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95" />
+    </linearGradient>
+
+    <!-- Accent Gradients -->
+    <linearGradient id="rustAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+
+    <linearGradient id="cyanAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+
+    <linearGradient id="greenAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <linearGradient id="purpleAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <!-- Drop Shadows & Glows -->
+    <filter id="glowRust" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+
+    <!-- Arrow Markers -->
+    <marker id="arrowCyan" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#38bdf8" />
+    </marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#f97316" />
+    </marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#10b981" />
+    </marker>
+  </defs>
+
+  <style>
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; fill: #f8fafc; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 400; fill: #94a3b8; }
+    .h2 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; fill: #f1f5f9; }
+    .text-sm { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 500; fill: #cbd5e1; }
+    .text-xs { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 400; fill: #94a3b8; }
+    .badge { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 600; }
+  </style>
+
+  <!-- Background Base -->
+  <rect width="1200" height="680" fill="url(#bgGrad)" />
+
+  <!-- Subtle Grid Lines -->
+  <g opacity="0.05" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="100" x2="1200" y2="100" />
+    <line x1="0" y1="200" x2="1200" y2="200" />
+    <line x1="0" y1="300" x2="1200" y2="300" />
+    <line x1="0" y1="400" x2="1200" y2="400" />
+    <line x1="0" y1="500" x2="1200" y2="500" />
+    <line x1="0" y1="600" x2="1200" y2="600" />
+    <line x1="200" y1="0" x2="200" y2="680" />
+    <line x1="400" y1="0" x2="400" y2="680" />
+    <line x1="600" y1="0" x2="600" y2="680" />
+    <line x1="800" y1="0" x2="800" y2="680" />
+    <line x1="1000" y1="0" x2="1000" y2="680" />
+  </g>
+
+  <!-- Header Banner -->
+  <g transform="translate(60, 40)">
+    <rect x="0" y="0" width="36" height="36" rx="8" fill="url(#rustAccent)" />
+    <text x="18" y="24" text-anchor="middle" font-size="20" fill="#ffffff" font-weight="900">🦀</text>
+    <text x="50" y="22" class="title" font-size="22">MikroTik Universal Rust Core &amp; Gateway Architecture</text>
+    <text x="50" y="38" class="subtitle" font-size="13">High-Performance Sub-Millisecond Gateway with Dynamic Connection Pool &amp; Tag Multiplexing</text>
+    <rect x="940" y="8" width="140" height="26" rx="13" fill="#1e293b" stroke="#334155" />
+    <circle cx="954" cy="21" r="4" fill="#10b981" />
+    <text x="966" y="25" class="badge" fill="#38bdf8">PORT 8080 : ACTIVE</text>
+  </g>
+
+  <!-- ================= LEFT COLUMN: CLIENT APPLICATIONS ================= -->
+  <g transform="translate(50, 110)">
+    <!-- Column Outer Frame -->
+    <rect width="250" height="520" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#cardShadow)" />
+    
+    <!-- Column Title -->
+    <rect x="16" y="16" width="218" height="34" rx="8" fill="#1e293b" stroke="#475569" stroke-width="0.8" />
+    <text x="125" y="38" text-anchor="middle" class="h2" font-size="13" fill="#e2e8f0">CLIENT APPLICATIONS</text>
+    <text x="125" y="65" text-anchor="middle" class="text-xs" fill="#64748b">Any Programming Stack</text>
+
+    <!-- Card 1: Web Apps -->
+    <g transform="translate(16, 85)">
+      <rect width="218" height="90" rx="10" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2" stroke-opacity="0.4" />
+      <circle cx="26" cy="26" r="12" fill="#0369a1" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">🌐</text>
+      <text x="46" y="24" class="h2" font-size="13">Web Frontends</text>
+      <text x="46" y="38" class="text-xs">React, Vue.js, Angular, Svelte</text>
+      <rect x="16" y="52" width="186" height="24" rx="5" fill="#1e293b" />
+      <text x="24" y="68" class="badge" fill="#38bdf8">HTTP REST / WebSocket / SSE</text>
+    </g>
+
+    <!-- Card 2: Mobile Apps -->
+    <g transform="translate(16, 190)">
+      <rect width="218" height="90" rx="10" fill="#0f172a" stroke="#a855f7" stroke-width="1.2" stroke-opacity="0.4" />
+      <circle cx="26" cy="26" r="12" fill="#6b21a8" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">📱</text>
+      <text x="46" y="24" class="h2" font-size="13">Mobile Applications</text>
+      <text x="46" y="38" class="text-xs">Flutter, React Native, iOS, Android</text>
+      <rect x="16" y="52" width="186" height="24" rx="5" fill="#1e293b" />
+      <text x="24" y="68" class="badge" fill="#c084fc">Direct WS / HTTPS Stream</text>
+    </g>
+
+    <!-- Card 3: Backend Services -->
+    <g transform="translate(16, 295)">
+      <rect width="218" height="90" rx="10" fill="#0f172a" stroke="#10b981" stroke-width="1.2" stroke-opacity="0.4" />
+      <circle cx="26" cy="26" r="12" fill="#047857" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">⚙️</text>
+      <text x="46" y="24" class="h2" font-size="13">Backend Servers</text>
+      <text x="46" y="38" class="text-xs">Laravel, Node.js, Python, Go, Java</text>
+      <rect x="16" y="52" width="186" height="24" rx="5" fill="#1e293b" />
+      <text x="24" y="68" class="badge" fill="#34d399">Standard HTTP JSON Client</text>
+    </g>
+
+    <!-- Universal Credentials Box -->
+    <g transform="translate(16, 400)">
+      <rect width="218" height="100" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1" stroke-dasharray="4 3" />
+      <text x="20" y="22" class="badge" fill="#a5b4fc">UNIVERSAL HEADERS / BODY:</text>
+      <text x="20" y="42" class="text-xs" fill="#cbd5e1">• X-Router-Host : 192.168.88.1</text>
+      <text x="20" y="60" class="text-xs" fill="#cbd5e1">• X-Router-Port : 8728 / 51121</text>
+      <text x="20" y="78" class="text-xs" fill="#cbd5e1">• X-Router-User : admin</text>
+      <text x="20" y="94" class="text-xs" fill="#cbd5e1">• X-Router-Pass : ••••••••</text>
+    </g>
+  </g>
+
+  <!-- ================= MIDDLE COLUMN: RUST UNIVERSAL GATEWAY ================= -->
+  <g transform="translate(360, 110)">
+    <!-- Column Outer Frame -->
+    <rect width="470" height="520" rx="14" fill="url(#rustCoreGrad)" stroke="#f97316" stroke-width="1.5" filter="url(#cardShadow)" />
+
+    <!-- Column Title -->
+    <rect x="18" y="16" width="434" height="34" rx="8" fill="#1e293b" stroke="#ea580c" stroke-width="0.8" />
+    <text x="235" y="38" text-anchor="middle" class="h2" font-size="13" fill="#fdba74">RUST CORE GATEWAY ENGINE (TOKIO ASYNC)</text>
+
+    <!-- Sub-Block 1: Ingress Layer -->
+    <g transform="translate(20, 65)">
+      <rect width="430" height="78" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1" />
+      <text x="14" y="20" class="badge" fill="#38bdf8">1. INGRESS &amp; SECURITY PROTOCOLS</text>
+      <g transform="translate(14, 30)">
+        <rect x="0" y="0" width="125" height="36" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="0.8" />
+        <text x="62" y="17" text-anchor="middle" class="h2" font-size="11">REST API Engine</text>
+        <text x="62" y="29" text-anchor="middle" class="badge" fill="#94a3b8">19+ Domains</text>
+      </g>
+      <g transform="translate(150, 30)">
+        <rect x="0" y="0" width="130" height="36" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="0.8" />
+        <text x="65" y="17" text-anchor="middle" class="h2" font-size="11">WebSocket (/ws)</text>
+        <text x="65" y="29" text-anchor="middle" class="badge" fill="#34d399">Full-Duplex Stream</text>
+      </g>
+      <g transform="translate(290, 30)">
+        <rect x="0" y="0" width="126" height="36" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="0.8" />
+        <text x="63" y="17" text-anchor="middle" class="h2" font-size="11">SSE Stream (/listen)</text>
+        <text x="63" y="29" text-anchor="middle" class="badge" fill="#fbbf24">EventSource Pipe</text>
+      </g>
+    </g>
+
+    <!-- Sub-Block 2: Fast-Path Performance Optimizations -->
+    <g transform="translate(20, 155)">
+      <rect width="430" height="95" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.2" />
+      <circle cx="20" cy="18" r="4" fill="#10b981" />
+      <text x="32" y="22" class="badge" fill="#34d399">2. SPEED ENGINES &amp; FAST-PATH AGGREGATION</text>
+      
+      <g transform="translate(14, 32)">
+        <rect width="195" height="50" rx="6" fill="#1e293b" />
+        <text x="10" y="20" class="h2" font-size="11" fill="#f8fafc">Fast-Path /overview</text>
+        <text x="10" y="36" class="text-xs" fill="#94a3b8">tokio::join! concurrent 6x queries</text>
+        <text x="10" y="46" class="badge" fill="#10b981">&lt; 2ms Snapshot</text>
+      </g>
+
+      <g transform="translate(220, 32)">
+        <rect width="195" height="50" rx="6" fill="#1e293b" />
+        <text x="10" y="20" class="h2" font-size="11" fill="#f8fafc">Batch Pipelining</text>
+        <text x="10" y="36" class="text-xs" fill="#94a3b8">100-500 Vouchers creation</text>
+        <text x="10" y="46" class="badge" fill="#38bdf8">Zero Latency Queue</text>
+      </g>
+    </g>
+
+    <!-- Sub-Block 3: Dynamic Persistent Connection Pool -->
+    <g transform="translate(20, 262)">
+      <rect width="430" height="120" rx="8" fill="#0f172a" stroke="#ea580c" stroke-width="1.2" />
+      <circle cx="20" cy="18" r="4" fill="#ea580c" />
+      <text x="32" y="22" class="badge" fill="#fb923c">3. DYNAMIC PERSISTENT CONNECTION POOL</text>
+      <text x="14" y="42" class="text-xs" fill="#94a3b8">
+        Keeps warm authenticated TCP sockets per user@host:port in Arc&lt;Mutex&lt;Pool&gt;&gt;.
+      </text>
+
+      <g transform="translate(14, 52)">
+        <rect width="195" height="56" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="0.8" />
+        <text x="10" y="20" class="h2" font-size="11">Zero Handshake Churn</text>
+        <text x="10" y="35" class="text-xs" fill="#cbd5e1">No 3-way TCP delay</text>
+        <text x="10" y="48" class="badge" fill="#f97316">Saved: ~45ms per request</text>
+      </g>
+
+      <g transform="translate(220, 52)">
+        <rect width="195" height="56" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="0.8" />
+        <text x="10" y="20" class="h2" font-size="11">Zero Re-Auth MD5</text>
+        <text x="10" y="35" class="text-xs" fill="#cbd5e1">No redundant challenge</text>
+        <text x="10" y="48" class="badge" fill="#f97316">Saved: ~30ms CPU load</text>
+      </g>
+    </g>
+
+    <!-- Sub-Block 4: Wire Protocol Parser & .tag Multiplexer -->
+    <g transform="translate(20, 394)">
+      <rect width="430" height="110" rx="8" fill="#0f172a" stroke="#6366f1" stroke-width="1.2" />
+      <circle cx="20" cy="18" r="4" fill="#6366f1" />
+      <text x="32" y="22" class="badge" fill="#818cf8">4. WIRE CODEC &amp; .tag MULTIPLEXER</text>
+      <text x="14" y="40" class="text-xs" fill="#94a3b8">
+        Single socket concurrently routes multiple distinct requests via atomic tags.
+      </text>
+
+      <g transform="translate(14, 50)">
+        <rect width="125" height="48" rx="6" fill="#1e293b" />
+        <text x="10" y="18" class="h2" font-size="10">Tag #101</text>
+        <text x="10" y="32" class="text-xs">/ip/address</text>
+        <text x="10" y="42" class="badge" fill="#10b981">HTTP Res</text>
+      </g>
+
+      <g transform="translate(150, 50)">
+        <rect width="130" height="48" rx="6" fill="#1e293b" />
+        <text x="10" y="18" class="h2" font-size="10">Tag #102</text>
+        <text x="10" y="32" class="text-xs">monitor-traffic</text>
+        <text x="10" y="42" class="badge" fill="#38bdf8">WS Stream</text>
+      </g>
+
+      <g transform="translate(290, 50)">
+        <rect width="126" height="48" rx="6" fill="#1e293b" />
+        <text x="10" y="18" class="h2" font-size="10">Tag #103</text>
+        <text x="10" y="32" class="text-xs">hotspot/active</text>
+        <text x="10" y="42" class="badge" fill="#f59e0b">Overview</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================= RIGHT COLUMN: MIKROTIK ROUTEROS ================= -->
+  <g transform="translate(890, 110)">
+    <!-- Column Outer Frame -->
+    <rect width="260" height="520" rx="14" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" filter="url(#cardShadow)" />
+
+    <!-- Column Title -->
+    <rect x="16" y="16" width="228" height="34" rx="8" fill="#1e293b" stroke="#475569" stroke-width="0.8" />
+    <text x="130" y="38" text-anchor="middle" class="h2" font-size="13" fill="#e2e8f0">MIKROTIK ROUTEROS FLEET</text>
+    <text x="130" y="65" text-anchor="middle" class="text-xs" fill="#64748b">RouterOS v6 &amp; v7 Hardware/Cloud</text>
+
+    <!-- Card 1: Local Router -->
+    <g transform="translate(16, 85)">
+      <rect width="228" height="95" rx="10" fill="#0f172a" stroke="#10b981" stroke-width="1" />
+      <circle cx="26" cy="26" r="12" fill="#047857" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">📡</text>
+      <text x="46" y="24" class="h2" font-size="13">Local Router</text>
+      <text x="46" y="38" class="text-xs">CCR / RB4011 / hEX / hAP</text>
+      <rect x="14" y="52" width="200" height="30" rx="5" fill="#1e293b" />
+      <text x="24" y="72" class="badge" fill="#34d399">PORT 8728 (API Wire Protocol)</text>
+    </g>
+
+    <!-- Card 2: Remote / VPN Router -->
+    <g transform="translate(16, 200)">
+      <rect width="228" height="95" rx="10" fill="#0f172a" stroke="#38bdf8" stroke-width="1" />
+      <circle cx="26" cy="26" r="12" fill="#0369a1" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">🌐</text>
+      <text x="46" y="24" class="h2" font-size="13">Remote Router (VPN)</text>
+      <text x="46" y="38" class="text-xs">Branch Office / Remote Site</text>
+      <rect x="14" y="52" width="200" height="30" rx="5" fill="#1e293b" />
+      <text x="24" y="72" class="badge" fill="#38bdf8">PORT 51121 (NAT / Forwarded)</text>
+    </g>
+
+    <!-- Card 3: Cloud Hosted Router -->
+    <g transform="translate(16, 315)">
+      <rect width="228" height="95" rx="10" fill="#0f172a" stroke="#a855f7" stroke-width="1" />
+      <circle cx="26" cy="26" r="12" fill="#6b21a8" />
+      <text x="26" y="30" text-anchor="middle" font-size="12" fill="#ffffff">☁️</text>
+      <text x="46" y="24" class="h2" font-size="13">Cloud Hosted (CHR)</text>
+      <text x="46" y="38" class="text-xs">AWS / Hetzner / DigitalOcean</text>
+      <rect x="14" y="52" width="200" height="30" rx="5" fill="#1e293b" />
+      <text x="24" y="72" class="badge" fill="#c084fc">PORT 8729 (API-SSL Encrypted)</text>
+    </g>
+
+    <!-- CPU Protection Metric -->
+    <g transform="translate(16, 425)">
+      <rect width="228" height="75" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="1" />
+      <text x="20" y="24" class="badge" fill="#6ee7b7">ROUTER CPU SAVINGS:</text>
+      <text x="20" y="44" class="h2" font-size="18" fill="#34d399">~85% CPU Reduction</text>
+      <text x="20" y="62" class="text-xs" fill="#a7f3d0">Zero voucher disconnection spikes</text>
+    </g>
+  </g>
+
+  <!-- ================= FLOW CONNECTORS / ARROWS ================= -->
+  <!-- Client to Rust Engine -->
+  <g stroke="#38bdf8" stroke-width="2.5" fill="none">
+    <path d="M 300 240 L 360 240" marker-end="url(#arrowCyan)" />
+    <path d="M 300 340 L 360 340" marker-end="url(#arrowCyan)" />
+  </g>
+  <rect x="295" y="215" width="70" height="18" rx="4" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8" />
+  <text x="330" y="228" text-anchor="middle" class="badge" fill="#38bdf8">&lt; 1ms RT</text>
+
+  <!-- Rust Engine to MikroTik Routers -->
+  <g stroke="#f97316" stroke-width="2.5" fill="none">
+    <path d="M 830 250 L 890 250" marker-end="url(#arrowOrange)" />
+    <path d="M 830 360 L 890 360" marker-end="url(#arrowOrange)" />
+  </g>
+  <rect x="825" y="295" width="72" height="18" rx="4" fill="#0f172a" stroke="#f97316" stroke-width="0.8" />
+  <text x="861" y="308" text-anchor="middle" class="badge" fill="#f97316">Warm TCP</text>
+
+</svg>

@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 520" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="redBlock" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#991b1b" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    <linearGradient id="greenBlock" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#065f46" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="520" fill="url(#bgGrad2)" />
+
+  <!-- Title -->
+  <g transform="translate(40, 35)">
+    <text font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="800" fill="#f8fafc">
+      ⚡ Network Optimization: Naive Single-Socket Churn vs Rust .tag Multiplexing
+    </text>
+    <text font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#94a3b8" y="24">
+      How RouterOS binary protocol wire multiplexing eliminates connection churn and cuts request latency by 90%+
+    </text>
+  </g>
+
+  <!-- LEFT: TRADITIONAL / NAIVE APPROACH -->
+  <g transform="translate(40, 85)">
+    <rect width="490" height="400" rx="12" fill="#1e293b" stroke="#ef4444" stroke-width="1.2" />
+    <rect x="15" y="15" width="460" height="32" rx="6" fill="url(#redBlock)" />
+    <text x="245" y="36" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#ffffff">
+      ❌ PENDEKATAN KONVENSIONAL (LAMBAT &amp; CHURN TINGGI)
+    </text>
+
+    <!-- Steps -->
+    <g transform="translate(25, 65)" font-family="monospace" font-size="11" fill="#cbd5e1">
+      <!-- Step 1 -->
+      <rect x="0" y="0" width="440" height="45" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="15" y="20" fill="#f87171" font-weight="bold">Request 1: List Hotspot Users</text>
+      <text x="15" y="36" fill="#94a3b8">TCP 3-way Handshake → /login → MD5 hash → /print → Close [~120ms]</text>
+
+      <!-- Step 2 -->
+      <rect x="0" y="55" width="440" height="45" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="15" y="75" fill="#f87171" font-weight="bold">Request 2: Get Interface Traffic</text>
+      <text x="15" y="91" fill="#94a3b8">TCP 3-way Handshake → /login → MD5 hash → /print → Close [~115ms]</text>
+
+      <!-- Step 3 -->
+      <rect x="0" y="110" width="440" height="45" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="15" y="130" fill="#f87171" font-weight="bold">Request 3: Check Active PPPoE</text>
+      <text x="15" y="146" fill="#94a3b8">TCP 3-way Handshake → /login → MD5 hash → /print → Close [~110ms]</text>
+
+      <!-- Summary box -->
+      <g transform="translate(0, 175)">
+        <rect width="440" height="135" rx="8" fill="#450a0a" stroke="#b91c1c" stroke-width="0.8" />
+        <text x="15" y="25" fill="#fca5a5" font-weight="bold">⚠️ Dampak Terhadap MikroTik &amp; Client:</text>
+        <text x="15" y="50" fill="#fecaca">• Total Latency: ~345 ms (Berurutan / Sekuensial)</text>
+        <text x="15" y="72" fill="#fecaca">• CPU Spikes: Berulang kali kalkulasi MD5 challenge per request</text>
+        <text x="15" y="94" fill="#fecaca">• Socket Exhaustion: TIME_WAIT membludak di router</text>
+        <text x="15" y="116" fill="#fecaca">• Tidak bisa realtime streaming tanpa memory leak / timeout</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- RIGHT: RUST ENGINE .tag MULTIPLEXING -->
+  <g transform="translate(570, 85)">
+    <rect width="490" height="400" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="1.2" />
+    <rect x="15" y="15" width="460" height="32" rx="6" fill="url(#greenBlock)" />
+    <text x="245" y="36" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#ffffff">
+      ✅ RUST GATEWAY (.tag CONCURRENT PIPELINING)
+    </text>
+
+    <!-- Steps -->
+    <g transform="translate(25, 65)" font-family="monospace" font-size="11" fill="#cbd5e1">
+      <!-- Multiplexed Box -->
+      <rect x="0" y="0" width="440" height="155" rx="8" fill="#0f172a" stroke="#059669" stroke-width="1" />
+      <text x="15" y="22" fill="#34d399" font-weight="bold">1 Warm Persistent TCP Socket (Auto Reused &amp; Authenticated)</text>
+      
+      <g transform="translate(15, 34)">
+        <rect width="410" height="30" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="0.7" />
+        <text x="10" y="20" fill="#38bdf8">Tag .tag=101: /ip/hotspot/user/print [Concurrent]</text>
+      </g>
+
+      <g transform="translate(15, 72)">
+        <rect width="410" height="30" rx="4" fill="#1e293b" stroke="#a78bfa" stroke-width="0.7" />
+        <text x="10" y="20" fill="#c084fc">Tag .tag=102: /interface/monitor-traffic [Continuous WS]</text>
+      </g>
+
+      <g transform="translate(15, 110)">
+        <rect width="410" height="30" rx="4" fill="#1e293b" stroke="#34d399" stroke-width="0.7" />
+        <text x="10" y="20" fill="#34d399">Tag .tag=103: /ppp/active/print [Concurrent]</text>
+      </g>
+
+      <!-- Summary box -->
+      <g transform="translate(0, 175)">
+        <rect width="440" height="135" rx="8" fill="#064e3b" stroke="#059669" stroke-width="0.8" />
+        <text x="15" y="25" fill="#a7f3d0" font-weight="bold">🚀 Keunggulan Arsitektur Rust Core:</text>
+        <text x="15" y="50" fill="#d1fae5">• Total Latency: &lt; 2-5 ms (Eksekusi Paralel Tokio Async)</text>
+        <text x="15" y="72" fill="#d1fae5">• Zero Handshake Churn: Socket tetap hangat (Warm Pool)</text>
+        <text x="15" y="94" fill="#d1fae5">• Router CPU Aman: Nol kalkulasi MD5 berulang, voucher lancar</text>
+        <text x="15" y="116" fill="#d1fae5">• Full-Duplex WebSocket &amp; Fast-Path Snapshot /overview</text>
+      </g>
+    </g>
+  </g>
+</svg>

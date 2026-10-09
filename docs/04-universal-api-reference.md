@@ -41,6 +41,14 @@ Content-Type: application/json
 
 ## 2. Katalog Lengkap Seluruh Modul Endpoint
 
+### ⚡ 0. Fast-Path Overview Snapshot (Sub-Millisecond Aggregation)
+Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (`tokio::join!`) di single persistent socket:
+| Method | Endpoint | Kegunaan | Payload |
+|---|---|---|---|
+| `POST` | `/api/v1/overview` | Aggregated Snapshot: Identity, System Resource, RouterBOARD, Hotspot Active, PPP Active, Interface states | `{}` |
+
+---
+
 ### A. System & Upgrade (`/api/v1/system/*`)
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
@@ -102,7 +110,8 @@ Content-Type: application/json
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
 | `POST` | `/api/v1/hotspot/users` | Daftar seluruh voucher/user | `{}` |
-| `POST` | `/api/v1/hotspot/user/create` | Buat voucher baru | `{"name": "vc10", "password": "pass", "profile": "default", "timelimit": "3h"}` |
+| `POST` | `/api/v1/hotspot/user/create` | Buat 1 voucher baru | `{"name": "vc10", "password": "pass", "profile": "default", "timelimit": "3h"}` |
+| `POST` | `/api/v1/hotspot/generate-batch` | **Buat 10-1000 voucher massal (Pipelined)** | `{"qty": 50, "prefix": "VIP-", "profile": "default", "timelimit": "1h"}` |
 | `POST` | `/api/v1/hotspot/user/remove` | Hapus voucher/user | `{"id": "*5"}` |
 | `POST` | `/api/v1/hotspot/active` | Daftar user yang **sedang online** | `{}` |
 | `POST` | `/api/v1/hotspot/kick` | **Kick** (putuskan koneksi) user online | `{"id": "*3"}` |

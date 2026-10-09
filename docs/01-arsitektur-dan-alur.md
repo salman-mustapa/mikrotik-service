@@ -44,37 +44,38 @@ Dengan Rust, kita membagi sistem menjadi 2 lapisan:
 ```mermaid
 graph TB
     subgraph Clients ["Aplikasi Klien (Bebas Bahasa / Framework)"]
-        LV["Laravel / PHP<br/>(HTTP Guzzle)"]
-        ND["Node.js / Bun<br/>(fetch / axios)"]
-        PY["Python / Django / FastAPI<br/>(httpx)"]
-        VU["Vue / React / Svelte<br/>(EventSource SSE)"]
+        LV["Laravel / PHP (HTTP Guzzle)"]
+        ND["Node.js / Bun (fetch / axios)"]
+        PY["Python / FastAPI (httpx)"]
+        VU["Vue / React / Flutter (WebSocket & SSE)"]
     end
 
     subgraph RustGateway ["RouterOS Rust Core Gateway (Port 8080)"]
         AUTH["Bearer Token Auth"]
-        ROUTER_SLOT["Router Connection Pool<br/>(Arc&lt;Slot&gt; per Router)"]
-        HTTP_HANDLER["REST API Handler<br/>(/routers/:id/command)"]
-        SSE_HANDLER["SSE Stream Handler<br/>(/routers/:id/listen)"]
+        WS_HANDLER["WebSocket Engine (/ws)"]
+        OVERVIEW_HANDLER["Fast-Path Aggregator (/overview)"]
+        ROUTER_SLOT["Router Connection Pool (Arc-Slot Cache)"]
+        HTTP_HANDLER["Universal REST API Engine"]
     end
 
     subgraph MikrotikEnv ["Router MikroTik"]
-        MT1["Router 1 (v6 / v7)<br/>Port 8728 (API)"]
-        MT2["Router 2 (CHR / Cloud)<br/>Port 8728 (API)"]
+        MT1["Router 1 (v6 / v7) - Port 8728"]
+        MT2["Router 2 (CHR / Cloud) - Port 8728"]
     end
 
-    LV -->|POST JSON| AUTH
-    ND -->|POST JSON| AUTH
-    PY -->|POST JSON| AUTH
-    VU -->|GET EventSource (Realtime)| AUTH
+    LV -->|"HTTP POST JSON"| AUTH
+    ND -->|"HTTP POST JSON"| AUTH
+    PY -->|"HTTP POST JSON"| AUTH
+    VU -->|"Full-Duplex WS"| WS_HANDLER
 
     AUTH --> HTTP_HANDLER
-    AUTH --> SSE_HANDLER
-
+    AUTH --> OVERVIEW_HANDLER
     HTTP_HANDLER --> ROUTER_SLOT
-    SSE_HANDLER --> ROUTER_SLOT
+    OVERVIEW_HANDLER --> ROUTER_SLOT
+    WS_HANDLER --> ROUTER_SLOT
 
-    ROUTER_SLOT <===>|Multiplexed TCP Socket (Persistent)| MT1
-    ROUTER_SLOT <===>|Multiplexed TCP Socket (Persistent)| MT2
+    ROUTER_SLOT <-->|"Multiplexed TCP Stream"| MT1
+    ROUTER_SLOT <-->|"Multiplexed TCP Stream"| MT2
 ```
 
 ---
@@ -94,10 +95,10 @@ sequenceDiagram
     Note over Core,MT: Koneksi TCP sudah siap & login permanen!
 
     App1->>Core: Command: /ip/address/print
-    Core->>MT: /ip/address/print <br/> .tag=101
+    Core->>MT: /ip/address/print (.tag=101)
     
     App2->>Core: Command: /interface/monitor-traffic
-    Core->>MT: /interface/monitor-traffic <br/> =interface=ether1 <br/> .tag=102
+    Core->>MT: /interface/monitor-traffic (=interface=ether1, .tag=102)
 
     MT-->>Core: !re =address=192.168.1.1/24 .tag=101
     Note over Core: Core tahu ini milik Request A (tag=101)
@@ -105,7 +106,7 @@ sequenceDiagram
 
     MT-->>Core: !re =rx-bits-per-second=15200 .tag=102
     Note over Core: Core tahu ini streaming Request B (tag=102)
-    Core-->>App2: Stream Event (SSE) ke Vue/Browser
+    Core-->>App2: Stream Event (WebSocket / SSE) ke Browser
 
     MT-->>Core: !done .tag=101
     Core-->>App1: Response Request A Selesai (HTTP 200 OK)
@@ -114,7 +115,7 @@ sequenceDiagram
     Core-->>App2: Stream Event berikutnya...
 
     Note over App2,Core: User menutup tab browser
-    App2-xCore: Browser disconnect
+    App2--xCore: Browser disconnect
     Core->>MT: /cancel =tag=102
     MT-->>Core: !trap / !done .tag=102
     Note over Core,MT: Streaming berhenti bersih tanpa memory leak!
