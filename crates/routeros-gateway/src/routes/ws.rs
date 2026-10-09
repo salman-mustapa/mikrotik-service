@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use futures::{SinkExt, StreamExt};
 use routeros_core::build_command;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, RouterTarget};

@@ -66,8 +66,8 @@ pub async fn cpu_profiler(
     let total_ram_bytes: u64 = first_res.and_then(|r| r.get("total-memory")).and_then(|v| v.parse().ok()).unwrap_or(1);
     let free_ram_percent = (free_ram_bytes * 100) / total_ram_bytes;
 
-    let mut findings = Vec::new();
-    let mut recommendations = Vec::new();
+    let mut findings: Vec<String> = Vec::new();
+    let mut recommendations: Vec<String> = Vec::new();
 
     // Analyze Bottlenecks
     let net_firewall_usage = sorted_procs.iter()

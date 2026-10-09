@@ -17,6 +17,21 @@ pub enum ApiError {
     Internal(String),
 }
 
+impl std::fmt::Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiError::BadRequest(m) => write!(f, "Bad request: {m}"),
+            ApiError::UnknownRouter(id) => write!(f, "Unknown router: {id}"),
+            ApiError::RouterTrap { message, .. } => write!(f, "Router trap: {message}"),
+            ApiError::RouterLogin(m) => write!(f, "Router login error: {m}"),
+            ApiError::RouterFatal(m) => write!(f, "Router fatal error: {m}"),
+            ApiError::Internal(m) => write!(f, "Internal error: {m}"),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}
+
 impl From<CoreError> for ApiError {
     fn from(e: CoreError) -> Self {
         match e {

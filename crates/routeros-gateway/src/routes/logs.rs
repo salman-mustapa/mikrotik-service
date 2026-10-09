@@ -7,9 +7,9 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::Json;
 use futures::Stream;
 use routeros_core::build_command;
+use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tokio_stream::StreamExt;
 
 use crate::error::ApiError;
 use crate::state::{AppState, RouterTarget};

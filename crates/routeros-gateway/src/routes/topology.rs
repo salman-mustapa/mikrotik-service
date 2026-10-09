@@ -58,7 +58,7 @@ pub async fn topology_graph(
     let ppp_act_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
     let wifi_fut = client.run(build_command("/interface/wireless/registration-table/print", std::iter::empty::<(&str, &str)>()));
 
-    let (ident_res, res_res, iface_res, ip_res, dhcp_res, hs_act_res, ppp_act_res, wifi_res) =
+    let (ident_res, res_res, iface_res, _ip_res, dhcp_res, hs_act_res, ppp_act_res, wifi_res) =
         tokio::join!(ident_fut, res_fut, iface_fut, ip_fut, dhcp_fut, hs_act_fut, ppp_act_fut, wifi_fut);
 
     let mut nodes: Vec<TopologyNode> = Vec::new();

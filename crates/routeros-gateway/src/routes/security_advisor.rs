@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -114,7 +113,7 @@ pub async fn vulnerability_audit(
     let usr_fut = client.run(build_command("/user/print", std::iter::empty::<(&str, &str)>()));
     let rb_fut = client.run(build_command("/system/routerboard/print", std::iter::empty::<(&str, &str)>()));
 
-    let (res_res, srv_res, dns_res, usr_res, rb_res) = tokio::join!(res_fut, srv_fut, dns_fut, usr_fut, rb_fut);
+    let (res_res, srv_res, dns_res, usr_res, _rb_res) = tokio::join!(res_fut, srv_fut, dns_fut, usr_fut, rb_fut);
 
     let res_rows = res_res?;
     let first_res = res_rows.first();

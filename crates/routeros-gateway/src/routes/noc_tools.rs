@@ -345,6 +345,6 @@ pub async fn terminal_exec(
             "success": true,
             "message": "Script CLI berhasil dieksekusi secara atomik di router"
         }))),
-        Err(e) => Err(ApiError::Router(format!("Gagal mengeksekusi script: {}", e)))
+        Err(e) => Err(ApiError::Internal(format!("Gagal mengeksekusi script: {}", e)))
     }
 }

@@ -88,7 +88,7 @@ pub async fn pcc_setup(
         }
     }
 
-    let mut deployed_rules = Vec::new();
+    let mut deployed_rules: Vec<String> = Vec::new();
 
     // 3. Mangle: Accept traffic ke subnet lokal
     let m_local = build_command(
@@ -101,7 +101,7 @@ pub async fn pcc_setup(
         ],
     );
     client.run(m_local).await?;
-    deployed_rules.push("Mangle: Local Subnet Accept");
+    deployed_rules.push("Mangle: Local Subnet Accept".to_string());
 
     // 4. Mangle: Tandai koneksi masuk dari masing-masing interface WAN
     for (i, wan) in req.wans.iter().enumerate() {
@@ -339,7 +339,7 @@ pub async fn remove(
     })))
 }
 
-async fn cleanup_pcc_rules(client: &routeros_core::client::RouterOsClient) -> Result<usize, ApiError> {
+async fn cleanup_pcc_rules(client: &routeros_core::Client) -> Result<usize, ApiError> {
     let mut total_removed = 0usize;
 
     // 1. Bersihkan Mangle
