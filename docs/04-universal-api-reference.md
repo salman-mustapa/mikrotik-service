@@ -793,4 +793,44 @@ Mempermudah pengguna akhir login ke jaringan Hotspot tanpa perlu mengetik manual
 |---|---|---|---|
 | `POST` | `/api/v1/hotspot/voucher-template/render` | **Render Voucher Siap Cetak (A4 Grid & Thermal 58mm)**: Menghasilkan dokumen cetak HTML lengkap dengan **QR Code Auto-Login** (`http://{dns}/login?username={user}&password={pass}`). Pengguna cukup memindai dengan kamera ponsel untuk langsung login | `{"template_type": "grid", "title": "WIFI WARUNG", "dns_name": "hotspot.net", "vouchers": [...]}` |
 
+---
+
+### ZZ. 📡 CAPsMAN Centralized Wireless AP Management (`/api/v1/capsman/*`)
+Mengontrol armada Access Point MikroTik (cAP ax, wAP ac, hAP) secara terpusat dari satu router controller:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/capsman/radios` | **Daftar Radio AP Terhubung**: Melihat seluruh radio fisik AP yang terhubung ke controller | `{}` |
+| `GET` / `POST` | `/api/v1/capsman/interfaces` | **Interface Virtual AP**: Daftar interface radio yang sedang aktif di-manage | `{}` |
+| `GET` / `POST` | `/api/v1/capsman/registrations` | **Klien Wireless Terhubung**: Melihat seluruh HP/laptop yang terhubung di tiap AP, sinyal dBm, uptime, dan bitrate | `{}` |
+| `POST` | `/api/v1/capsman/set-wifi` | **Ubah SSID & Password Terpusat**: Otomatis membuat/memperbarui security profile, master configuration, provisioning rule, dan mem-push SSID baru ke seluruh AP sekaligus | `{"ssid": "HOTSPOT-WARUNG", "passphrase": "password123", "country": "indonesia"}` |
+| `POST` | `/api/v1/capsman/provision` | **Paksa Reprovisioning**: Memicu AP untuk mengambil ulang konfigurasi dari controller | `{"radio_mac": "XX:XX:XX:XX:XX:XX"}` |
+
+---
+
+### AAA. 💾 Binary Restore, Script Importer & File Reader (`/api/v1/backup/*`)
+Pemulihan penuh router dari file cadangan dan eksekusi skrip:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/backup/restore` | **Restore File Binary (.backup)**: Memerintahkan RouterOS me-load file backup dan melakukan reboot otomatis | `{"name": "backup-auto.backup", "password": "optional-pass"}` |
+| `POST` | `/api/v1/backup/import` | **Import Skrip Konfigurasi (.rsc)**: Mengimpor dan mengeksekusi skrip konfigurasi RouterOS | `{"file": "config.rsc", "verbose": false}` |
+| `POST` | `/api/v1/files/read` | **Baca Isi File Teks**: Membaca isi file teks skrip atau log yang tersimpan di storage flash router | `{"file": "config.rsc"}` |
+
+---
+
+### BBB. ⚡ PoE Remote Hard Reboot (`/api/v1/network/infrastructure/poe-cycle`)
+Memulihkan Access Point fisik yang membeku/hang di tiang tower tanpa perlu mendatangi lokasi:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/network/infrastructure/poe-cycle` | **PoE Power Cycle Reboot**: Mematikan daya PoE pada port fisik (misal `ether5`) selama 3 detik lalu menyalakannya kembali untuk me-restart fisik AP yang terhubung | `{"interface": "ether5", "off_seconds": 3}` |
+
+---
+
+### CCC. 🌐 Third-Party AP Web GUI Remote Tunnel (`/api/v1/network/infrastructure/ap-tunnel`)
+Membuka akses remote ke Web Admin Access Point pihak ketiga (TP-Link, Ruijie, Tenda) dari luar LAN:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/network/infrastructure/ap-tunnel` | **Buka Port Forwarding Sementara**: Membuat aturan NAT dst-nat sementara pada router agar Web Admin AP (`192.168.100.3:80`) dapat dibuka melalui port eksternal router (misal `8083`) | `{"ap_ip": "192.168.100.3", "ap_port": 80, "external_port": 8083}` |
+| `POST` | `/api/v1/network/infrastructure/ap-tunnel/remove` | **Tutup Port Forwarding**: Menghapus aturan NAT port forward setelah selesai konfigurasi | `{"ap_ip": "192.168.100.3"}` |
+
+
 

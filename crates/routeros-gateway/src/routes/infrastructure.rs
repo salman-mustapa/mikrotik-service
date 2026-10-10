@@ -390,3 +390,125 @@ pub async fn auto_bypass_ap(
         "message": format!("Perangkat AP dengan MAC {} berhasil di-bypass dari Captive Portal Hotspot", clean_mac)
     })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct PoeCycleReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub interface: String,
+    pub off_seconds: Option<u64>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ApTunnelReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub ap_ip: String,
+    pub ap_port: Option<u16>,
+    pub external_port: Option<u16>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RemoveApTunnelReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub ap_ip: String,
+}
+
+/// POST /api/v1/network/infrastructure/poe-cycle - Reboot paksa Access Point lewat power-cycle PoE port
+pub async fn poe_power_cycle(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<PoeCycleReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let iface = req.interface.as_str();
+    let off_secs = req.off_seconds.unwrap_or(3);
+
+    // 1. Turn off PoE voltage
+    client.run(build_command("/interface/ethernet/poe/set", [
+        ("numbers", iface),
+        ("poe-out", "off")
+    ])).await?;
+
+    // 2. Wait for power to completely discharge
+    tokio::time::sleep(tokio::time::Duration::from_secs(off_secs)).await;
+
+    // 3. Restore PoE voltage
+    client.run(build_command("/interface/ethernet/poe/set", [
+        ("numbers", iface),
+        ("poe-out", "auto-on")
+    ])).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "interface": req.interface,
+        "off_duration_seconds": off_secs,
+        "message": format!("PoE power-cycle berhasil dieksekusi pada {}. Perangkat Access Point yang terhubung sedang melakukan reboot fisik.", req.interface)
+    })))
+}
+
+/// POST /api/v1/network/infrastructure/ap-tunnel - Buat port forwarding sementara untuk remote config Web AP pihak ketiga
+pub async fn create_ap_tunnel(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ApTunnelReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let ap_port = req.ap_port.unwrap_or(80).to_string();
+    let ext_port = req.external_port.unwrap_or(8083).to_string();
+    let comment = format!("[AP-Tunnel-{}]", req.ap_ip);
+
+    let args = [
+        ("chain", "dstnat"),
+        ("action", "dst-nat"),
+        ("protocol", "tcp"),
+        ("dst-port", ext_port.as_str()),
+        ("to-addresses", req.ap_ip.as_str()),
+        ("to-ports", ap_port.as_str()),
+        ("comment", comment.as_str()),
+    ];
+
+    client.run(build_command("/ip/firewall/nat/add", args)).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "ap_target_ip": req.ap_ip,
+        "ap_internal_port": ap_port,
+        "external_port": ext_port,
+        "message": format!("Tunnel remote Web Management AP berhasil dibuka pada port {}. Anda dapat membuka Web Admin AP dari luar jaringan.", ext_port)
+    })))
+}
+
+/// POST /api/v1/network/infrastructure/ap-tunnel/remove - Hapus tunnel remote Web AP setelah selesai konfigurasi
+pub async fn remove_ap_tunnel(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<RemoveApTunnelReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let comment_match = format!("*[AP-Tunnel-{}*", req.ap_ip);
+    let rows = client.run(build_command("/ip/firewall/nat/print", [("?comment", comment_match.as_str())])).await.unwrap_or_default();
+
+    let mut removed_count = 0;
+    for r in rows {
+        if let Some(id) = r.get(".id") {
+            let _ = client.run(build_command("/ip/firewall/nat/remove", [(".id", id)])).await;
+            removed_count += 1;
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "ap_target_ip": req.ap_ip,
+        "removed_rules": removed_count,
+        "message": format!("Tunnel NAT untuk AP {} berhasil ditutup kembali.", req.ap_ip)
+    })))
+}
+

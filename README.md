@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-130%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-140%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -43,7 +43,7 @@ Sebagai tim NOC atau operator ISP/WISP, masalah terbesar pada integrasi API Rout
 | **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda atomik `.tag`. |
 | **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Anti-Hang Guard** dan FastTrack connection bypass. |
 | **Kecepatan Respons**: 200 ms – 1.5 detik per request. | **Sub-Milidetik**: Rata-rata respons **< 1.5 milidetik** berkat protokol biner tingkat rendah (*raw wire format*). |
-| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 130+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
+| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 140+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
 | **Ketergantungan Stack**: Terikat library bahasa tertentu. | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
 | **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`, `[Anti-Tethering]`). |
 
@@ -159,6 +159,20 @@ graph TB
 
 ### 15. 🎫 Auto-Login QR Code Hotspot Vouchers (`/api/v1/hotspot/voucher-template/render`)
 * Template pencetakan voucher kartu (Grid A4) dan struk thermal kasir (58mm) dilengkapi **QR Code Auto-Login** (`http://{dns}/login?username={user}&password={pass}`). Pelanggan cukup scan kamera smartphone langsung terhubung tanpa mengetik manual.
+
+### 16. 📡 CAPsMAN Centralized Wireless AP Provisioning (`/api/v1/capsman/*`)
+* Mengontrol dan mengubah **SSID & Password WiFi terpusat** untuk seluruh Access Point MikroTik (cAP ax, wAP ac, dsb) secara serentak tanpa perlu login ke masing-masing AP.
+* Monitoring live seluruh klien wireless (HP/laptop) yang tersambung di tiap AP beserta sinyal dBm dan rate kecepatan.
+
+### 17. 💾 Binary Restore & Script Importer (`/api/v1/backup/restore` & `/import`)
+* **Restore Backup Otomatis**: Memulihkan konfigurasi sistem dari file binary `.backup` dan reboot otomatis via API.
+* **Script Importer (.rsc)**: Mengimpor dan mengeksekusi skrip konfigurasi RouterOS untuk migrasi atau deployment armada baru.
+
+### 18. ⚡ PoE Remote Hard Reboot (`/api/v1/network/infrastructure/poe-cycle`)
+* Mematikan daya PoE port fisik sementara (3 detik) lalu menyalakannya kembali untuk **me-reboot fisik Access Point (TP-Link, Ubiquiti, Ruijie) yang hang/freeze** di tiang tower atau plafon tanpa perlu memanjat atau mencabut kabel LAN.
+
+### 19. 🌐 Third-Party AP Web GUI Tunnel (`/api/v1/network/infrastructure/ap-tunnel`)
+* Membuka tunnel port forwarding NAT sementara agar administrator jaringan dapat mengakses dan mengubah konfigurasi Web Admin Access Point pihak ketiga (`192.168.100.3:80`) dari luar jaringan lokal (remote access).
 
 ---
 

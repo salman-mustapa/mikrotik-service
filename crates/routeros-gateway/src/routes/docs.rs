@@ -673,7 +673,14 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "dns_adlist_presets", path: "/api/v1/dns/adlist/presets", method: "GET", cat: "ip", desc: "Katalog preset blocklist resmi aman (HaGeZi, StevenBlack, AdGuard).", defaultPayload: "{}" },
       { id: "dhcp_alerts", path: "/api/v1/dhcp/alerts", method: "GET", cat: "dhcp", desc: "Monitoring alarm Rogue DHCP Server ilegal di jaringan lokal.", defaultPayload: "{}" },
       { id: "tools_ping", path: "/api/v1/tools/ping", method: "POST", cat: "tools", desc: "Kirim ICMP Ping langsung dari router ke target host/IP dengan hitungan latency.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 4\n}' },
-      { id: "tools_multi_ping", path: "/api/v1/tools/multi-ping", method: "GET", cat: "tools", desc: "Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare, Google, OpenDNS) dengan ringkasan SLA.", defaultPayload: '{\n  "targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"],\n  "count": 3\n}' }
+      { id: "tools_multi_ping", path: "/api/v1/tools/multi-ping", method: "GET", cat: "tools", desc: "Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare, Google, OpenDNS) dengan ringkasan SLA.", defaultPayload: '{\n  "targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"],\n  "count": 3\n}' },
+      { id: "capsman_radios", path: "/api/v1/capsman/radios", method: "GET", cat: "net", desc: "Daftar seluruh radio Access Point MikroTik (CAPs) yang terhubung ke controller.", defaultPayload: "{}" },
+      { id: "capsman_set_wifi", path: "/api/v1/capsman/set-wifi", method: "POST", cat: "net", desc: "Konfigurasi SSID & Password WiFi terpusat ke seluruh AP MikroTik sekaligus.", defaultPayload: '{\n  "ssid": "HOTSPOT-WARUNG",\n  "passphrase": "password123"\n}' },
+      { id: "capsman_registrations", path: "/api/v1/capsman/registrations", method: "GET", cat: "net", desc: "Daftar seluruh klien wireless (HP/Laptop) yang tersambung di semua AP.", defaultPayload: "{}" },
+      { id: "backup_restore", path: "/api/v1/backup/restore", method: "POST", cat: "system", desc: "Pulihkan sistem router dari file binary (.backup) dan reboot otomatis.", defaultPayload: '{\n  "name": "backup-auto.backup"\n}' },
+      { id: "backup_import", path: "/api/v1/backup/import", method: "POST", cat: "system", desc: "Impor dan jalankan skrip konfigurasi RouterOS (.rsc) ke router.", defaultPayload: '{\n  "file": "config.rsc"\n}' },
+      { id: "infra_poe_cycle", path: "/api/v1/network/infrastructure/poe-cycle", method: "POST", cat: "net", desc: "Reboot paksa Access Point yang hang lewat pemutusan daya PoE port sementara.", defaultPayload: '{\n  "interface": "ether5",\n  "off_seconds": 3\n}' },
+      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' }
     ];
 
     let currentEndpoint = ENDPOINTS[0];
@@ -1543,6 +1550,62 @@ pub async fn docs_page() -> Html<&'static str> {
           </div>
           <div class="ep-desc">Pasang alarm pengawas Rogue DHCP Server pada interface tertentu dengan opsi valid-server dan timeout.</div>
         </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/capsman/radios</div>
+          </div>
+          <div class="ep-desc">Daftar radio Access Point MikroTik (CAPs) yang terhubung ke controller terpusat.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/capsman/set-wifi</div>
+          </div>
+          <div class="ep-desc">Konfigurasi SSID & Password WiFi terpusat yang otomatis disebarkan ke seluruh Access Point MikroTik yang terhubung.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/capsman/registrations</div>
+          </div>
+          <div class="ep-desc">Monitoring seluruh klien wireless (HP/laptop) yang tersambung di semua Access Point, kekuatan sinyal dBm, dan rate data.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/backup/restore</div>
+          </div>
+          <div class="ep-desc">Pulihkan sistem router dari file binary (.backup) dan reboot otomatis menerapkan konfigurasi.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/backup/import</div>
+          </div>
+          <div class="ep-desc">Impor dan eksekusi skrip konfigurasi RouterOS (.rsc) langsung ke dalam database router.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/network/infrastructure/poe-cycle</div>
+          </div>
+          <div class="ep-desc">Reboot paksa Access Point (TP-Link, Ubiquiti, Ruijie) yang hang di tiang/tower lewat pemutusan daya PoE port sementara.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/network/infrastructure/ap-tunnel</div>
+          </div>
+          <div class="ep-desc">Buka tunnel port forwarding sementara agar administrator dapat mengakses Web GUI Access Point pihak ketiga dari luar LAN.</div>
+        </div>
       </section>
     </main>
   </div>
@@ -1568,7 +1631,7 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.2.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 130+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 140+ endpoints"
         },
         "servers": [
             { "url": "https://ros-gateway.samrifa.com" },

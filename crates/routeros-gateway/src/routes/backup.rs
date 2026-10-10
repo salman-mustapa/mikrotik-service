@@ -105,3 +105,100 @@ pub async fn remove_file(
     client.run(build_command("/file/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "File removed" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct RestoreBackupReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub password: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ImportConfigReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub file: String,
+    pub verbose: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ReadFileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub file: String,
+}
+
+/// POST /api/v1/backup/restore - Pulihkan sistem dari file binary (.backup)
+pub async fn restore_backup(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<RestoreBackupReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let mut args = vec![("name", req.name.as_str())];
+    if let Some(p) = req.password.as_deref() {
+        args.push(("password", p));
+    }
+
+    client.run(build_command("/system/backup/load", args)).await?;
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("Perintah restore backup '{}' berhasil dikirim. Router akan menerapkan konfigurasi dan reboot otomatis.", req.name),
+        "backup_file": req.name
+    })))
+}
+
+/// POST /api/v1/backup/import - Impor / jalankan skrip konfigurasi RouterOS (.rsc)
+pub async fn import_config(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ImportConfigReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let mut args = vec![("file-name", req.file.as_str())];
+    let verb_str = req.verbose.map(|v| if v { "yes" } else { "no" });
+    if let Some(v) = verb_str.as_deref() {
+        args.push(("verbose", v));
+    }
+
+    let rows = client.run(build_command("/import", args)).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("Skrip konfigurasi '{}' berhasil diimpor ke RouterOS.", req.file),
+        "output": data
+    })))
+}
+
+/// POST /api/v1/files/read - Membaca isi teks file skrip / log di storage MikroTik
+pub async fn read_file_content(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ReadFileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client.run(build_command("/file/print", [("?name", req.file.as_str())])).await?;
+    let file_info = rows.first().map(|r| r.attrs.clone()).ok_or_else(|| {
+        ApiError::BadRequest(format!("File '{}' tidak ditemukan di storage router", req.file))
+    })?;
+
+    // In RouterOS, small files or scripts have contents attribute in file/print
+    let contents = file_info.get("contents").cloned();
+
+    Ok(Json(json!({
+        "success": true,
+        "file_name": req.file,
+        "size": file_info.get("size").unwrap_or(&"0".to_string()),
+        "type": file_info.get("type").unwrap_or(&"unknown".to_string()),
+        "contents": contents
+    })))
+}
+

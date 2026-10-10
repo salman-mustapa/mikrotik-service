@@ -149,6 +149,37 @@ pub async fn packages(
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
 
+/// POST /api/v1/system/package/downgrade - Downgrade RouterOS ke versi sebelumnya
+pub async fn package_downgrade(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/system/package/downgrade", std::iter::empty::<(&str, &str)>())).await?;
+    Ok(Json(json!({
+        "success": true,
+        "message": "Downgrade command dispatched. Router will reboot into the previous version."
+    })))
+}
+
+/// POST /api/v1/system/package/cancel - Batalkan unduhan paket pembaruan yang sedang berjalan
+pub async fn package_cancel(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/system/package/update/cancel", std::iter::empty::<(&str, &str)>())).await?;
+    Ok(Json(json!({
+        "success": true,
+        "message": "Package update/download canceled."
+    })))
+}
+
+
 pub async fn clock(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,

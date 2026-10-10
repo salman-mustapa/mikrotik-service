@@ -3,6 +3,7 @@ pub mod app_blocker;
 pub mod backup;
 pub mod batch;
 pub mod bridge;
+pub mod capsman;
 pub mod dhcp;
 pub mod dns;
 pub mod doctor;
@@ -80,6 +81,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/package/download", post(system::download_update))
         .route("/api/v1/system/package/channel", post(system::set_channel))
         .route("/api/v1/system/packages", get(system::packages).post(system::packages))
+        .route("/api/v1/system/package/downgrade", post(system::package_downgrade))
+        .route("/api/v1/system/package/cancel", post(system::package_cancel))
         .route("/api/v1/system/clock", get(system::clock).post(system::clock))
         .route("/api/v1/system/services", get(system::services).post(system::services))
         .route("/api/v1/system/service/toggle", post(system::toggle_service))
@@ -206,6 +209,13 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/wireless/security-profiles", get(wireless::security_profiles).post(wireless::security_profiles))
         .route("/api/v1/wireless/access-list", get(wireless::access_list).post(wireless::access_list))
 
+        // --- CAPsMAN Centralized Wireless AP Management ---
+        .route("/api/v1/capsman/radios", get(capsman::radios).post(capsman::radios))
+        .route("/api/v1/capsman/interfaces", get(capsman::interfaces).post(capsman::interfaces))
+        .route("/api/v1/capsman/registrations", get(capsman::registrations).post(capsman::registrations))
+        .route("/api/v1/capsman/set-wifi", post(capsman::set_wifi))
+        .route("/api/v1/capsman/provision", post(capsman::provision))
+
         // --- Firewall & Keamanan ---
         .route("/api/v1/firewall/filters", get(firewall::filters).post(firewall::filters))
         .route("/api/v1/firewall/nat", get(firewall::nat).post(firewall::nat))
@@ -253,7 +263,10 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Backup, Export & Files ---
         .route("/api/v1/backup/create", post(backup::create_backup))
         .route("/api/v1/backup/export", post(backup::export_config))
+        .route("/api/v1/backup/restore", post(backup::restore_backup))
+        .route("/api/v1/backup/import", post(backup::import_config))
         .route("/api/v1/files/all", get(backup::files).post(backup::files))
+        .route("/api/v1/files/read", post(backup::read_file_content))
         .route("/api/v1/files/remove", post(backup::remove_file))
 
         // --- Router Administrator Users ---
@@ -287,6 +300,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Access Point & Infrastructure Device Detector ---
         .route("/api/v1/network/infrastructure/scan", get(infrastructure::scan_infrastructure).post(infrastructure::scan_infrastructure))
         .route("/api/v1/network/infrastructure/auto-bypass-ap", post(infrastructure::auto_bypass_ap))
+        .route("/api/v1/network/infrastructure/poe-cycle", post(infrastructure::poe_power_cycle))
+        .route("/api/v1/network/infrastructure/ap-tunnel", post(infrastructure::create_ap_tunnel))
+        .route("/api/v1/network/infrastructure/ap-tunnel/remove", post(infrastructure::remove_ap_tunnel))
 
         // --- Telegram Bot & Netwatch Automation ---
         .route("/api/v1/telegram/send-message", post(telegram_alerts::send_message))
