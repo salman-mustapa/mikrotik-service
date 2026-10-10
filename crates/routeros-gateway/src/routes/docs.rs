@@ -1412,10 +1412,58 @@ pub async fn docs_page() -> Html<&'static str> {
 
         <div class="ep-doc-card">
           <div class="ep-top">
-            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
-            <div class="ep-path">/api/v1/firewall/block-ip</div>
+            <div class="methods-group"><span class="m-pill m-get">GET</span></div>
+            <div class="ep-path">/metrics</div>
           </div>
-          <div class="ep-desc">Tambahkan IP mencurigakan ke daftar Blacklist firewall untuk diblokir secara instan.</div>
+          <div class="ep-desc">Native Prometheus Exporter (text/plain v0.0.4) untuk scraping langsung dari Grafana / Prometheus / VictoriaMetrics. Zero SNMP overhead!</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/doctor/diagnose</div>
+          </div>
+          <div class="ep-desc">Heuristic Doctor Network Diagnostic Assistant: audit otomatis 6 pilar (CPU, RAM, WAN Ping, Throttled Queues, FastTrack, dan AP LAN) dengan skor kesehatan &amp; rekomendasi perbaikan.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/network/infrastructure/scan</div>
+          </div>
+          <div class="ep-desc">Mendeteksi perangkat Access Point (TP-Link, Ubiquiti, Ruijie, Tenda), Switch, dan Kamera di balik port/bridge router, lengkap dengan link Web Management dan status bypass captive portal.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/network/infrastructure/auto-bypass-ap</div>
+          </div>
+          <div class="ep-desc">Otomatis mendaftarkan MAC Access Point ke Hotspot IP-Binding (bypassed) agar admin dapat membuka Web Admin AP tanpa login voucher.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/bgp/sessions</div>
+          </div>
+          <div class="ep-desc">Inspeksi sesi peering BGP Carrier (Established / Active / Idle, AS number, prefix count, uptime) dengan kompatibilitas RouterOS v6 dan v7.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/ospf/neighbors</div>
+          </div>
+          <div class="ep-desc">Monitoring OSPF Neighbor Adjacency (Full, 2-Way, Init, Designated Router, Interface link).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/routes</div>
+          </div>
+          <div class="ep-desc">Ringkasan tabel routing aktif dengan rincian protokol (Connected, Static, BGP, OSPF).</div>
         </div>
       </section>
     </main>
@@ -1442,7 +1490,7 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.2.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 115+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 120+ endpoints"
         },
         "servers": [
             { "url": "https://ros-gateway.samrifa.com" },

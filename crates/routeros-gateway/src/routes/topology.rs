@@ -266,40 +266,12 @@ pub async fn topology_graph(
         }
     }
 
-    // Helper closure to resolve parent interface node from client IP
-    let resolve_parent = |client_ip: &str, direct_if: Option<&str>| -> String {
-        // 1. Direct interface argument if known
-        if let Some(i) = direct_if {
-            if let Some(node_id) = iface_nodes_map.get(i) {
-                return node_id.clone();
-            }
-        }
-        // 2. ARP table resolution
-        if let Some(arp_if) = arp_iface_map.get(client_ip) {
-            if let Some(node_id) = iface_nodes_map.get(arp_if) {
-                return node_id.clone();
-            }
-        }
-        // 3. Subnet prefix matching (e.g. 192.168.100.x -> ether5)
-        for (prefix, iface) in &subnet_to_iface {
-            if ip_matches_subnet(client_ip, prefix) {
-                if let Some(node_id) = iface_nodes_map.get(iface) {
-                    return node_id.clone();
-                }
-            }
-        }
-        // Fallback to bridge, hotspot interface MANYTAL, or core router
-        if let Some(bridge_node) = iface_nodes_map.get("bridge").or_else(|| iface_nodes_map.get("MANYTAL")) {
-            bridge_node.clone()
-        } else {
-            "node_router".into()
-        }
-    };
+    // 5. Access Point & Infrastructure Detection (Discovered BEFORE client mapping)
+    let mut ap_iface_map: HashMap<String, String> = HashMap::new(); // iface_name -> ap_node_id
+    let mut ap_subnet_map: Vec<(String, String)> = Vec::new();      // subnet_prefix -> ap_node_id
+    let mut ap_ips: HashSet<String> = HashSet::new();
 
-    // 5. Access Point & Neighbor Detection (e.g. Access Point plugged into ether5)
-    let mut ap_map: HashMap<String, String> = HashMap::new(); // key = interface_name, value = ap_node_id
-
-    // Check neighbors first
+    // Check Layer-2 Neighbors first (MNDP, CDP, LLDP)
     if let Ok(neighbors) = neighbor_res {
         for row in neighbors {
             let iface = row.get("interface").unwrap_or("").to_string();
@@ -317,7 +289,18 @@ pub async fn topology_graph(
             let mut extra = HashMap::new();
             extra.insert("identity".into(), identity.clone());
             extra.insert("device_type".into(), "Access Point / Wireless AP".into());
-            if !ip.is_empty() { extra.insert("ip".into(), ip.clone()); }
+            if !ip.is_empty() {
+                extra.insert("ip".into(), ip.clone());
+                extra.insert("web_url".into(), format!("http://{}", ip));
+                ap_ips.insert(ip.clone());
+                // Extract /24 prefix: "192.168.100.3" -> "192.168.100."
+                let parts: Vec<&str> = ip.split('.').collect();
+                if parts.len() == 4 {
+                    ap_subnet_map.push((format!("{}.{}.{}.", parts[0], parts[1], parts[2]), ap_node_id.clone()));
+                }
+            }
+
+            let vendor = detect_device_vendor(&mac, &identity);
 
             nodes.push(TopologyNode {
                 id: ap_node_id.clone(),
@@ -326,7 +309,7 @@ pub async fn topology_graph(
                 sub_type: "ap".into(),
                 ip: if !ip.is_empty() { Some(ip) } else { None },
                 mac: if !mac.is_empty() { Some(mac.clone()) } else { None },
-                vendor: Some(detect_device_vendor(&mac, &identity)),
+                vendor: Some(vendor),
                 interface: Some(iface.clone()),
                 parent_id: Some(parent_if_node.clone()),
                 status: "online".into(),
@@ -341,29 +324,42 @@ pub async fn topology_graph(
                 speed: Some("Ethernet Port Link".into()),
             });
 
-            ap_map.insert(iface, ap_node_id);
+            ap_iface_map.insert(iface, ap_node_id);
         }
     }
 
-    // Auto-detect AP on ether5 if subnet 192.168.100.x is on ether5 and AP wasn't in neighbor discovery
-    if !ap_map.contains_key("ether5") {
+    // Auto-detect dedicated AP on ether5 (e.g. Access Point on Port 5 with 192.168.100.x subnet)
+    if !ap_iface_map.contains_key("ether5") {
         if let Some(if_node) = iface_nodes_map.get("ether5") {
             let ap_id = "ap_ether5_wlan".to_string();
+            let ap_ip = "192.168.100.3".to_string();
+            ap_ips.insert(ap_ip.clone());
+            ap_subnet_map.push(("192.168.100.".into(), ap_id.clone()));
+
+            let real_mac = arp_mac_map.get("192.168.100.3").cloned();
+            let vendor = if let Some(ref m) = real_mac {
+                detect_device_vendor(m, "Access Point")
+            } else {
+                "Access Point (WiFi Hub)".into()
+            };
+
             let mut extra = HashMap::new();
             extra.insert("device_type".into(), "Access Point (WiFi Hub)".into());
             extra.insert("port".into(), "ether5".into());
+            extra.insert("ip".into(), ap_ip.clone());
+            extra.insert("web_url".into(), format!("http://{}", ap_ip));
             if let Some(assigned) = iface_ip_map.get("ether5") {
                 extra.insert("gateway_ip".into(), assigned.clone());
             }
 
             nodes.push(TopologyNode {
                 id: ap_id.clone(),
-                label: "📡 Access Point (ether5)".into(),
+                label: format!("📡 AP: {} ({})", vendor, ap_ip),
                 node_type: "ap".into(),
                 sub_type: "ap".into(),
-                ip: Some("192.168.100.3".into()), // Known AP IP on port 5
-                mac: None,
-                vendor: Some("Access Point".into()),
+                ip: Some(ap_ip),
+                mac: real_mac,
+                vendor: Some(vendor),
                 interface: Some("ether5".into()),
                 parent_id: Some(if_node.clone()),
                 status: "online".into(),
@@ -378,9 +374,54 @@ pub async fn topology_graph(
                 speed: Some("LAN Cable (Port 5)".into()),
             });
 
-            ap_map.insert("ether5".into(), ap_id);
+            ap_iface_map.insert("ether5".into(), ap_id);
         }
     }
+
+    // Helper closure to resolve parent node (either Access Point or Interface) from client IP
+    let resolve_parent = |client_ip: &str, direct_if: Option<&str>| -> String {
+        // 1. Direct interface check: if that interface has an Access Point, attach to the AP!
+        if let Some(i) = direct_if {
+            if let Some(ap_node_id) = ap_iface_map.get(i) {
+                return ap_node_id.clone();
+            }
+            if let Some(node_id) = iface_nodes_map.get(i) {
+                return node_id.clone();
+            }
+        }
+        // 2. Check if client's IP belongs to an Access Point subnet (e.g. 192.168.100.x -> AP on ether5)
+        for (prefix, ap_node_id) in &ap_subnet_map {
+            if ip_matches_subnet(client_ip, prefix) {
+                return ap_node_id.clone();
+            }
+        }
+        // 3. ARP table resolution: check if interface has an Access Point
+        if let Some(arp_if) = arp_iface_map.get(client_ip) {
+            if let Some(ap_node_id) = ap_iface_map.get(arp_if) {
+                return ap_node_id.clone();
+            }
+            if let Some(node_id) = iface_nodes_map.get(arp_if) {
+                return node_id.clone();
+            }
+        }
+        // 4. Subnet prefix matching: check if interface has an Access Point
+        for (prefix, iface) in &subnet_to_iface {
+            if ip_matches_subnet(client_ip, prefix) {
+                if let Some(ap_node_id) = ap_iface_map.get(iface) {
+                    return ap_node_id.clone();
+                }
+                if let Some(node_id) = iface_nodes_map.get(iface) {
+                    return node_id.clone();
+                }
+            }
+        }
+        // Fallback to bridge, hotspot interface MANYTAL, or core router
+        if let Some(bridge_node) = iface_nodes_map.get("bridge").or_else(|| iface_nodes_map.get("MANYTAL")) {
+            bridge_node.clone()
+        } else {
+            "node_router".into()
+        }
+    };
 
     let mut seen_ips = HashSet::new();
     let mut seen_macs = HashSet::new();
@@ -395,7 +436,7 @@ pub async fn topology_graph(
                 let server = row.get("server").unwrap_or("").to_string();
                 let uptime = row.get("uptime").unwrap_or("").to_string();
 
-                if ip.is_empty() { continue; }
+                if ip.is_empty() || ap_ips.contains(&ip) { continue; }
                 seen_ips.insert(ip.clone());
                 if !mac.is_empty() { seen_macs.insert(mac.clone()); }
 
@@ -443,7 +484,7 @@ pub async fn topology_graph(
                 let bypassed = row.get("bypassed").map(|v| v == "true").unwrap_or(false);
                 let server = row.get("server").unwrap_or("").to_string();
 
-                if ip.is_empty() || seen_ips.contains(&ip) || (!mac.is_empty() && seen_macs.contains(&mac)) {
+                if ip.is_empty() || ap_ips.contains(&ip) || seen_ips.contains(&ip) || (!mac.is_empty() && seen_macs.contains(&mac)) {
                     continue;
                 }
                 seen_ips.insert(ip.clone());
@@ -564,7 +605,7 @@ pub async fn topology_graph(
                 let status = row.get("status").unwrap_or("bound").to_string();
                 let server = row.get("server").unwrap_or("").to_string();
 
-                if ip.is_empty() || seen_ips.contains(&ip) || (!mac.is_empty() && seen_macs.contains(&mac)) {
+                if ip.is_empty() || ap_ips.contains(&ip) || seen_ips.contains(&ip) || (!mac.is_empty() && seen_macs.contains(&mac)) {
                     continue;
                 }
                 seen_ips.insert(ip.clone());
@@ -582,7 +623,7 @@ pub async fn topology_graph(
                 let mut parent_node = resolve_parent(&ip, if !server.is_empty() { Some(&server) } else { None });
 
                 // If parent interface has an Access Point (e.g. ether5 has AP), link device to the AP instead!
-                for (iface_name, ap_id) in &ap_map {
+                for (iface_name, ap_id) in &ap_iface_map {
                     if let Some(if_node) = iface_nodes_map.get(iface_name) {
                         if if_node == &parent_node {
                             parent_node = ap_id.clone();

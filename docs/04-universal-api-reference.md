@@ -1,6 +1,6 @@
-# Referensi Lengkap Universal API Gateway (115+ Enterprise Endpoints)
+# Referensi Lengkap Universal API Gateway (120+ Enterprise Endpoints)
 
-Gateway MikroTik Rust mengekspos endpoint REST dan SSE universal berkinerja tinggi. Seluruh 115+ endpoint enterprise mendukung **Dual HTTP Transport (GET & POST)** dan dapat dijalankan oleh stack bahasa apa pun (Web, Mobile, Backend) maupun tool diagnostik NOC (cURL, browser) dengan format JSON standar.
+Gateway MikroTik Rust mengekspos endpoint REST dan SSE universal berkinerja tinggi. Seluruh 120+ endpoint enterprise mendukung **Dual HTTP Transport (GET & POST)** dan dapat dijalankan oleh stack bahasa apa pun (Web, Mobile, Backend) maupun tool diagnostik NOC (cURL, browser) dengan format JSON standar.
 
 ---
 
@@ -718,4 +718,30 @@ Mengotomatisasi kerumitan konfigurasi Per Connection Classifier (PCC) 2-WAN atau
 | `POST` | `/api/v1/load-balance/pcc/setup` | **Wizard PCC Multi-WAN Sekali Klik**: Otomatis membuat aturan Mangle hashing, routing mark, fallback routing distance, check-gateway ping failover, dan NAT masquerade. Mendukung rasio bobot tidak seimbang (misal 50M vs 100M dengan weight 1:2) | `{"lan_interface": "bridge", "wans": [{"interface": "ether1", "gateway": "192.168.1.1", "weight": 1}, {"interface": "ether2", "gateway": "192.168.2.1", "weight": 1}], "matcher": "both-addresses", "auto_failover": true}` |
 | `POST` | `/api/v1/load-balance/status` | **Monitor Keseimbangan Trafik Multi-WAN**: Membaca packet & byte counters pada setiap jalur PCC dan interface WAN untuk memastikan beban terdistribusi seimbang | `{}` |
 | `POST` | `/api/v1/load-balance/remove` | **Hapus Konfigurasi Load Balancing**: Menghapus seluruh aturan `[PCC-LoadBalance]` dan mengembalikan router ke mode single WAN secara aman tanpa menyentuh aturan lain | `{}` |
+
+---
+
+### RR. 📊 Native Prometheus Telemetry Exporter (`GET /metrics`)
+Standar industri untuk scraping otomatis tanpa perlu mengaktifkan daemon SNMP di MikroTik:
+| Method | Endpoint | Kegunaan | Parameter Query / Headers |
+|---|---|---|---|
+| `GET` | `/metrics` | **Prometheus Standard Text Exposition (v0.0.4)**: Mengekspos metrik live CPU, RAM, free storage, uptime, PPPoE online count, Hotspot active count, dan RX/TX byte/packet/drop counter per interface untuk Grafana / Prometheus | `?host=192.168.88.1&token=...` atau header Bearer |
+
+---
+
+### SS. 🩺 Heuristic "Doctor MikroTik" Network Diagnostic Assistant (`/api/v1/doctor/diagnose`)
+Melakukan audit komprehensif terhadap 6 pilar kesehatan router dan jaringan dalam 1 kali eksekusi:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/doctor/diagnose` | **Audit Kesehatan Jaringan Cerdas**: Menguji beban CPU, sisa RAM, latensi & packet loss uplink ISP ke 1.1.1.1, antrean bandwidth yang mengalami throttling, status akselerasi FastTrack, dan drop packet LAN/AP. Mengembalikan Skor Kesehatan (0-100) dan rekomendasi perbaikan dalam Bahasa Indonesia & English | `{}` |
+
+---
+
+### TT. 🗺️ Carrier BGP & OSPF Dynamic Routing Peering Telemetry (`/api/v1/routing/*`)
+Monitoring routing dinamis untuk router core ISP, backbone BGP, dan datacenter (kompatibel RouterOS v6 & v7):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/routing/bgp/sessions` | **Carrier BGP Peering Sessions**: Status peering BGP (*Established, Active, Idle*), AS Number, prefix count yang diterima, dan uptime sesi | `{}` |
+| `GET` / `POST` | `/api/v1/routing/ospf/neighbors` | **OSPF Neighbor Adjacencies**: Status neighbor (*Full, 2-Way, Init*), router-id, interface link, dan priority | `{}` |
+| `GET` / `POST` | `/api/v1/routing/routes` | **Rekapitulasi Tabel Routing**: Rangkuman rute aktif beserta rincian protokol (*Connected, Static, BGP, OSPF*) dan jarak administratif | `{}` |
 

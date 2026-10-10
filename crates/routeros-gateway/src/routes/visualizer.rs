@@ -871,6 +871,14 @@ pub async fn visualizer_page() -> Html<&'static str> {
         });
       }
 
+      // If node has web management URL (e.g. Access Point), show direct clickable button
+      if (node.extra && node.extra.web_url) {
+        const webRow = document.createElement('div');
+        webRow.style.marginTop = '10px';
+        webRow.innerHTML = `<a href="${node.extra.web_url}" target="_blank" style="display:block; text-align:center; padding:8px; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; font-weight:700; font-size:0.8rem; border-radius:6px; text-decoration:none;">🔗 Buka Web Management AP (${node.extra.web_url})</a>`;
+        extraDiv.appendChild(webRow);
+      }
+
       // If interface or AP node, list child devices connected to this branch!
       const children = graphData.nodes.filter(n => n.parent_id === node.id);
       if (children.length > 0) {

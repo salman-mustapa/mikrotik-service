@@ -180,6 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/visualizer", get(routes::visualizer::visualizer_page))
         .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
         .route("/ws", get(routes::ws::ws_handler))
+        .route("/metrics", get(routes::metrics::prometheus_metrics))
         .merge(protected)
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);

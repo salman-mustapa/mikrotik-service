@@ -5,6 +5,7 @@ pub mod batch;
 pub mod bridge;
 pub mod dhcp;
 pub mod dns;
+pub mod doctor;
 pub mod docs;
 pub mod dude;
 pub mod expert;
@@ -18,6 +19,7 @@ pub mod ipv6;
 pub mod load_balance;
 pub mod logs;
 pub mod maintenance;
+pub mod metrics;
 pub mod nat_wizard;
 pub mod neighbors;
 pub mod network_map;
@@ -27,6 +29,7 @@ pub mod ppp;
 pub mod queues;
 pub mod raw;
 pub mod resource_detective;
+pub mod routing;
 pub mod scripts;
 pub mod security_advisor;
 pub mod system;
@@ -270,7 +273,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/maintenance/reset-configuration", post(maintenance::reset_configuration))
 
         // --- Access Point & Infrastructure Device Detector ---
-        .route("/api/v1/network/infrastructure/scan", post(infrastructure::scan_infrastructure))
+        .route("/api/v1/network/infrastructure/scan", get(infrastructure::scan_infrastructure).post(infrastructure::scan_infrastructure))
         .route("/api/v1/network/infrastructure/auto-bypass-ap", post(infrastructure::auto_bypass_ap))
 
         // --- Telegram Bot & Netwatch Automation ---
@@ -325,6 +328,14 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/load-balance/pcc/setup", post(load_balance::pcc_setup))
         .route("/api/v1/load-balance/status", get(load_balance::status).post(load_balance::status))
         .route("/api/v1/load-balance/remove", post(load_balance::remove))
+
+        // --- BGP & OSPF Dynamic Routing Peering Telemetry ---
+        .route("/api/v1/routing/bgp/sessions", get(routing::bgp_sessions).post(routing::bgp_sessions))
+        .route("/api/v1/routing/ospf/neighbors", get(routing::ospf_neighbors).post(routing::ospf_neighbors))
+        .route("/api/v1/routing/routes", get(routing::routing_table).post(routing::routing_table))
+
+        // --- Heuristic Network Doctor Diagnostic Assistant ---
+        .route("/api/v1/doctor/diagnose", get(doctor::doctor_diagnose).post(doctor::doctor_diagnose))
 
         .with_state(state)
 }

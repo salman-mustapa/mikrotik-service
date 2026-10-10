@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-115%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-120%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -117,17 +117,30 @@ graph TB
 * Mengotomatisasi konfigurasi rumit **Per Connection Classifier (PCC)** Multi-WAN dalam 1 panggilan API (< 30ms).
 * Mendukung rasio bobot tidak seimbang (misal ISP 1 50M vs ISP 2 100M dengan bobot `1:2`), otomatis failover ping `check-gateway`, dan NAT Masquerade rapi berlabel `[PCC-LoadBalance]`.
 
-### 5. 🌐 Korelasi Topologi L2/L3 & Relasi Perangkat Terkoneksi (`/topology`, `/api/v1/network/connected-devices`)
-* **Unified Cross-Layer Device Map**: Menggabungkan data dari **DHCP Leases, Hotspot Hosts, ARP Table, dan Wireless Registration** dalam satu skema terpadu.
-* **Korelasi Access Point (AP)**: Mendeteksi perangkat AP (misal Access Point di port `ether5` dengan IP `192.168.100.3`) dan membedakan client yang terhubung di baliknya.
-* **Interactive Canvas**: Visualisasi graf berbasis canvas interaktif yang **dapat di-drag/geser, di-zoom, dan diklik**.
-* **Live ICMP Ping dari Router**: Diagnostik instan dengan mengeksekusi ping dari router langsung ke IP target untuk mengukur latensi dan packet loss real-time.
+### 5. 🌐 Korelasi Topologi L2/L3 & Deteksi Access Point (`/topology`, `/api/v1/network/infrastructure/scan`)
+* **Deteksi Pintar Access Point (AP)**: Mengidentifikasi perangkat AP (TP-Link, Ubiquiti, Ruijie Reyee, Tenda, Totolink, Mercusys) yang terhubung pada port fisik (seperti `ether5` dengan IP `192.168.100.3`).
+* **Branching Hierarkis 3-Tier**: Seluruh client wireless/voucher otomatis menginduk di bawah node Access Point masing-masing, bukan langsung menempel di interface port.
+* **Tombol Akses Langsung Web Admin AP**: Tautan langsung ke `http://192.168.100.3` dari drawer inspektur node untuk konfigurasi SSID dan password tanpa repot.
+* **Interactive Canvas**: Visualisasi graf berbasis canvas interaktif yang **dapat di-drag/geser, di-zoom, dan diklik** dengan **Live ICMP Ping dari Router**.
 
 ### 6. 🚫 1-Klik App & Content Blocker (`/api/v1/security/app-block`)
 * Blokir instan untuk aplikasi dan konten: **WhatsApp, TikTok, YouTube, Judi Online, Torrent/P2P, atau Domain Custom**.
 
 ### 7. 🚀 FastTrack CPU Accelerator & Profiler (`/api/v1/system/*`)
 * Memangkas beban CPU hingga 80% pada router entry-level (hAP lite/mini/RB750Gr3) dengan membypass connection tracking untuk paket established/related.
+
+### 8. 📊 Native Prometheus Exporter (`GET /metrics`)
+* Endpoint standar **Prometheus text exposition format (version 0.0.4)** untuk scraping langsung dari Grafana / Prometheus / VictoriaMetrics.
+* Menyajikan gauge CPU, free RAM, free storage, uptime, jumlah subscriber PPPoE aktif, voucher Hotspot aktif, serta counter RX/TX byte & packet per interface **tanpa perlu mengaktifkan SNMP daemon di router**.
+
+### 9. 🩺 Heuristic "Doctor MikroTik" Assistant (`/api/v1/doctor/diagnose`)
+* **Audit Otomatis 6 Pilar**: Memeriksa CPU Load, Free RAM, Latensi & Packet Loss Uplink WAN, Throttling pada Simple Queue, FastTrack acceleration, dan status interface LAN.
+* Mengembalikan **Skor Kesehatan (0-100)** beserta rekomendasi perbaikan berbasis bahasa manusia dalam Bahasa Indonesia dan English.
+
+### 10. 🗺️ Carrier BGP & OSPF Dynamic Routing Peering (`/api/v1/routing/*`)
+* **BGP Sessions**: Status peering BGP ISP (*Established / Active / Idle*, AS number, prefix count yang diterima, uptime) kompatibel RouterOS v6 dan v7.
+* **OSPF Neighbors**: Monitoring OSPF Neighbor Adjacency (*Full, 2-Way, Init*, Designated Router, Interface link).
+* **Route Table Breakdown**: Rekapitulasi rute aktif berdasarkan protokol (*Connected, Static, BGP, OSPF*).
 
 ---
 
