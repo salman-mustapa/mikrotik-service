@@ -412,9 +412,9 @@ pub async fn visualizer_page() -> Html<&'static str> {
     <!-- Active Router Target Bar -->
     <div class="creds-inline">
       <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Router:</span>
-      <input type="text" id="target-host" placeholder="Host IP / Domain" style="width: 130px;" value="ath.vpnbersama.us">
-      <input type="number" id="target-port" placeholder="Port" style="width: 60px;" value="51121">
-      <input type="text" id="target-user" placeholder="User" style="width: 75px;" value="salman">
+      <input type="text" id="target-host" placeholder="Host IP / Domain" style="width: 130px;" value="192.168.88.1">
+      <input type="number" id="target-port" placeholder="Port" style="width: 60px;" value="8728">
+      <input type="text" id="target-user" placeholder="User" style="width: 75px;" value="admin">
       <input type="password" id="target-pass" placeholder="Password" style="width: 80px;">
       <button class="btn-connect" onclick="loadTopology()">⚡ Render Graf</button>
     </div>

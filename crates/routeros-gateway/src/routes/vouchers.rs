@@ -68,16 +68,19 @@ pub struct ThermalPrintReq {
 fn default_paper_width() -> String { "58mm".into() }
 
 #[derive(Deserialize, Debug)]
-pub struct SellAndSendReq {
+pub struct SellVoucherReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
     pub voucher_code: String,
     pub customer_name: Option<String>,
-    pub customer_phone: String, // WhatsApp phone number, e.g. "628123456789"
-    pub gowa_url: Option<String>,
+    pub customer_phone: Option<String>, // WhatsApp / Phone number, e.g. "628123456789"
+    pub cashier: Option<String>,
+    pub webhook_url: Option<String>,    // Generic external webhook (e.g. to Laravel / WhatsApp service)
     pub hotspot_name: Option<String>,
     pub dns_name: Option<String>,
 }
+
+pub type SellAndSendReq = SellVoucherReq;
 
 #[derive(Deserialize, Debug)]
 pub struct CleanExpiredReq {
@@ -552,21 +555,22 @@ pub async fn thermal_print(
     })))
 }
 
-/// POST /api/v1/hotspot/vouchers/sell-and-send - POS Selling & Instant WhatsApp Delivery (Gowa API)
-pub async fn sell_and_send(
+/// POST /api/v1/hotspot/vouchers/sell - Mark voucher as SOLD and return structured data + receipt template
+pub async fn sell_voucher(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<SellAndSendReq>,
+    Json(req): Json<SellVoucherReq>,
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let hotspot = req.hotspot_name.as_deref().unwrap_or("MANYTAL HOTSPOT");
+    let hotspot = req.hotspot_name.as_deref().unwrap_or("WIFI HOTSPOT");
     let dns = req.dns_name.as_deref().unwrap_or("inetmanyta.net");
     let cust_name = req.customer_name.as_deref().unwrap_or("Pelanggan");
-    let clean_phone = req.customer_phone.replace(['+', '-', ' '], "");
+    let clean_phone = req.customer_phone.as_deref().map(|p| p.replace(['+', '-', ' '], "")).unwrap_or_default();
+    let cashier = req.cashier.as_deref().unwrap_or("Admin Kasir");
 
-    // Query voucher data
+    // Query voucher data from router
     let rows = client.run(build_command(
         "/ip/hotspot/user/print",
         [("name", req.voucher_code.as_str())],
@@ -598,8 +602,8 @@ pub async fn sell_and_send(
         )).await;
     }
 
-    // Format professional WhatsApp voucher card
-    let wa_message = format!(
+    // Format ready-to-send receipt text for WhatsApp/SMS messaging
+    let formatted_receipt = format!(
         "🎉 *STRUK PEMBELIAN VOUCHER WIFI*\n\
          *{}*\n\
          ----------------------------------\n\
@@ -616,24 +620,52 @@ pub async fn sell_and_send(
         hotspot, cust_name, req.voucher_code, pass, profile, limit, price, login_url
     );
 
-    let mut wa_sent = false;
-    if let Some(gowa) = req.gowa_url {
-        // Dispatch to Gowa WhatsApp Gateway
-        let encoded_msg = url_encode(&wa_message);
-        let gowa_target_url = format!("{}/send?phone={}&message={}", gowa.trim_end_matches('/'), clean_phone, encoded_msg);
-        let res = client.run(build_command("/tool/fetch", [("url", gowa_target_url.as_str()), ("keep-result", "no")])).await;
-        wa_sent = res.is_ok();
+    // Optional webhook forwarder (e.g. if caller provides webhook URL to Laravel, Next.js, or WhatsApp bridge)
+    let mut webhook_forwarded = false;
+    if let Some(ref wh) = req.webhook_url {
+        let encoded_msg = url_encode(&formatted_receipt);
+        let target_url = if wh.contains('?') {
+            format!("{}&phone={}&message={}", wh, clean_phone, encoded_msg)
+        } else {
+            format!("{}/send?phone={}&message={}", wh.trim_end_matches('/'), clean_phone, encoded_msg)
+        };
+        let res = client.run(build_command(
+            "/tool/fetch",
+            [("url", target_url.as_str()), ("keep-result", "no")],
+        )).await;
+        webhook_forwarded = res.is_ok();
     }
 
     Ok(Json(json!({
         "success": true,
-        "voucher": req.voucher_code,
-        "customer": cust_name,
-        "phone": clean_phone,
-        "price": price,
-        "whatsapp_dispatched": wa_sent,
-        "message": "Voucher berhasil dijual dan struk WhatsApp telah dikirimkan!"
+        "voucher": {
+            "code": req.voucher_code,
+            "password": pass,
+            "profile": profile,
+            "price": price,
+            "time_limit": limit,
+            "login_url": login_url,
+            "qr_code_url": format!("https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={}", login_url),
+        },
+        "sale": {
+            "customer_name": cust_name,
+            "customer_phone": clean_phone,
+            "cashier": cashier,
+            "sold_at": now_ts,
+        },
+        "receipt_text": formatted_receipt,
+        "webhook_forwarded": webhook_forwarded,
+        "message": "Voucher berhasil ditandai terjual di router. Data siap diolah oleh aplikasi bisnis (Laravel/Next.js)!"
     })))
+}
+
+/// Alias for backward compatibility
+pub async fn sell_and_send(
+    st: State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Json<SellVoucherReq>,
+) -> Result<Json<Value>, ApiError> {
+    sell_voucher(st, headers, req).await
 }
 
 /// POST /api/v1/hotspot/vouchers/clean-expired - Safely purges expired vouchers from MikroTik

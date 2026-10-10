@@ -368,6 +368,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/doctor/diagnose", get(doctor::doctor_diagnose).post(doctor::doctor_diagnose))
 
         // --- Multi-Platform Messaging, Telegram, WhatsApp (Gowa) & Netwatch Pro ---
+        .route("/api/v1/integrations/webhook/dispatch", post(integrations::webhook_dispatch))
         .route("/api/v1/integrations/telegram/send", post(integrations::telegram_send))
         .route("/api/v1/integrations/whatsapp/send", post(integrations::whatsapp_send))
         .route("/api/v1/integrations/notify", post(integrations::multi_notify))
@@ -383,6 +384,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/vouchers/generate", post(vouchers::generate_vouchers))
         .route("/api/v1/hotspot/vouchers/tracking", get(vouchers::voucher_tracking).post(vouchers::voucher_tracking))
         .route("/api/v1/hotspot/vouchers/thermal-print", post(vouchers::thermal_print))
+        .route("/api/v1/hotspot/vouchers/sell", post(vouchers::sell_voucher))
         .route("/api/v1/hotspot/vouchers/sell-and-send", post(vouchers::sell_and_send))
         .route("/api/v1/hotspot/vouchers/clean-expired", post(vouchers::clean_expired))
         .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))

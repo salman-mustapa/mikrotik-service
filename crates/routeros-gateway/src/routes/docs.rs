@@ -506,15 +506,15 @@ pub async fn console_page() -> Html<&'static str> {
     <div class="creds-inputs">
       <div class="cred-group">
         <span class="cred-label">Router Host:</span>
-        <input type="text" id="target-host" class="cred-field" style="width: 140px;" value="ath.vpnbersama.us">
+        <input type="text" id="target-host" class="cred-field" style="width: 140px;" value="192.168.88.1">
       </div>
       <div class="cred-group">
         <span class="cred-label">API Port:</span>
-        <input type="number" id="target-port" class="cred-field" style="width: 60px;" value="51121">
+        <input type="number" id="target-port" class="cred-field" style="width: 60px;" value="8728">
       </div>
       <div class="cred-group">
         <span class="cred-label">User:</span>
-        <input type="text" id="target-user" class="cred-field" style="width: 80px;" value="salman">
+        <input type="text" id="target-user" class="cred-field" style="width: 80px;" value="admin">
       </div>
       <div class="cred-group">
         <span class="cred-label">Password:</span>
@@ -1424,9 +1424,9 @@ pub async fn docs_page() -> Html<&'static str> {
           <div class="ep-desc">Snapshot agregasi tercepat: mengambil CPU, memory, uptime, total user hotspot, pppoe, dan dhcp leases dalam 1 request simultan (&lt;2ms).</div>
           <pre class="code-preview">curl -X GET "https://ros-gateway.samrifa.com/api/v1/overview" \
   -H "Authorization: Bearer change-me-to-a-long-random-string" \
-  -H "X-Router-Host: ath.vpnbersama.us" \
-  -H "X-Router-Port: 51121" \
-  -H "X-Router-User: salman" \
+  -H "X-Router-Host: 192.168.88.1" \
+  -H "X-Router-Port: 8728" \
+  -H "X-Router-User: admin" \
   -H "X-Router-Pass: yourpassword"</pre>
         </div>
 

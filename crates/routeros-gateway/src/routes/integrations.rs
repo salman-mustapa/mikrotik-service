@@ -69,8 +69,11 @@ pub struct SetupNetwatchReq {
     pub interval: Option<String>,      // default "5s"
     pub timeout: Option<String>,       // default "1000ms"
     pub comment: Option<String>,
+    pub webhook_url: Option<String>,   // Decoupled webhook URL (e.g. Laravel / Next.js / Gowa endpoint)
     pub telegram: Option<TelegramConfig>,
     pub whatsapp: Option<WhatsAppConfig>,
+    pub custom_up_script: Option<String>,
+    pub custom_down_script: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -86,6 +89,7 @@ pub struct BatchSetupNetwatchReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
     pub targets: Vec<BatchNetwatchTarget>,
+    pub webhook_url: Option<String>,   // Decoupled webhook URL (e.g. Laravel / Next.js / Gowa endpoint)
     pub telegram: Option<TelegramConfig>,
     pub whatsapp: Option<WhatsAppConfig>,
 }
@@ -208,6 +212,46 @@ pub async fn whatsapp_send(
     })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct WebhookDispatchReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub url: String,
+    pub method: Option<String>, // "GET" or "POST"
+    pub payload: Option<Value>,
+}
+
+/// POST /api/v1/integrations/webhook/dispatch - Generic Outbound Webhook Trigger via RouterOS /tool/fetch
+pub async fn webhook_dispatch(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<WebhookDispatchReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let method = req.method.as_deref().unwrap_or("get").to_lowercase();
+    let mut args: Vec<(&str, &str)> = vec![
+        ("url", req.url.as_str()),
+        ("keep-result", "no"),
+        ("http-method", if method == "post" { "post" } else { "get" }),
+    ];
+
+    let payload_str = req.payload.as_ref().map(|p| p.to_string());
+    if let Some(ref p_str) = payload_str {
+        args.push(("http-data", p_str.as_str()));
+    }
+
+    client.run(build_command("/tool/fetch", args)).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "target_url": req.url,
+        "method": method.to_uppercase(),
+        "message": "Outbound webhook berhasil ditembakkan langsung dari RouterOS /tool/fetch"
+    })))
+}
+
 /// POST /api/v1/integrations/notify - Multi-Channel Notification Dispatcher (Telegram + WhatsApp)
 pub async fn multi_notify(
     State(st): State<Arc<AppState>>,
@@ -272,7 +316,16 @@ pub async fn netwatch_setup(
     let mut up_scripts = Vec::new();
     let mut down_scripts = Vec::new();
 
-    // Add Telegram alert action
+    // Option A: Generic Decoupled Webhook to external backend (Laravel / Next.js / Custom Service)
+    if let Some(ref wh) = req.webhook_url {
+        let sep = if wh.contains('?') { "&" } else { "?" };
+        let down_wh = format!("{}{}host={}&device={}&status=down", wh, sep, req.host, url_encode(dev_label));
+        let up_wh = format!("{}{}host={}&device={}&status=up", wh, sep, req.host, url_encode(dev_label));
+        down_scripts.push(format!("/tool fetch url=\"{}\" keep-result=no", down_wh));
+        up_scripts.push(format!("/tool fetch url=\"{}\" keep-result=no", up_wh));
+    }
+
+    // Option B: Add Telegram alert action directly from router
     if let Some(ref tg) = req.telegram {
         let down_msg = url_encode(&format!("🚨 ALERT: Perangkat '{}' ({}) DOWN / Terputus!", dev_label, req.host));
         let up_msg = url_encode(&format!("✅ RECOVERED: Perangkat '{}' ({}) UP / Normal Kembali!", dev_label, req.host));
@@ -286,7 +339,7 @@ pub async fn netwatch_setup(
         ));
     }
 
-    // Add WhatsApp (Gowa) alert action
+    // Option C: Add WhatsApp alert action directly from router
     if let Some(ref wa) = req.whatsapp {
         let clean_phone = wa.phone.replace(['+', '-', ' '], "");
         let down_msg = url_encode(&format!("🚨 *ALERT*: Perangkat *{}* ({}) *DOWN*!", dev_label, req.host));
@@ -300,6 +353,14 @@ pub async fn netwatch_setup(
             "/tool fetch url=\"{}/send?phone={}&message={}\" keep-result=no",
             base_url, clean_phone, up_msg
         ));
+    }
+
+    // Option D: Inject custom RouterOS scripts
+    if let Some(ref custom_up) = req.custom_up_script {
+        up_scripts.push(custom_up.clone());
+    }
+    if let Some(ref custom_down) = req.custom_down_script {
+        down_scripts.push(custom_down.clone());
     }
 
     let up_script_str = up_scripts.join("\n");
@@ -347,6 +408,15 @@ pub async fn netwatch_batch_setup(
 
         let mut up_scripts = Vec::new();
         let mut down_scripts = Vec::new();
+
+        // Option A: Generic Decoupled Webhook to external backend (Laravel / Next.js / Custom Service)
+        if let Some(ref wh) = req.webhook_url {
+            let sep = if wh.contains('?') { "&" } else { "?" };
+            let down_wh = format!("{}{}host={}&device={}&status=down", wh, sep, t.host, url_encode(&t.device_name));
+            let up_wh = format!("{}{}host={}&device={}&status=up", wh, sep, t.host, url_encode(&t.device_name));
+            down_scripts.push(format!("/tool fetch url=\"{}\" keep-result=no", down_wh));
+            up_scripts.push(format!("/tool fetch url=\"{}\" keep-result=no", up_wh));
+        }
 
         if let Some(ref tg) = req.telegram {
             let down_msg = url_encode(&format!("🚨 ALERT: '{}' ({}) DOWN!", t.device_name, t.host));
