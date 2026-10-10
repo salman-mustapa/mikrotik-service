@@ -1438,7 +1438,7 @@ pub async fn docs_page() -> Html<&'static str> {
             <a href="/?endpoint=overview" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
           </div>
           <div class="ep-desc">Snapshot agregasi tercepat: mengambil CPU, memory, uptime, total user hotspot, pppoe, dan dhcp leases dalam 1 request simultan (&lt;2ms).</div>
-          <pre class="code-preview">curl -X GET "https://ros-gateway.samrifa.com/api/v1/overview" \
+          <pre class="code-preview">curl -X GET "http://127.0.0.1:8080/api/v1/overview" \
   -H "Authorization: Bearer change-me-to-a-long-random-string" \
   -H "X-Router-Host: 192.168.88.1" \
   -H "X-Router-Port: 8728" \
@@ -1802,11 +1802,11 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.3.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 170+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 180+ endpoints"
         },
         "servers": [
-            { "url": "https://ros-gateway.samrifa.com" },
-            { "url": "http://127.0.0.1:8080" }
+            { "url": "http://127.0.0.1:8080" },
+            { "url": "https://gateway.example.com" }
         ],
         "security": [
             { "BearerAuth": [] }

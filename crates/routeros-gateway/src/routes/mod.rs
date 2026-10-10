@@ -1,5 +1,6 @@
 pub mod anti_tethering;
 pub mod app_blocker;
+pub mod audit;
 pub mod backup;
 pub mod batch;
 pub mod bridge;
@@ -89,6 +90,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/services", get(system::services).post(system::services))
         .route("/api/v1/system/service/toggle", post(system::toggle_service))
         .route("/api/v1/system/reboot", post(system::reboot))
+        .route("/api/v1/system/health", get(system::system_health).post(system::system_health))
 
         // --- IPv4, ARP & Routing ---
         .route("/api/v1/ip/addresses", get(ip::addresses).post(ip::addresses))
@@ -163,6 +165,18 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/cookies", get(hotspot::cookies).post(hotspot::cookies))
         .route("/api/v1/hotspot/cookie/remove", post(hotspot::remove_cookie))
         .route("/api/v1/hotspot/user/reset-counters", post(hotspot::reset_counters))
+        .route("/api/v1/hotspot/members", get(hotspot::list_members).post(hotspot::list_members))
+        .route("/api/v1/hotspot/members/register", post(hotspot::register_member))
+        .route("/api/v1/hotspot/members/renew", post(hotspot::renew_member))
+        .route("/api/v1/hotspot/members/suspend", post(hotspot::suspend_member))
+        .route("/api/v1/hotspot/members/activate", post(hotspot::activate_member))
+        .route("/api/v1/hotspot/members/update", post(hotspot::update_member))
+        .route("/api/v1/hotspot/members/delete", post(hotspot::delete_member))
+        .route("/api/v1/hotspot/verify-login", post(hotspot::verify_login))
+        .route("/api/v1/hotspot/ip-binding", get(hotspot::ip_bindings).post(hotspot::ip_bindings))
+        .route("/api/v1/hotspot/ip-binding/add", post(hotspot::add_ip_binding))
+        .route("/api/v1/hotspot/ip-binding/remove", post(hotspot::remove_ip_binding))
+        .route("/api/v1/hotspot/active/kick", post(hotspot::kick_active))
 
         // --- User Manager (v6 & v7) ---
         .route("/api/v1/user-manager/users", get(user_manager::users).post(user_manager::users))
@@ -402,6 +416,12 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/vouchers/sales-report", get(vouchers::sales_report).post(vouchers::sales_report))
         .route("/api/v1/hotspot/vouchers/clean-expired", post(vouchers::clean_expired))
         .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))
+
+        // --- Multi-Tenant Segregated Audit Logging & Performance Analytics ---
+        .route("/api/v1/audit/logs", get(audit::get_audit_logs).post(audit::get_audit_logs))
+        .route("/api/v1/audit/stats", get(audit::get_performance_stats).post(audit::get_performance_stats))
+        .route("/api/v1/audit/performance-stats", get(audit::get_performance_stats).post(audit::get_performance_stats))
+        .route("/api/v1/audit/clear", post(audit::clear_audit_logs))
 
         .with_state(state)
 }

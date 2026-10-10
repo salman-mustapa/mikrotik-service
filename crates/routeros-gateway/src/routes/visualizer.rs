@@ -1206,7 +1206,7 @@ pub async fn sdk_script() -> impl IntoResponse {
  */
 class MikroTikWidget extends HTMLElement {
   connectedCallback() {
-    const host = this.getAttribute('gateway') || 'https://ros-gateway.samrifa.com';
+    const host = this.getAttribute('gateway') || (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:8080');
     const routerHost = this.getAttribute('router-host') || '';
     const iframe = document.createElement('iframe');
     iframe.src = `${host}/topology?host=${encodeURIComponent(routerHost)}`;

@@ -41,6 +41,32 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&bytes).to_string()
 }
 
+fn current_iso_timestamp() -> String {
+    let now = std::time::SystemTime::now();
+    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let secs = duration.as_secs();
+    let millis = duration.subsec_millis();
+
+    let days = secs / 86400;
+    let rem_secs = secs % 86400;
+    let hours = rem_secs / 3600;
+    let mins = (rem_secs % 3600) / 60;
+    let seconds = rem_secs % 60;
+
+    let z = (days as i64) + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z", y, m, d, hours, mins, seconds, millis)
+}
+
 async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> Response {
     let header_ok = req
         .headers()
@@ -102,7 +128,43 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
             }
         }
 
+        let start_time = std::time::Instant::now();
+        let method = req.method().to_string();
+        let endpoint = req.uri().path().to_string();
+        let tenant_ctx = req.headers().get("x-tenant-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+        let tenant_hash = state::compute_tenant_hash(&st.token, tenant_ctx.as_deref());
+        let router_target = req
+            .headers()
+            .get("x-router-id")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                req.headers()
+                    .get("x-router-host")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "main".to_string());
+        let client_ip = req
+            .headers()
+            .get("x-forwarded-for")
+            .or_else(|| req.headers().get("x-real-ip"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
         let mut resp = next.run(req).await;
+        let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
+        let status_code = resp.status().as_u16();
+        let success = resp.status().is_success();
+
+        resp.headers_mut().insert(
+            header::HeaderName::from_static("x-response-time"),
+            header::HeaderValue::from_str(&format!("{:.2}ms", elapsed_ms)).unwrap_or_else(|_| header::HeaderValue::from_static("0ms")),
+        );
+        resp.headers_mut().insert(
+            header::HeaderName::from_static("x-tenant-scope"),
+            header::HeaderValue::from_str(&tenant_hash).unwrap_or_else(|_| header::HeaderValue::from_static("unknown")),
+        );
         resp.headers_mut().insert(
             header::HeaderName::from_static("x-content-type-options"),
             header::HeaderValue::from_static("nosniff"),
@@ -111,6 +173,25 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
             header::HeaderName::from_static("x-frame-options"),
             header::HeaderValue::from_static("SAMEORIGIN"),
         );
+
+        // Record audit log entry in segregated ring buffer if not the audit inspection endpoint itself
+        if !endpoint.starts_with("/api/v1/audit") {
+            let log_id = format!("{:016x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+            let entry = state::AuditLogEntry {
+                id: log_id,
+                timestamp: current_iso_timestamp(),
+                tenant_hash,
+                router_target,
+                method,
+                endpoint,
+                duration_ms: elapsed_ms,
+                status_code,
+                success,
+                client_ip,
+            };
+            st.record_audit_log(entry).await;
+        }
+
         resp
     } else {
         (

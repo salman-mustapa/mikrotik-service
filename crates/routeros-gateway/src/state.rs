@@ -1,10 +1,35 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::hash::{Hash, Hasher};
 use axum::http::HeaderMap;
 use routeros_core::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::error::ApiError;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AuditLogEntry {
+    pub id: String,
+    pub timestamp: String,
+    pub tenant_hash: String,
+    pub router_target: String,
+    pub method: String,
+    pub endpoint: String,
+    pub duration_ms: f64,
+    pub status_code: u16,
+    pub success: bool,
+    pub client_ip: Option<String>,
+}
+
+/// Compute a cryptographic-style deterministic 16-hex hash from API token + optional tenant context
+pub fn compute_tenant_hash(token: &str, tenant_context: Option<&str>) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    token.hash(&mut hasher);
+    if let Some(ctx) = tenant_context {
+        ctx.hash(&mut hasher);
+    }
+    format!("{:016x}", hasher.finish())
+}
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Config {
@@ -50,6 +75,8 @@ pub struct AppState {
     pub configured_routers: HashMap<String, Slot>,
     /// Global persistent connection pool: key = "user@host:port:password"
     pub dynamic_pool: Mutex<HashMap<String, Client>>,
+    /// Multi-tenant segregated ring buffer audit log (max 5,000 entries)
+    pub audit_logs: Mutex<VecDeque<AuditLogEntry>>,
 }
 
 impl AppState {
@@ -72,7 +99,17 @@ impl AppState {
             token: cfg.api_token,
             configured_routers: configured,
             dynamic_pool: Mutex::new(HashMap::new()),
+            audit_logs: Mutex::new(VecDeque::with_capacity(5000)),
         }
+    }
+
+    /// Record an execution log entry to the in-memory ring buffer with LRU eviction
+    pub async fn record_audit_log(&self, entry: AuditLogEntry) {
+        let mut logs = self.audit_logs.lock().await;
+        if logs.len() >= 5000 {
+            logs.pop_front();
+        }
+        logs.push_back(entry);
     }
 
     /// Resolve a live, authenticated Client instance using pool or configured slots

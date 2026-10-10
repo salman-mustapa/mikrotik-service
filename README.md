@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-170%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-180%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -21,12 +21,12 @@ Service ini dirancang dari perspektif **Network Operations Center (NOC) Engineer
 * 📱 **Mobile Apps**: Flutter (Dart), React Native, Kotlin, Swift.
 * ⚡ **Backend Stacks**: Laravel (PHP), Express / Nest.js (Node.js), Go, Python (FastAPI/Django), Java (Spring).
 
-### 🔗 Portal Langsung & Akses Cepat (Production)
-* 📖 **Dokumentasi API & Interactive Explorer**: [`https://ros-gateway.samrifa.com/docs`](https://ros-gateway.samrifa.com/docs)
-* 🎮 **Live Web Management Portal**: [`https://ros-gateway.samrifa.com/`](https://ros-gateway.samrifa.com/)
-* 🌐 **Interactive Topology & Relational Visualizer**: [`https://ros-gateway.samrifa.com/topology`](https://ros-gateway.samrifa.com/topology)
-* 🩺 **Healthcheck Service**: [`https://ros-gateway.samrifa.com/health`](https://ros-gateway.samrifa.com/health)
-* 📋 **OpenAPI Specification (JSON)**: [`https://ros-gateway.samrifa.com/api/v1/spec`](https://ros-gateway.samrifa.com/api/v1/spec)
+### 🔗 Portal Akses & Quick Explorer
+* 📖 **Dokumentasi API & Interactive Explorer**: [`http://127.0.0.1:8080/docs`](http://127.0.0.1:8080/docs) (atau `https://gateway.example.com/docs`)
+* 🎮 **Live Web Management Portal**: [`http://127.0.0.1:8080/`](http://127.0.0.1:8080/)
+* 🌐 **Interactive Topology & Relational Visualizer**: [`http://127.0.0.1:8080/topology`](http://127.0.0.1:8080/topology)
+* 🩺 **Healthcheck Service**: [`http://127.0.0.1:8080/health`](http://127.0.0.1:8080/health)
+* 📋 **OpenAPI Specification (JSON)**: [`http://127.0.0.1:8080/api/v1/spec`](http://127.0.0.1:8080/api/v1/spec)
 
 ---
 
@@ -199,6 +199,44 @@ graph TB
 
 ### 25. 👥 User Manager (Internal RADIUS Server v6 & v7) (`/api/v1/user-manager/*`)
 * **Roaming Voucher & Multi-Router ISP**: Manajemen terpusat untuk jaringan ISP/WISP skala besar. Mendukung pembuatan User Manager profiles, limitations kuota/kecepatan, dan binding user lintas router.
+
+### 26. 👤 Hotspot Member Management (Langganan Bulanan, VIP & Kost) (`/api/v1/hotspot/members/*`)
+* **Konsep Login Member vs Voucher**: Pelanggan tetap bulanan memiliki username dan password rahasia tersendiri (bukan voucher acak sekali pakai).
+* **Metadata Lifecycle Terstruktur**: Metadata lengkap (`[MEMBER|Nama|NoHP|EXP:YYYY-MM-DD|ACTIVE|RpNominal|Catatan]`) tersimpan rapi dan aman di router.
+* **Fitur Lengkap**:
+  * `POST /api/v1/hotspot/members/register`: Pendaftaran member baru dengan durasi aktif bulanan (misal 30 hari).
+  * `GET /api/v1/hotspot/members`: Monitoring seluruh member, sisa hari jatuh tempo, status (`ACTIVE`, `EXPIRED`, `SUSPENDED`), dan total kuota bytes.
+  * `POST /api/v1/hotspot/members/renew`: Perpanjangan masa aktif bulanan otomatis saat pembayaran iuran, update tanggal jatuh tempo baru, reset traffic counter, dan enable kembali akun.
+  * `POST /api/v1/hotspot/members/suspend`: Isolir pelanggan menunggak (memindahkan ke profil isolir atau disable, serta memutus sesi aktif saat itu juga).
+  * `POST /api/v1/hotspot/members/activate`: Mengaktifkan kembali member yang sebelumnya di-suspend.
+  * `POST /api/v1/hotspot/members/update`: Mengubah password, profil kecepatan, atau informasi kontak.
+  * `POST /api/v1/hotspot/members/delete`: Menghapus data member dari router.
+
+### 27. 🛡️ Unified Pre-Login Verification Engine (`/api/v1/hotspot/verify-login`)
+* **Otentikasi Terpadu Siap Pakai**: Developer frontend (captive portal HTML/JS, mobile app Flutter/React Native) dapat memverifikasi kredensial login sebelum dialihkan ke router.
+* **Multi-Layer Security Validation**:
+  * Menentukan secara cerdas apakah akun adalah **Voucher** atau **Member**.
+  * Validasi kecocokan password.
+  * Pengecekan masa aktif langganan bulanan (`SUBSCRIPTION_EXPIRED`).
+  * Pengecekan batas kuota data (`QUOTA_EXHAUSTED`) dan batas waktu penggunaan (`UPTIME_EXHAUSTED`).
+  * Proteksi konkurensi perangkat (`MAX_CONCURRENT_USERS_REACHED`) terhadap batas `shared-users` pada profil.
+
+### 28. 📺 Hotspot MAC IP-Binding & Active Host Kick (`/api/v1/hotspot/ip-binding/*`, `/api/v1/hotspot/active/kick`)
+* **Bypass Perangkat Tanpa Browser**: Tambahkan aturan MAC Bypass untuk Smart TV, CCTV, konsol game, atau printer nirkabel agar dapat mengakses internet langsung tanpa melewati captive portal.
+* **Instant Session Kick**: Putus sesi aktif pengguna tertentu dalam < 5ms berdasarkan username, MAC address, atau ID sesi.
+
+### 29. 🌡️ Router Hardware Health & Sensor Telemetry (`/api/v1/system/health`)
+* **Monitoring Fisik RouterBoard**: Membaca sensor suhu prosesor CPU (°C), voltase papan sirkuit (V), watt konsumsi daya, dan kecepatan kipas pendingin (RPM) dari `/system/health/print`.
+* **Deteksi Graceful CHR/VM**: Otomatis mendeteksi platform virtual (Cloud Hosted Router) yang tidak memiliki sensor fisik tanpa menghasilkan error.
+
+### 30. 🔒 Multi-Tenant Segregated Audit Logging & Latency Analytics (`/api/v1/audit/*`)
+* **Pencatatan Proses & Latensi Presisi**: Ring buffer in-memory ultra cepat mencatat timestamp ISO-8601, durasi eksekusi dalam milidetik (`duration_ms`), endpoint, router target, status kode, dan hasil eksekusi.
+* **Zero-Leak Multi-Tenant Security Boundary**: Seluruh riwayat log dan analitik dienkapsulasi dan diisolasi secara ketat berdasarkan hash token tenant. Pengguna A tidak dapat mengintip log pengguna B, meskipun 1 pengguna mengelola banyak router MikroTik secara bersamaan.
+* **Response Header Transparan**: Setiap response API otomatis membawa header `X-Response-Time: 1.25ms` dan `X-Tenant-Scope: 7b3a...` untuk kemudahan debugging developer dan teknisi NOC.
+* **Endpoints**:
+  * `GET /api/v1/audit/logs`: Filter riwayat eksekusi berdasarkan router, status (success/failed), dan batas durasi latency.
+  * `GET /api/v1/audit/stats`: Ringkasan analitik performa per-tenant (rata-rata latency ms, p95 latency, tingkat keberhasilan %, throughput).
+  * `POST /api/v1/audit/clear`: Menghapus riwayat log milik tenant pemanggil secara aman.
 
 ---
 

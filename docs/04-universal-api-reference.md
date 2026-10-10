@@ -832,5 +832,57 @@ Membuka akses remote ke Web Admin Access Point pihak ketiga (TP-Link, Ruijie, Te
 | `POST` | `/api/v1/network/infrastructure/ap-tunnel` | **Buka Port Forwarding Sementara**: Membuat aturan NAT dst-nat sementara pada router agar Web Admin AP (`192.168.100.3:80`) dapat dibuka melalui port eksternal router (misal `8083`) | `{"ap_ip": "192.168.100.3", "ap_port": 80, "external_port": 8083}` |
 | `POST` | `/api/v1/network/infrastructure/ap-tunnel/remove` | **Tutup Port Forwarding**: Menghapus aturan NAT port forward setelah selesai konfigurasi | `{"ap_ip": "192.168.100.3"}` |
 
+---
+
+### DDD. 👤 Hotspot Member Management & Recurring Billing (`/api/v1/hotspot/members/*`)
+Manajemen pelanggan tetap bulanan, VIP, kos-kosan, dan kafe dengan username & password terpisah:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/hotspot/members/register` | **Registrasi Member Bulanan**: Mendaftarkan akun member dengan password rahasia, nama, HP, dan tanggal jatuh tempo | `{"username": "budi12", "password": "pass", "fullname": "Budi", "phone": "0812..", "validity_days": 30, "price": 100000}` |
+| `GET` / `POST` | `/api/v1/hotspot/members` | **Daftar Member Terstruktur**: Menampilkan seluruh member dengan parsing otomatis metadata, sisa hari, status (`ACTIVE`, `EXPIRED`, `SUSPENDED`), dan total kuota bytes | `{"status": "active", "search": "budi"}` |
+| `POST` | `/api/v1/hotspot/members/renew` | **Perpanjangan Masa Aktif**: Tambah N hari masa aktif saat iuran dibayar, reset traffic counters, dan aktifkan kembali akun | `{"username": "budi12", "add_days": 30, "reset_traffic": true}` |
+| `POST` | `/api/v1/hotspot/members/suspend` | **Isolir Member Menunggak**: Menonaktifkan akun member atau memindahkan ke profil isolir serta memutus sesi aktif | `{"username": "budi12", "isolate_profile": "isolir"}` |
+| `POST` | `/api/v1/hotspot/members/activate` | **Aktifkan Kembali**: Mengembalikan status member menjadi aktif setelah pembayaran dikonfirmasi | `{"username": "budi12", "profile": "default"}` |
+| `POST` | `/api/v1/hotspot/members/update` | **Update Informasi Member**: Mengubah password, profil kecepatan, nama, atau kontak | `{"username": "budi12", "new_password": "newpass", "fullname": "Budi S."}` |
+| `POST` | `/api/v1/hotspot/members/delete` | **Hapus Akun Member**: Menghapus data member dari router secara permanen | `{"username": "budi12"}` |
+
+---
+
+### EEE. 🛡️ Unified Pre-Login Verification Engine (`/api/v1/hotspot/verify-login`)
+Verifikasi otorisasi kredensial login sebelum dialihkan ke RouterOS:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/hotspot/verify-login` | **Mesin Autentikasi Pra-Login**: Memvalidasi apakah user adalah voucher atau member, verifikasi password, cek tanggal kadaluarsa, kuota/uptime limit, serta proteksi batas perangkat (`shared-users`) | `{"username": "budi12", "password": "pass", "mac_address": "AA:BB:CC:DD:EE:FF"}` |
+
+---
+
+### FFF. 📺 Hotspot MAC IP-Binding & Session Kick (`/api/v1/hotspot/ip-binding/*`, `/api/v1/hotspot/active/kick`)
+Bypass perangkat IoT tanpa browser dan kick sesi pengguna aktif:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/hotspot/ip-binding` | **Daftar MAC IP-Binding**: Melihat seluruh rule bypass (CCTV, Smart TV, Printer) | `{}` |
+| `POST` | `/api/v1/hotspot/ip-binding/add` | **Tambah MAC Bypass**: Membebaskan perangkat dari halaman login captive portal | `{"mac_address": "AA:BB:CC:DD:EE:FF", "type": "bypassed", "comment": "Smart TV Lobby"}` |
+| `POST` | `/api/v1/hotspot/ip-binding/remove` | **Hapus MAC Binding**: Menghapus rule bypass berdasarkan `.id` | `{"id": "*1"}` |
+| `POST` | `/api/v1/hotspot/active/kick` | **Putus Sesi Aktif Seketika**: Memutus paksa koneksi host yang sedang online | `{"username": "budi12"}` atau `{"mac_address": "AA:BB:CC:DD:EE:FF"}` |
+
+---
+
+### GGG. 🌡️ Router Hardware Health Sensor Telemetry (`/api/v1/system/health`)
+Monitoring parameter fisik perangkat keras RouterBoard:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/system/health` | **Sensor Hardware Telemetry**: Mengambil suhu prosesor CPU (°C), voltase (V), watt, dan RPM kipas pendingin (dengan graceful fallback untuk CHR/VM) | `{}` |
+
+---
+
+### HHH. 🔒 Multi-Tenant Segregated Audit Logging & Latency Analytics (`/api/v1/audit/*`)
+Pencatatan riwayat eksekusi, latensi responsif, dan analitik performa dengan proteksi isolasi data ketat:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/audit/logs` | **Riwayat Audit Terisolasi**: Mengambil log eksekusi milik tenant pemanggil (terisolasi 100% dari tenant lain) dengan filter router, status, dan minimum latency | `{"router_id": "main", "status": "success", "limit": 50}` |
+| `GET` / `POST` | `/api/v1/audit/stats` | **Analitik Kecepatan & Throughput**: Menghitung rata-rata latency ms, p95 latency, tingkat sukses %, throughput, dan daftar router aktif milik tenant | `{}` |
+| `POST` | `/api/v1/audit/clear` | **Bersihkan Riwayat Audit**: Menghapus riwayat log milik tenant pemanggil secara aman tanpa menyentuh log tenant lain | `{}` |
+
+
 
 

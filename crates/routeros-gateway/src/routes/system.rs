@@ -245,3 +245,64 @@ pub async fn toggle_service(
         "message": format!("Service '{}' updated (disabled: {})", req.service_name, req.disabled)
     })))
 }
+
+/// GET /api/v1/system/health - Get Router hardware telemetry (CPU temp, voltage, wattage, fans)
+pub async fn system_health(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows_res = client
+        .run(build_command(
+            "/system/health/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await;
+
+    match rows_res {
+        Ok(rows) => {
+            if rows.is_empty() {
+                Ok(Json(json!({
+                    "success": true,
+                    "has_sensors": false,
+                    "message": "Hardware tidak memiliki sensor temperatur/voltase aktif (CHR/Virtual)",
+                    "sensors": {}
+                })))
+            } else {
+                // Compatible with both ROS v7 (name/value list) and ROS v6 (single row key-values)
+                let mut sensors = serde_json::Map::new();
+                for r in &rows {
+                    if let (Some(name), Some(val)) = (r.get("name"), r.get("value")) {
+                        sensors.insert(name.to_string(), json!(val));
+                    }
+                }
+                if sensors.is_empty() {
+                    if let Some(first) = rows.first() {
+                        for (k, v) in &first.attrs {
+                            sensors.insert(k.clone(), json!(v));
+                        }
+                    }
+                }
+
+                Ok(Json(json!({
+                    "success": true,
+                    "has_sensors": true,
+                    "sensors": sensors,
+                    "raw_count": rows.len()
+                })))
+            }
+        }
+        Err(_) => {
+            Ok(Json(json!({
+                "success": true,
+                "has_sensors": false,
+                "message": "Platform virtual atau router ini tidak mendukung /system/health",
+                "sensors": {}
+            })))
+        }
+    }
+}
