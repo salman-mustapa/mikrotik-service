@@ -232,7 +232,7 @@ pub async fn watchdog(
     })))
 }
 
-/// POST or GET /api/v1/system/ntp - Configures NTP Client time synchronization
+/// POST or GET /api/v1/system/ntp/config - Configures NTP Client time synchronization
 pub async fn ntp_config(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,

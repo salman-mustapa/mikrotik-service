@@ -619,7 +619,7 @@ Perangkat diagnostik lengkap untuk Network Operations Center (NOC):
 | `POST` | `/api/v1/tools/romon/set` | Aktifkan/nonaktifkan RoMON | `{"enabled": true}` |
 | `POST` | `/api/v1/tools/romon/discover` | Temukan router tetangga dalam jaringan overlay RoMON | `{}` |
 | `POST` | `/api/v1/system/watchdog` | Konfigurasi hardware watchdog (reboot otomatis jika ISP putus) | `{"watchdog_timer": true, "ping_address": "8.8.8.8"}` |
-| `POST` | `/api/v1/system/ntp` | Sinkronisasi waktu jam NTP Client (Penting untuk log & voucher) | `{"enabled": true, "servers": "0.pool.ntp.org", "time_zone_name": "Asia/Jakarta"}` |
+| `POST` | `/api/v1/system/ntp/config` | Konfigurasi manual parameter NTP Client (Enabled, server pool, timezone) | `{"enabled": true, "servers": "0.pool.ntp.org", "time_zone_name": "Asia/Jakarta"}` |
 | `POST` | `/api/v1/ip/dhcp-client/all` | Daftar DHCP Client WAN | `{}` |
 | `POST` | `/api/v1/ip/dhcp-client/add` | Tambah DHCP Client pada interface WAN | `{"interface": "ether1", "add_default_route": true}` |
 | `POST` | `/api/v1/scripts/terminal-exec` | **Terminal Paste Script Runner**: Menjalankan batch script panjang arbitrary hasil copas terminal Winbox secara atomik | `{"script": "/ip firewall filter add chain=input action=accept..."}` |

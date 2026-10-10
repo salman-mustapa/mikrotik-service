@@ -1429,9 +1429,15 @@ pub async fn docs_page() -> Html<&'static str> {
           <div class="ep-top">
             <div class="methods-group"><span class="m-pill m-post">POST</span></div>
             <div class="ep-path">/api/v1/hotspot/vouchers/clean-expired</div>
-            <a href="/?endpoint=vouchers_clean" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
-          </div>
           <div class="ep-desc">Pembersihan aman voucher kedaluwarsa secara berkala tanpa menyentuh voucher aktif atau voucher yang belum laku terjual.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/voucher-template/render</div>
+          </div>
+          <div class="ep-desc">Dynamic HTML Voucher Template Engine: render template voucher kustom (variabel {{username}}, {{password}}, {{price}}, {{validity}}) menjadi tampilan voucher siap cetak.</div>
         </div>
       </section>
 
@@ -1871,6 +1877,22 @@ pub async fn docs_page() -> Html<&'static str> {
             <div class="ep-path">/api/v1/system/ntp/setup</div>
           </div>
           <div class="ep-desc">1-Klik NTP &amp; Timezone Sync: sinkronisasi jam satelit internet (id.pool.ntp.org, time.google.com) dan set timezone agar jam router tidak reset ke 1970 saat reboot.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/ntp</div>
+          </div>
+          <div class="ep-desc">Status NTP Client: inspeksi status sinkronisasi waktu satelit dan detail pembacaan jam (clock) router saat ini.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/ntp/config</div>
+          </div>
+          <div class="ep-desc">Konfigurasi manual NTP Client: atur parameter server pool kustom, status enabled, dan nama zona waktu RouterOS.</div>
         </div>
 
         <div class="ep-doc-card">

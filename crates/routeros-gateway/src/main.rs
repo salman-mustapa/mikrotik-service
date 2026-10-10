@@ -271,3 +271,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_router_builds_without_panic() {
+        let cfg = Config {
+            listen: "0.0.0.0:8080".into(),
+            api_token: "test-token".into(),
+            routers: vec![],
+        };
+        let state = Arc::new(AppState::new(cfg));
+        let protected = routes::build_api_router(state.clone());
+        let _app = Router::new()
+            .route("/", get(playground))
+            .route("/health", get(health))
+            .route("/docs", get(routes::docs::docs_page))
+            .route("/documentation", get(routes::docs::docs_page))
+            .route("/api/docs", get(routes::docs::docs_page))
+            .route("/api/v1/spec", get(routes::docs::api_spec_json))
+            .route("/topology", get(routes::visualizer::visualizer_page))
+            .route("/visualizer", get(routes::visualizer::visualizer_page))
+            .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
+            .route("/ws", get(routes::ws::ws_handler))
+            .route("/metrics", get(routes::metrics::prometheus_metrics))
+            .merge(protected);
+    }
+}
