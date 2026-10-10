@@ -2,37 +2,38 @@ use axum::response::Html;
 use axum::Json;
 use serde_json::{json, Value};
 
-/// GET /docs & /documentation - Interactive, Rich API Documentation & Endpoint Explorer
+/// Unified Developer Portal, Interactive API Explorer, and Gateway Documentation
 pub async fn docs_page() -> Html<&'static str> {
     Html(r##"<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Dokumentasi Resmi API - MikroTik Universal Rust Gateway</title>
+  <title>MikroTik Universal Gateway - Developer Console &amp; Interactive API Explorer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0b0f19;
-      --surface: #111827;
-      --surface-elevated: #1f2937;
-      --border: rgba(255, 255, 255, 0.08);
-      --border-focus: #06b6d4;
-      --text-main: #f9fafb;
-      --text-muted: #9ca3af;
+      --bg: #070b14;
+      --surface: #0e1626;
+      --surface-elevated: #152238;
+      --surface-card: #111c30;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-accent: rgba(56, 189, 248, 0.3);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
       --accent-cyan: #06b6d4;
       --accent-blue: #3b82f6;
       --accent-emerald: #10b981;
-      --accent-rose: #f43f5e;
       --accent-purple: #8b5cf6;
       --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
       --code-bg: #030712;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: radial-gradient(circle at 50% 0%, #172554 0%, #0b0f19 75%);
+      background: radial-gradient(circle at 50% 0%, #172554 0%, #070b14 70%);
       color: var(--text-main);
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
@@ -41,15 +42,15 @@ pub async fn docs_page() -> Html<&'static str> {
     }
     code, pre { font-family: 'JetBrains Mono', monospace; }
 
-    /* Top Navigation Bar */
+    /* Header */
     header {
       position: sticky;
       top: 0;
-      z-index: 50;
-      background: rgba(11, 15, 25, 0.88);
-      backdrop-filter: blur(16px);
+      z-index: 100;
+      background: rgba(7, 11, 20, 0.88);
+      backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border);
-      padding: 14px 28px;
+      padding: 12px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -59,6 +60,8 @@ pub async fn docs_page() -> Html<&'static str> {
       display: flex;
       align-items: center;
       gap: 12px;
+      text-decoration: none;
+      color: inherit;
     }
     .brand-title {
       font-weight: 800;
@@ -68,7 +71,7 @@ pub async fn docs_page() -> Html<&'static str> {
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .badge {
+    .badge-core {
       background: rgba(6, 182, 212, 0.15);
       border: 1px solid rgba(6, 182, 212, 0.35);
       color: #38bdf8;
@@ -77,866 +80,1197 @@ pub async fn docs_page() -> Html<&'static str> {
       padding: 3px 8px;
       border-radius: 999px;
     }
-    .nav-actions {
+
+    /* Top Tabs Navigation */
+    .top-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.04); }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      color: white;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
+    }
+
+    .header-actions {
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .btn-link {
+    .btn-action-link {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 7px 14px;
       border-radius: 8px;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       font-weight: 600;
       text-decoration: none;
       transition: all 0.2s ease;
       cursor: pointer;
     }
-    .btn-playground {
-      background: linear-gradient(135deg, #0284c7, #06b6d4);
+    .btn-visualizer-nav {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
       color: white;
-      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25);
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
     }
-    .btn-visualizer {
-      background: rgba(31, 41, 55, 0.8);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-    }
-    .btn-link:hover { transform: translateY(-1px); }
+    .btn-action-link:hover { transform: translateY(-1px); }
 
-    /* Layout */
-    .docs-container {
-      display: flex;
-      flex: 1;
-      max-width: 1600px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    /* Sidebar Navigation */
-    .sidebar {
-      width: 310px;
-      position: sticky;
-      top: 65px;
-      height: calc(100vh - 65px);
-      overflow-y: auto;
-      border-right: 1px solid var(--border);
-      padding: 24px 18px;
-      background: rgba(17, 24, 39, 0.4);
-      backdrop-filter: blur(10px);
-    }
-    .sidebar::-webkit-scrollbar { width: 5px; }
-    .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-    
-    .search-box {
-      margin-bottom: 20px;
-      position: relative;
-    }
-    .search-input {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px 10px 36px;
-      color: white;
-      font-size: 0.85rem;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    .search-input:focus { border-color: var(--border-focus); }
-    .search-icon {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
-
-    .cat-title {
-      font-size: 0.72rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--text-muted);
-      margin: 18px 0 8px 6px;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      border-radius: 8px;
-      color: #cbd5e1;
-      font-size: 0.82rem;
-      font-weight: 500;
-      text-decoration: none;
-      transition: all 0.15s ease;
-      cursor: pointer;
-    }
-    .nav-item:hover, .nav-item.active {
-      background: rgba(56, 189, 248, 0.12);
-      color: #38bdf8;
-    }
-    .nav-counter {
-      font-size: 0.7rem;
-      background: rgba(255, 255, 255, 0.08);
-      padding: 2px 6px;
-      border-radius: 999px;
-      color: var(--text-muted);
-    }
-
-    /* Content Area */
-    .content {
-      flex: 1;
-      padding: 36px 48px;
-      overflow-y: auto;
-    }
-
-    /* Hero & Quick Spec */
-    .hero {
-      margin-bottom: 36px;
-      background: linear-gradient(135deg, rgba(30, 58, 138, 0.25), rgba(17, 24, 39, 0.6));
-      border: 1px solid rgba(56, 189, 248, 0.2);
-      border-radius: 16px;
-      padding: 28px 32px;
-    }
-    .hero h1 {
-      font-size: 1.85rem;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      margin-bottom: 8px;
-    }
-    .hero p {
-      color: #cbd5e1;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      max-width: 900px;
-    }
-    .spec-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      margin-top: 24px;
-    }
-    .spec-card {
-      background: rgba(17, 24, 39, 0.7);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-    }
-    .spec-title {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 6px;
-    }
-    .spec-desc {
-      font-size: 0.85rem;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
-
-    /* Endpoint Cards */
-    .endpoint-card {
-      background: rgba(17, 24, 39, 0.75);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px;
-      margin-bottom: 24px;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .endpoint-card:hover {
-      border-color: rgba(56, 189, 248, 0.35);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    }
-    .ep-header {
+    /* Router Settings Sticky Bar */
+    .creds-bar {
+      background: rgba(17, 28, 48, 0.95);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 12px;
-      margin-bottom: 12px;
+      font-size: 0.8rem;
     }
-    .ep-title-row {
+    .creds-fields {
       display: flex;
       align-items: center;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
     }
-    .method-badge {
+    .cred-input-wrap {
+      display: flex;
+      align-items: center;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 8px;
+    }
+    .cred-label {
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    .cred-input {
+      background: transparent;
+      border: none;
+      color: white;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      font-weight: 800;
+      font-size: 0.78rem;
+      padding: 4px 0;
+      outline: none;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+
+    /* Main Container */
+    .main-viewport {
+      display: flex;
+      flex: 1;
+      max-width: 1750px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 24px;
+      gap: 20px;
+    }
+
+    /* Tab 1: API Explorer Layout (2 Kolom) */
+    .explorer-view {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 20px;
+      width: 100%;
+    }
+    @media (max-width: 1100px) {
+      .explorer-view { grid-template-columns: 1fr; }
+    }
+
+    /* Left: Categories & Endpoints List */
+    .endpoints-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .search-filter-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .search-input-box {
+      width: 100%;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px 10px 36px;
+      color: white;
+      font-size: 0.88rem;
+      outline: none;
+      position: relative;
+    }
+    .search-input-box:focus { border-color: var(--accent-cyan); }
+    .cat-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .cat-pill {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
       padding: 4px 10px;
       border-radius: 6px;
-      letter-spacing: 0.5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
     }
-    .method-post { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
-    .method-get { background: #064e3b; color: #6ee7b7; border: 1px solid #10b981; }
-    .method-sse { background: #701a75; color: #f5d0fe; border: 1px solid #c026d3; }
-    .method-ws { background: #78350f; color: #fde68a; border: 1px solid #f59e0b; }
-    
+    .cat-pill:hover, .cat-pill.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-cyan);
+      color: #38bdf8;
+    }
+
+    /* Endpoint Card */
+    .ep-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      transition: all 0.2s ease;
+    }
+    .ep-card:hover {
+      border-color: var(--border-accent);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+    .ep-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .ep-badge-method {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 5px;
+    }
+    .m-post { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
+    .m-get { background: #064e3b; color: #6ee7b7; border: 1px solid #10b981; }
+    .m-ws { background: #78350f; color: #fde68a; border: 1px solid #f59e0b; }
     .ep-path {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.95rem;
-      font-weight: 600;
+      font-size: 0.9rem;
+      font-weight: 700;
       color: #f1f5f9;
     }
     .ep-desc {
       color: #94a3b8;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .ep-body-editor {
+      background: var(--code-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #38bdf8;
+      width: 100%;
+      min-height: 70px;
+      max-height: 150px;
+      resize: vertical;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .ep-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .btn-exec {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: opacity 0.2s;
+    }
+    .btn-exec:hover { opacity: 0.9; }
+    .btn-snippet {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-snippet:hover { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+
+    /* Right: Sticky Live Response Console */
+    .console-panel {
+      position: sticky;
+      top: 130px;
+      height: calc(100vh - 150px);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .console-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .console-title {
+      font-weight: 700;
       font-size: 0.88rem;
-      margin-bottom: 16px;
-      line-height: 1.5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .console-timing {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .console-output {
+      flex: 1;
+      background: var(--code-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .console-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
     }
 
-    .ep-details-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-top: 12px;
+    /* Tab 2: Documentation & Architecture Layout */
+    .docs-view {
+      display: none;
+      flex-direction: column;
+      gap: 24px;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
     }
-    @media (max-width: 1024px) {
-      .ep-details-grid { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-      .content { padding: 20px; }
+    .doc-hero {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.3), rgba(15, 23, 42, 0.8));
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      padding: 28px 32px;
     }
-    
-    .box-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
+    .doc-hero h1 { font-size: 1.85rem; font-weight: 800; margin-bottom: 8px; }
+    .doc-hero p { color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+    .doc-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .doc-card h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; color: #f1f5f9; }
+    .doc-card p { font-size: 0.88rem; color: #94a3b8; line-height: 1.6; margin-bottom: 14px; }
+    .table-spec {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin-top: 10px;
+    }
+    .table-spec th, .table-spec td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .table-spec th { background: rgba(255, 255, 255, 0.04); color: #cbd5e1; font-weight: 700; }
+    .table-spec td { color: #94a3b8; }
+    .lang-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .lang-tab {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
       color: var(--text-muted);
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
     }
-    .code-box {
+    .lang-tab.active { background: #0284c7; color: white; border-color: #0284c7; }
+    .code-preview {
       background: var(--code-bg);
-      border: 1px solid rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px;
+      padding: 14px;
       font-size: 0.8rem;
       color: #38bdf8;
       overflow-x: auto;
-      max-height: 220px;
     }
-    .copy-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: none;
-      color: #cbd5e1;
-      padding: 3px 8px;
-      border-radius: 5px;
-      font-size: 0.7rem;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .copy-btn:hover { background: rgba(56, 189, 248, 0.25); color: white; }
 
-    .try-btn {
-      background: rgba(14, 165, 233, 0.15);
-      border: 1px solid rgba(14, 165, 233, 0.3);
-      color: #38bdf8;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-decoration: none;
-      display: inline-flex;
+    /* Tab 3: Topology View */
+    .topology-view {
+      display: none;
+      flex-direction: column;
       align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      transition: all 0.2s;
+      justify-content: center;
+      width: 100%;
+      min-height: 60vh;
+      text-align: center;
+      gap: 16px;
     }
-    .try-btn:hover {
-      background: #0284c7;
-      color: white;
+
+    /* Tab 4: Settings View */
+    .settings-view {
+      display: none;
+      flex-direction: column;
+      max-width: 700px;
+      margin: 0 auto;
+      width: 100%;
+      gap: 16px;
     }
   </style>
 </head>
 <body>
 
-  <!-- Top Navigation Bar -->
+  <!-- Top Global Header -->
   <header>
-    <div class="brand">
-      <span style="font-size: 1.35rem;">🦀</span>
-      <span class="brand-title">MikroTik Universal Gateway</span>
-      <span class="badge">API v0.2.0 Reference</span>
-    </div>
-    <div class="nav-actions">
-      <a href="/" class="btn-link btn-playground">
-        <span>🎮</span> Live Playground
-      </a>
-      <a href="/topology" target="_blank" class="btn-link btn-visualizer">
-        <span>🌐</span> Visualizer Relasi
-      </a>
-      <a href="/health" target="_blank" class="btn-link" style="color: var(--accent-emerald); font-size: 0.75rem;">
-        ● Sistem Sehat (200 OK)
+    <a href="/" class="brand">
+      <span style="font-size: 1.4rem;">🦀</span>
+      <div>
+        <div class="brand-title">MikroTik Universal Gateway</div>
+        <div style="font-size: 0.68rem; color: var(--text-muted);">Enterprise NOC Gateway &amp; Developer Console</div>
+      </div>
+      <span class="badge-core">v0.2.0 Active</span>
+    </a>
+
+    <!-- Navigation Tabs -->
+    <nav class="top-nav">
+      <button class="tab-btn active" onclick="switchTab('explorer')">⚡ API Explorer</button>
+      <button class="tab-btn" onclick="switchTab('docs')">📖 Panduan Integrasi</button>
+      <button class="tab-btn" onclick="switchTab('topology')">🌐 Visualizer Topologi</button>
+      <button class="tab-btn" onclick="switchTab('settings')">⚙️ Kredensial Router</button>
+    </nav>
+
+    <div class="header-actions">
+      <a href="/topology" target="_blank" class="btn-action-link btn-visualizer-nav">
+        <span>🌐</span> Buka Full Canvas Visualizer &rarr;
       </a>
     </div>
   </header>
 
-  <div class="docs-container">
-    <!-- Left Category Navigation -->
-    <aside class="sidebar">
-      <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="filter-input" class="search-input" placeholder="Cari endpoint atau fitur..." oninput="filterEndpoints()">
+  <!-- Pinned Active Router Connection Bar -->
+  <section class="creds-bar">
+    <div class="creds-fields">
+      <div class="cred-input-wrap">
+        <span class="cred-label">Bearer Token:</span>
+        <input type="text" id="g-token" class="cred-input" style="width: 130px;" value="change-me-to-a-long-random-string">
       </div>
-
-      <div class="cat-title">Navigasi Kategori</div>
-      <div id="category-nav">
-        <!-- Dynamically generated or static list -->
-        <a class="nav-item active" onclick="jumpCategory('all')"><span>Semua Endpoint</span> <span class="nav-counter" id="total-count">0</span></a>
-        <a class="nav-item" onclick="jumpCategory('fast-path')"><span>🚀 Ringkasan &amp; Fast-Path</span></a>
-        <a class="nav-item" onclick="jumpCategory('security')"><span>🛡️ Keamanan &amp; Audit</span></a>
-        <a class="nav-item" onclick="jumpCategory('wizards')"><span>🧙‍♂️ Wizard &amp; Otomasi</span></a>
-        <a class="nav-item" onclick="jumpCategory('load-balance')"><span>⚖️ Multi-WAN PCC</span></a>
-        <a class="nav-item" onclick="jumpCategory('hotspot')"><span>🎟️ Hotspot &amp; Voucher</span></a>
-        <a class="nav-item" onclick="jumpCategory('ppp')"><span>🏢 PPPoE &amp; ISP</span></a>
-        <a class="nav-item" onclick="jumpCategory('wireguard')"><span>🌐 WireGuard &amp; VPN</span></a>
-        <a class="nav-item" onclick="jumpCategory('firewall')"><span>🧱 Firewall &amp; NAT</span></a>
-        <a class="nav-item" onclick="jumpCategory('queues')"><span>📊 Queues &amp; Bandwidth</span></a>
-        <a class="nav-item" onclick="jumpCategory('interfaces')"><span>📈 Interfaces &amp; Traffic</span></a>
-        <a class="nav-item" onclick="jumpCategory('tools')"><span>🔬 NOC Diagnostic Suite</span></a>
-        <a class="nav-item" onclick="jumpCategory('telegram')"><span>✈️ Telegram Alerts</span></a>
-        <a class="nav-item" onclick="jumpCategory('dude')"><span>📡 The Dude Monitor</span></a>
-        <a class="nav-item" onclick="jumpCategory('system')"><span>⚙️ Sistem &amp; Hardware</span></a>
-        <a class="nav-item" onclick="jumpCategory('backup')"><span>💾 Backup &amp; File</span></a>
-        <a class="nav-item" onclick="jumpCategory('raw')"><span>⌨️ Raw Command &amp; Stream</span></a>
+      <div class="cred-input-wrap">
+        <span class="cred-label">Router Host:</span>
+        <input type="text" id="r-host" class="cred-input" style="width: 120px;" value="ath.vpnbersama.us">
       </div>
-    </aside>
+      <div class="cred-input-wrap">
+        <span class="cred-label">API Port:</span>
+        <input type="number" id="r-port" class="cred-input" style="width: 55px;" value="51121">
+      </div>
+      <div class="cred-input-wrap">
+        <span class="cred-label">User:</span>
+        <input type="text" id="r-user" class="cred-input" style="width: 75px;" value="salman">
+      </div>
+      <div class="cred-input-wrap">
+        <span class="cred-label">Password:</span>
+        <input type="password" id="r-pass" class="cred-input" style="width: 80px;" placeholder="Password">
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="status-pill" id="conn-pill"><span class="pulse-dot"></span> <span id="conn-text">Tersimpan di Browser</span></span>
+    </div>
+  </section>
 
-    <!-- Main Content Area -->
-    <main class="content">
-      <!-- Architecture & Security Banner -->
-      <section class="hero">
-        <h1>Buku Petunjuk &amp; Dokumentasi API Gateway</h1>
-        <p>
-          MikroTik Universal Rust Gateway menyediakan lapisan antarmuka REST, Server-Sent Events (SSE), dan WebSocket berkinerja tinggi (sub-millisecond) untuk mengontrol router MikroTik secara multi-router, aman, dan tanpa ketergantungan library pihak ketiga.
-        </p>
+  <!-- Main Viewport -->
+  <main class="main-viewport">
 
-        <div class="spec-grid">
-          <div class="spec-card">
-            <div class="spec-title">🔐 Autentikasi Gateway</div>
-            <div class="spec-desc">
-              Semua endpoint <code>/api/v1/*</code> diamankan dengan Bearer Token:
-              <br><code style="color: #38bdf8;">Authorization: Bearer &lt;GATEWAY_TOKEN&gt;</code>
-            </div>
+    <!-- VIEW 1: API EXPLORER & LIVE TESTER -->
+    <div id="view-explorer" class="explorer-view">
+      <!-- Left: Interactive Endpoints -->
+      <div class="endpoints-panel">
+        <div class="search-filter-card">
+          <div style="position: relative;">
+            <span style="position: absolute; left: 12px; top: 11px; color: var(--text-muted);">🔍</span>
+            <input type="text" id="search-box" class="search-input-box" placeholder="Cari endpoint (misal: hotspot, ppp, ping, wireguard, traffic)..." oninput="filterList()">
           </div>
-          <div class="spec-card">
-            <div class="spec-title">🎯 Multi-Router Dynamic Targeting</div>
-            <div class="spec-desc">
-              Koneksikan router manapun secara dinamis via Header:
-              <br><code>X-Router-Host: &lt;IP/Domain&gt;</code>
-              <br><code>X-Router-Port: &lt;Port-API&gt;</code>
-              <br><code>X-Router-User: &lt;User&gt;</code>
-              <br><code>X-Router-Pass: &lt;Password&gt;</code>
-            </div>
-          </div>
-          <div class="spec-card">
-            <div class="spec-title">⚡ Persistent Connection Pool</div>
-            <div class="spec-desc">
-              Engine Rust mempertahankan koneksi TCP soket biner RouterOS secara persisten di memori. Request berulang selesai dalam <strong>&lt; 5 milidetik</strong>.
-            </div>
+          <div class="cat-pills" id="cat-pills">
+            <span class="cat-pill active" onclick="setCategory('all', this)">Semua (All)</span>
+            <span class="cat-pill" onclick="setCategory('fast-path', this)">🚀 Fast-Path</span>
+            <span class="cat-pill" onclick="setCategory('hotspot', this)">🎟️ Hotspot &amp; Voucher</span>
+            <span class="cat-pill" onclick="setCategory('ppp', this)">🏢 PPPoE ISP</span>
+            <span class="cat-pill" onclick="setCategory('security', this)">🛡️ Keamanan</span>
+            <span class="cat-pill" onclick="setCategory('wizards', this)">🧙‍♂️ Wizard 1-Klik</span>
+            <span class="cat-pill" onclick="setCategory('load-balance', this)">⚖️ Multi-WAN PCC</span>
+            <span class="cat-pill" onclick="setCategory('queues', this)">📊 Queues &amp; Limit</span>
+            <span class="cat-pill" onclick="setCategory('interfaces', this)">📈 Interfaces</span>
+            <span class="cat-pill" onclick="setCategory('tools', this)">🔬 NOC Tools</span>
+            <span class="cat-pill" onclick="setCategory('system', this)">⚙️ System</span>
+            <span class="cat-pill" onclick="setCategory('raw', this)">⌨️ Raw &amp; Batch</span>
           </div>
         </div>
-      </section>
 
-      <!-- Endpoints List -->
-      <section id="endpoints-container">
-        <!-- Rendered by JS -->
-      </section>
-    </main>
-  </div>
+        <div id="endpoint-list-container" style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Rendered dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- Right: Sticky Live Response Inspector -->
+      <div class="console-panel">
+        <div class="console-head">
+          <div class="console-title">
+            <span>📊</span> Live Response Console
+          </div>
+          <div class="console-timing" id="console-meta">Menunggu eksekusi...</div>
+        </div>
+        <pre class="console-output" id="console-body">// Klik tombol "▶️ Test Endpoint" pada endpoint di sebelah kiri
+// Hasil eksekusi dari router MikroTik riil akan langsung tampil di sini dalam JSON...</pre>
+        <div class="console-footer">
+          <button class="btn-snippet" onclick="copyConsoleOutput()">📋 Salin Respons JSON</button>
+          <span>Rust Socket Engine: Active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: INTEGRATION DOCUMENTATION -->
+    <div id="view-docs" class="docs-view">
+      <div class="doc-hero">
+        <h1>Panduan Integrasi Gateway (Headless API)</h1>
+        <p>
+          MikroTik Universal Gateway adalah microservice perantara berbasis Rust. Aplikasi Anda (PHP Laravel, Flutter Dart, Express, Next.js, Python, Go) cukup memanggil HTTP POST ke endpoint gateway ini. Gateway akan membuka koneksi soket biner TCP persisten ke MikroTik Anda dan mengembalikan respons JSON dalam hitungan <strong>milidetik</strong> tanpa membebani CPU router.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <div class="doc-card">
+          <h2>🔐 Header Autentikasi Wajib</h2>
+          <p>Kirimkan header berikut pada setiap pemanggilan API dari backend / aplikasi luar:</p>
+          <table class="table-spec">
+            <thead>
+              <tr><th>Header</th><th>Wajib?</th><th>Keterangan</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>Authorization</code></td><td>Ya</td><td><code>Bearer &lt;GATEWAY_TOKEN&gt;</code></td></tr>
+              <tr><td><code>X-Router-Host</code></td><td>Ya</td><td>IP Publik / Domain router target</td></tr>
+              <tr><td><code>X-Router-Port</code></td><td>Opsional</td><td>Port API MikroTik (default <code>8728</code> atau port VPN)</td></tr>
+              <tr><td><code>X-Router-User</code></td><td>Ya</td><td>Username login admin MikroTik</td></tr>
+              <tr><td><code>X-Router-Pass</code></td><td>Opsional</td><td>Password login user MikroTik</td></tr>
+              <tr><td><code>Content-Type</code></td><td>Ya</td><td><code>application/json</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="doc-card">
+          <h2>💡 Keunggulan Arsitektur Rust Gateway</h2>
+          <ul style="color: #94a3b8; font-size: 0.88rem; line-height: 1.8; padding-left: 20px;">
+            <li><strong style="color: white;">Persistent Multiplexed Pool:</strong> Tidak buka-tutup soket TCP baru setiap request. Soket tetap hangat di memori Rust.</li>
+            <li><strong style="color: white;">Zero CPU Freeze Guard:</strong> Dilengkapi timeout 15 detik agar router tidak pernah hang atau 100% CPU.</li>
+            <li><strong style="color: white;">Sub-Milidetik:</strong> Rata-rata respons 1 - 5 milidetik karena menggunakan protokol biner tingkat rendah (wire format).</li>
+            <li><strong style="color: white;">Universal &amp; Bebas Bahasa:</strong> Tidak perlu install extension PHP atau lib MikroTik di server aplikasi Anda.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <h2>💻 Contoh Kode Pemanggilan Nyata (Multi-Bahasa)</h2>
+        <div class="lang-tabs">
+          <button class="lang-tab active" onclick="switchLang('php', this)">🐘 PHP (Laravel)</button>
+          <button class="lang-tab" onclick="switchLang('js', this)">📜 JavaScript / Node.js</button>
+          <button class="lang-tab" onclick="switchLang('dart', this)">💙 Dart (Flutter)</button>
+          <button class="lang-tab" onclick="switchLang('python', this)">🐍 Python</button>
+          <button class="lang-tab" onclick="switchLang('curl', this)">📋 cURL</button>
+        </div>
+
+        <pre class="code-preview" id="lang-code-box">use Illuminate\Support\Facades\Http;
+
+$response = Http::withHeaders([
+    'Authorization' => 'Bearer change-me-to-a-long-random-string',
+    'X-Router-Host' => 'ath.vpnbersama.us',
+    'X-Router-Port' => '51121',
+    'X-Router-User' => 'salman',
+    'X-Router-Pass' => 'password_router_anda',
+    'Content-Type'  => 'application/json',
+])->post('https://ros-gateway.samrifa.com/api/v1/hotspot/active');
+
+$users = $response->json();</pre>
+      </div>
+    </div>
+
+    <!-- VIEW 3: TOPOLOGY CANVAS LINK -->
+    <div id="view-topology" class="topology-view">
+      <div style="font-size: 3.5rem;">🌐</div>
+      <h2 style="font-size: 1.7rem; font-weight: 800;">Visualizer Relasi Jaringan &amp; Topologi Interaktif</h2>
+      <p style="color: var(--text-muted); max-width: 600px; font-size: 0.95rem; line-height: 1.6;">
+        Buka Canvas visualizer SVG bertenaga tinggi untuk melihat hubungan antara Router Core, Interface, DHCP Leases, PPPoE online, dan Hotspot clients secara grafis dengan simulasi partikel aktif.
+      </p>
+      <div style="margin-top: 12px; display: flex; gap: 12px;">
+        <button onclick="openVisualizerDirect()" class="btn-exec" style="padding: 10px 24px; font-size: 0.9rem;">
+          🌐 Buka Visualizer Relasi Topologi &rarr;
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 4: SETTINGS VIEW -->
+    <div id="view-settings" class="settings-view">
+      <div class="doc-card">
+        <h2>⚙️ Konfigurasi Target Router &amp; Kredensial</h2>
+        <p>Kredensial disimpan di <code>localStorage</code> browser Anda dan otomatis disinkronkan saat menguji API atau membuka Visualizer:</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Gateway Bearer Token</label>
+            <input type="text" id="cfg-token" class="search-input-box" value="change-me-to-a-long-random-string">
+          </div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Router Host (IP / Domain)</label>
+              <input type="text" id="cfg-host" class="search-input-box" value="ath.vpnbersama.us">
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">API Port</label>
+              <input type="number" id="cfg-port" class="search-input-box" value="51121">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Router Username</label>
+              <input type="text" id="cfg-user" class="search-input-box" value="salman">
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Router Password</label>
+              <input type="password" id="cfg-pass" class="search-input-box" placeholder="Password router">
+            </div>
+          </div>
+          <button onclick="saveAllCreds()" class="btn-exec" style="margin-top: 10px; justify-content: center; padding: 10px;">
+            💾 Simpan Kredensial ke Browser
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
 
   <script>
     const ENDPOINTS = [
-      // Fast-Path & Overview
       {
+        id: 'ep-overview',
         cat: 'fast-path',
         method: 'POST',
         path: '/api/v1/overview',
-        desc: 'Mengambil snapshot agregasi lengkap jaringan (System resource, routerboard, IP address, DHCP leases, Hotspot online, PPP online, dan interfaces) dalam satu request sub-milidetik.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "system": { "cpu-load": "4", "free-memory": "118231040" },\n  "identity": "Core-Gateway",\n  "hotspot_active_count": 14,\n  "pppoe_active_count": 5,\n  "dhcp_leases_count": 28\n}'
+        desc: 'Snapshot agregasi cepat: CPU, memory, uptime, total user hotspot, ppp, dan leases dalam < 2ms.',
+        defaultBody: '{}'
       },
       {
+        id: 'ep-devices',
         cat: 'fast-path',
         method: 'POST',
         path: '/api/v1/network/connected-devices',
-        desc: 'Korelasikan perangkat di semua lapisan (DHCP, ARP, Hotspot, Wireless, dan PPPoE) menjadi satu daftar terpadu dengan status online, IP, MAC, dan hostname.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "devices": [\n    {\n      "mac": "16:98:72:A8:21:4D",\n      "ip": "172.16.10.68",\n      "source": "hotspot",\n      "user": "euryv",\n      "online": true\n    }\n  ]\n}'
+        desc: 'Korelasikan perangkat terhubung dari seluruh layer (DHCP, ARP, Hotspot, WiFi, PPPoE).',
+        defaultBody: '{}'
       },
       {
+        id: 'ep-topology',
         cat: 'fast-path',
         method: 'POST',
         path: '/api/v1/network/topology-graph',
-        desc: 'Membangun graf relasi simpul (Nodes) dan tautan (Edges) jaringan untuk divisualisasikan dalam bentuk topologi interaktif.',
-        req: '{}',
-        res: '{\n  "nodes": [\n    { "id": "router-core", "label": "MikroTik Core", "type": "router" },\n    { "id": "dev-1", "label": "euryv (172.16.10.68)", "type": "hotspot" }\n  ],\n  "edges": [\n    { "source": "router-core", "target": "dev-1", "label": "MANYTAL" }\n  ]\n}'
+        desc: 'Data graf simpul relasi (Nodes & Edges) jaringan untuk visualizer topologi.',
+        defaultBody: '{}'
       },
       {
-        cat: 'fast-path',
-        method: 'POST',
-        path: '/api/v1/expert/quick-diagnose',
-        desc: 'Diagnosa kilat router: memeriksa utilisasi CPU, sisa memori, beban antarmuka trafik, dan peringatan potensi kelebihan beban.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "status": "HEALTHY",\n  "cpu_load": 5,\n  "memory_free_pct": 74.2,\n  "warnings": []\n}'
-      },
-
-      // Security & Audit
-      {
-        cat: 'security',
-        method: 'POST',
-        path: '/api/v1/security/vulnerability-audit',
-        desc: 'Audit keamanan sistem dan port: memeriksa port sensitif terbuka (Telnet, FTP, WWW) dan memeriksa kelemahan arsitektur router.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "score": 85,\n  "risk_level": "LOW",\n  "open_vulnerable_services": ["telnet", "ftp"],\n  "recommendations": ["Matikan telnet dan ftp, gunakan SSH atau Winbox terenkripsi"]\n}'
-      },
-      {
-        cat: 'security',
-        method: 'POST',
-        path: '/api/v1/security/deploy-antibruteforce',
-        desc: 'Otomatis pasang aturan firewall Anti-Bruteforce berlapis (SSH, Winbox, FTP) dengan pemblokiran IP penyerang ke address-list blacklist.',
-        req: '{\n  "service": "all",\n  "ban_time": "1d"\n}',
-        res: '{\n  "success": true,\n  "message": "Aturan Anti-Bruteforce SSH, FTP, dan Winbox berhasil diterapkan."\n}'
-      },
-      {
-        cat: 'security',
-        method: 'POST',
-        path: '/api/v1/security/app-block',
-        desc: 'Blokir konten dan aplikasi spesifik (WhatsApp, TikTok, YouTube, Judi Online, Torrent) via TLS-Host dan Layer-7 regex filter.',
-        req: '{\n  "app_type": "whatsapp",\n  "action": "drop"\n}',
-        res: '{\n  "success": true,\n  "message": "Blokir WhatsApp berhasil diaktifkan pada firewall."\n}'
-      },
-      {
-        cat: 'security',
-        method: 'POST',
-        path: '/api/v1/security/anti-tethering/enable',
-        desc: 'Terapkan proteksi anti-tethering / anti-sharing hotspot dengan membatasi Mangle Change-TTL menjadi 1.',
-        req: '{\n  "hotspot_interface": "bridge"\n}',
-        res: '{\n  "success": true,\n  "message": "Proteksi Anti-Tethering (TTL=1) aktif pada interface bridge."\n}'
-      },
-
-      // Wizards & Automation
-      {
-        cat: 'wizards',
-        method: 'POST',
-        path: '/api/v1/hotspot/wizard/setup',
-        desc: '1-Klik Wizard Setup Hotspot Lengkap: otomatis membuat Bridge, IP Address, DHCP Pool, DHCP Server, DNS, dan Hotspot Server.',
-        req: '{\n  "interface": "ether2",\n  "local_address": "192.168.50.1/24",\n  "dhcp_pool_range": "192.168.50.10-192.168.50.254",\n  "dns_name": "login.wifi"\n}',
-        res: '{\n  "success": true,\n  "message": "Hotspot Server login.wifi berhasil dibuat lengkap."\n}'
-      },
-      {
-        cat: 'wizards',
-        method: 'POST',
-        path: '/api/v1/firewall/port-forward',
-        desc: '1-Klik Dst-NAT Port Forwarding: membuka dan mengarahkan port publik ke port internal server/CCTV.',
-        req: '{\n  "dst_port": "8080",\n  "to_addresses": "192.168.88.50",\n  "to_ports": "80",\n  "protocol": "tcp"\n}',
-        res: '{\n  "success": true,\n  "message": "Port forward 8080 -> 192.168.88.50:80 berhasil dibuat."\n}'
-      },
-      {
-        cat: 'wizards',
-        method: 'POST',
-        path: '/api/v1/traffic/preset/game-social-separation',
-        desc: '1-Klik Pemisah Trafik Game vs Sosmed: otomatis menyuntikkan Mangle tanda koneksi port game prioritas tinggi dan Queue Tree.',
-        req: '{\n  "total_bandwidth": "50M",\n  "game_reserved": "10M"\n}',
-        res: '{\n  "success": true,\n  "message": "Pemisah Trafik Game & Sosmed berhasil diterapkan."\n}'
-      },
-
-      // Multi-WAN PCC
-      {
-        cat: 'load-balance',
-        method: 'POST',
-        path: '/api/v1/load-balance/pcc/setup',
-        desc: 'Setup Multi-WAN PCC (Per Connection Classifier) Load Balancing otomatis dengan failover dan routing marks.',
-        req: '{\n  "lan_interface": "bridge",\n  "wans": [\n    { "interface": "ether1", "gateway": "192.168.1.1", "weight": 1 },\n    { "interface": "ether2", "gateway": "192.168.2.1", "weight": 1 }\n  ]\n}',
-        res: '{\n  "success": true,\n  "message": "2-WAN PCC Load Balancing berhasil dikonfigurasi."\n}'
-      },
-      {
-        cat: 'load-balance',
-        method: 'POST',
-        path: '/api/v1/load-balance/status',
-        desc: 'Cek status dan metrik kesehatan gateway Multi-WAN.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "wans": [\n    { "interface": "ether1", "status": "UP", "gateway": "192.168.1.1" },\n    { "interface": "ether2", "status": "UP", "gateway": "192.168.2.1" }\n  ]\n}'
-      },
-
-      // Hotspot & Voucher
-      {
-        cat: 'hotspot',
-        method: 'POST',
-        path: '/api/v1/hotspot/generate-batch',
-        desc: 'Generate massal voucher hotspot (kode acak / angka), lengkap dengan prefix dan profil paket.',
-        req: '{\n  "qty": 10,\n  "prefix": "VIP-",\n  "profile": "default",\n  "uptime_limit": "1d"\n}',
-        res: '{\n  "success": true,\n  "count": 10,\n  "vouchers": ["VIP-7821", "VIP-9942", "VIP-3129", "..."]\n}'
-      },
-      {
+        id: 'ep-hs-active',
         cat: 'hotspot',
         method: 'POST',
         path: '/api/v1/hotspot/active',
-        desc: 'Mengambil daftar seluruh pengguna hotspot yang saat ini sedang login aktif beserta durasi dan trafik rx/tx.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": [\n    {\n      "user": "euryv",\n      "address": "172.16.10.68",\n      "mac-address": "16:98:72:A8:21:4D",\n      "uptime": "23h20m21s",\n      "bytes-in": "462533414",\n      "bytes-out": "5896492795"\n    }\n  ]\n}'
+        desc: 'Daftar pengguna Hotspot yang sedang login aktif, IP, MAC address, uptime, dan bytes.',
+        defaultBody: '{}'
       },
       {
+        id: 'ep-hs-users',
         cat: 'hotspot',
         method: 'POST',
-        path: '/api/v1/hotspot/kick',
-        desc: 'Memutuskan (kick / disconnect) sesi login pengguna hotspot aktif berdasarkan ID sesi.',
-        req: '{\n  "id": "*AC100A44"\n}',
-        res: '{\n  "success": true,\n  "message": "User berhasil diputus dari hotspot."\n}'
+        path: '/api/v1/hotspot/users',
+        desc: 'Daftar seluruh database user Hotspot di router.',
+        defaultBody: '{}'
       },
-
-      // PPP & PPPoE
       {
+        id: 'ep-hs-batch',
+        cat: 'hotspot',
+        method: 'POST',
+        path: '/api/v1/hotspot/generate-batch',
+        desc: 'Generate massal voucher hotspot otomatis dengan prefix kode unik.',
+        defaultBody: JSON.stringify({ qty: 5, prefix: "V-", profile: "default", uptime_limit: "1d" }, null, 2)
+      },
+      {
+        id: 'ep-hs-wizard',
+        cat: 'wizards',
+        method: 'POST',
+        path: '/api/v1/hotspot/wizard/setup',
+        desc: '1-Klik Setup Hotspot: otomatis bridge, IP pool, DHCP server, DNS, dan Hotspot server.',
+        defaultBody: JSON.stringify({ interface: "ether2", local_address: "192.168.50.1/24", dhcp_pool_range: "192.168.50.10-192.168.50.254", dns_name: "login.wifi" }, null, 2)
+      },
+      {
+        id: 'ep-ppp-secrets',
         cat: 'ppp',
         method: 'POST',
         path: '/api/v1/ppp/secrets',
-        desc: 'Daftar akun PPPoE / PPP secrets (pelanggan ISP / RT RW Net).',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": [\n    { "name": "user01", "service": "pppoe", "profile": "Paket-20Mbps" }\n  ]\n}'
+        desc: 'Daftar akun pelanggan PPPoE secrets di router.',
+        defaultBody: '{}'
       },
       {
+        id: 'ep-ppp-active',
+        cat: 'ppp',
+        method: 'POST',
+        path: '/api/v1/ppp/active',
+        desc: 'Daftar pelanggan PPPoE yang sedang online aktif.',
+        defaultBody: '{}'
+      },
+      {
+        id: 'ep-ppp-isolate',
         cat: 'ppp',
         method: 'POST',
         path: '/api/v1/ppp/customer/isolate',
-        desc: 'Isolir pelanggan PPPoE yang menunggak bayar: otomatis memindahkan profil ke paket ISOLIR dan memutuskan sesi aktif.',
-        req: '{\n  "name": "user01",\n  "isolate_profile": "ISOLIR"\n}',
-        res: '{\n  "success": true,\n  "message": "Pelanggan user01 berhasil diisolir."\n}'
+        desc: 'Isolir pelanggan PPPoE yang menunggak: ubah profil ke ISOLIR dan putus sesi aktif.',
+        defaultBody: JSON.stringify({ name: "user_pelanggan_1", isolate_profile: "ISOLIR" }, null, 2)
       },
       {
-        cat: 'ppp',
+        id: 'ep-sec-audit',
+        cat: 'security',
         method: 'POST',
-        path: '/api/v1/ppp/customer/restore',
-        desc: 'Pulihkan pelanggan PPPoE yang telah bayar tagihan kembali ke paket awal.',
-        req: '{\n  "name": "user01",\n  "active_profile": "Paket-20Mbps"\n}',
-        res: '{\n  "success": true,\n  "message": "Pelanggan user01 berhasil dipulihkan."\n}'
+        path: '/api/v1/security/vulnerability-audit',
+        desc: 'Audit kerentanan keamanan port sensitif terbuka (Telnet, FTP, WWW) dan saran pengetatan.',
+        defaultBody: '{}'
       },
-
-      // WireGuard & VPN
       {
-        cat: 'wireguard',
+        id: 'ep-sec-brute',
+        cat: 'security',
         method: 'POST',
-        path: '/api/v1/wireguard/interfaces',
-        desc: 'Daftar interface WireGuard (RouterOS v7).',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": [{ "name": "wg0", "listen-port": "13231", "public-key": "..." }]\n}'
+        path: '/api/v1/security/deploy-antibruteforce',
+        desc: 'Terapkan aturan firewall Anti-Bruteforce berlapis untuk SSH, FTP, dan Winbox.',
+        defaultBody: JSON.stringify({ service: "all", ban_time: "1d" }, null, 2)
       },
       {
-        cat: 'wireguard',
+        id: 'ep-sec-appblock',
+        cat: 'security',
         method: 'POST',
-        path: '/api/v1/wireguard/peer/add',
-        desc: 'Tambahkan peer WireGuard baru (client kantor / remote worker).',
-        req: '{\n  "interface": "wg0",\n  "public_key": "xYz123...",\n  "allowed_address": "10.0.0.2/32"\n}',
-        res: '{\n  "success": true,\n  "message": "Peer WireGuard berhasil didaftarkan."\n}'
+        path: '/api/v1/security/app-block',
+        desc: 'Blokir konten / aplikasi spesifik (whatsapp, tiktok, youtube, judi, torrent).',
+        defaultBody: JSON.stringify({ app_type: "whatsapp", action: "drop" }, null, 2)
       },
-
-      // Firewall & NAT
       {
-        cat: 'firewall',
+        id: 'ep-sec-anti-tether',
+        cat: 'security',
         method: 'POST',
-        path: '/api/v1/firewall/block-ip',
-        desc: 'Blokir IP tertentu dengan memasukkannya ke Address-List blacklist drop.',
-        req: '{\n  "address": "192.168.88.99",\n  "list": "Blacklist",\n  "timeout": "1d"\n}',
-        res: '{\n  "success": true,\n  "message": "IP 192.168.88.99 dimasukkan ke Blacklist."\n}'
+        path: '/api/v1/security/anti-tethering/enable',
+        desc: 'Aktifkan aturan Anti-Tethering (Change TTL=1) agar user hotspot tidak bisa bagi wifi hotspot.',
+        defaultBody: JSON.stringify({ hotspot_interface: "bridge" }, null, 2)
       },
       {
-        cat: 'firewall',
+        id: 'ep-lb-pcc',
+        cat: 'load-balance',
         method: 'POST',
-        path: '/api/v1/firewall/filters',
-        desc: 'Ambil seluruh daftar aturan Firewall Filter beserta hit counter bytes/packets.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": [{ "chain": "input", "action": "accept", "bytes": "48921" }]\n}'
+        path: '/api/v1/load-balance/pcc/setup',
+        desc: '1-Klik Multi-WAN PCC Load Balance: otomatis buat mangle rules dan failover route.',
+        defaultBody: JSON.stringify({ lan_interface: "bridge", wans: [{ interface: "ether1", gateway: "192.168.1.1", weight: 1 }, { interface: "ether2", gateway: "192.168.2.1", weight: 1 }] }, null, 2)
       },
-
-      // Queues & Bandwidth
       {
+        id: 'ep-lb-status',
+        cat: 'load-balance',
+        method: 'POST',
+        path: '/api/v1/load-balance/status',
+        desc: 'Cek status metrik gateway Multi-WAN.',
+        defaultBody: '{}'
+      },
+      {
+        id: 'ep-nat-port-forward',
+        cat: 'wizards',
+        method: 'POST',
+        path: '/api/v1/firewall/port-forward',
+        desc: '1-Klik Port Forwarding (Dst-NAT) ke web server atau CCTV internal.',
+        defaultBody: JSON.stringify({ dst_port: "8080", to_addresses: "192.168.88.50", to_ports: "80", protocol: "tcp" }, null, 2)
+      },
+      {
+        id: 'ep-traffic-game',
+        cat: 'queues',
+        method: 'POST',
+        path: '/api/v1/traffic/preset/game-social-separation',
+        desc: 'Pemisah trafik game vs sosmed: otomatis set mangle port game prioritas dan Queue Tree.',
+        defaultBody: JSON.stringify({ total_bandwidth: "50M", game_reserved: "10M" }, null, 2)
+      },
+      {
+        id: 'ep-queues-inspect',
         cat: 'queues',
         method: 'POST',
         path: '/api/v1/queues/inspect-user',
-        desc: 'Inspeksi batas bandwidth, kecepatan saat ini, dan penggunaan pengguna berdasarkan IP atau nama.',
-        req: '{\n  "query": "192.168.88.50"\n}',
-        res: '{\n  "success": true,\n  "found": true,\n  "max_limit": "10M/20M",\n  "rate": "1.2M/5.4M"\n}'
+        desc: 'Inspeksi limit kecepatan dan pemakaian user berdasarkan IP address.',
+        defaultBody: JSON.stringify({ query: "172.16.10.68" }, null, 2)
       },
       {
+        id: 'ep-queues-summary',
         cat: 'queues',
         method: 'POST',
         path: '/api/v1/queues/overview-summary',
-        desc: 'Rekapitulasi total bandwidth antrian dan daftar Top Downloaders saat ini.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "total_queues": 24,\n  "top_downloaders": [\n    { "name": "queue-user1", "rate": "9.8M" }\n  ]\n}'
+        desc: 'Rekapitulasi total bandwidth dan daftar Top Downloaders jaringan saat ini.',
+        defaultBody: '{}'
       },
-
-      // Interfaces & Streaming
       {
+        id: 'ep-if-all',
         cat: 'interfaces',
         method: 'POST',
         path: '/api/v1/interfaces/all',
-        desc: 'Daftar lengkap antarmuka (Ethernet, SFP, Bridge, WLAN, VLAN) beserta status running, MTU, dan MAC.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": [\n    { "name": "ether1", "type": "ether", "running": "true", "mac-address": "..." }\n  ]\n}'
+        desc: 'Daftar seluruh interfaces router (Ethernet, Bridge, WLAN, SFP, VLAN).',
+        defaultBody: '{}'
       },
       {
-        cat: 'interfaces',
-        method: 'GET',
-        path: '/api/v1/interfaces/stream',
-        desc: 'Server-Sent Events (SSE) streaming kecepatan rx/tx bps real-time per antarmuka (query: ?interface=ether1&token=...).',
-        req: 'GET /api/v1/interfaces/stream?interface=ether1&token=...',
-        res: 'event: traffic\ndata: {"interface":"ether1","rx_bps":12500400,"tx_bps":4300100}\n\n'
-      },
-
-      // Tools & NOC
-      {
+        id: 'ep-tools-ping',
         cat: 'tools',
         method: 'POST',
         path: '/api/v1/tools/ping',
-        desc: 'Eksekusi ICMP Ping dari router MikroTik ke target IP / host tujuan dengan data latency RTT dan packet loss.',
-        req: '{\n  "address": "8.8.8.8",\n  "count": 3\n}',
-        res: '{\n  "success": true,\n  "packets_sent": 3,\n  "packets_received": 3,\n  "packet_loss": 0,\n  "min_rtt": "12ms",\n  "avg_rtt": "15ms",\n  "max_rtt": "18ms"\n}'
+        desc: 'Eksekusi ICMP Ping dari router MikroTik ke target luar (RTT latency & packet loss).',
+        defaultBody: JSON.stringify({ address: "8.8.8.8", count: 3 }, null, 2)
       },
       {
+        id: 'ep-tools-torch',
         cat: 'tools',
         method: 'POST',
         path: '/api/v1/tools/torch',
-        desc: 'NOC Torch: sniffer aliran paket real-time (Src IP, Dst IP, Port, Protokol, Tx/Rx rate).',
-        req: '{\n  "interface": "ether1",\n  "duration": 3\n}',
-        res: '{\n  "success": true,\n  "flows": [\n    { "src": "192.168.88.50:54321", "dst": "142.250.190.46:443", "tx": "1.2Mbps" }\n  ]\n}'
+        desc: 'Live Torch Packet Sniffer pada interface router.',
+        defaultBody: JSON.stringify({ interface: "ether1", duration: 3 }, null, 2)
       },
       {
+        id: 'ep-tools-romon',
         cat: 'tools',
         method: 'POST',
         path: '/api/v1/tools/romon/status',
-        desc: 'Cek status Router Management Overlay Network (RoMON) untuk manajemen router jarak jauh Layer-2.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "enabled": true,\n  "romon_id": "00:0C:42:1B:32:00"\n}'
+        desc: 'Cek status Router Management Overlay Network (RoMON).',
+        defaultBody: '{}'
       },
-
-      // Telegram Alerts
       {
-        cat: 'telegram',
-        method: 'POST',
-        path: '/api/v1/telegram/setup-netwatch',
-        desc: 'Setup Netwatch otomatis terintegrasi bot Telegram: saat host ISP/Server down, router langsung kirim notifikasi Telegram.',
-        req: '{\n  "bot_token": "123456:ABC-DEF",\n  "chat_id": "-10012345678",\n  "target_ip": "1.1.1.1",\n  "host_name": "Gateway-ISP-1"\n}',
-        res: '{\n  "success": true,\n  "message": "Netwatch Telegram monitoring untuk Gateway-ISP-1 berhasil diset."\n}'
-      },
-
-      // The Dude
-      {
-        cat: 'dude',
-        method: 'POST',
-        path: '/api/v1/dude/status',
-        desc: 'Cek status server monitor The Dude pada RouterOS.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "enabled": true,\n  "status": "running",\n  "db_size": "14.2MB"\n}'
-      },
-
-      // System & Hardware
-      {
+        id: 'ep-sys-res',
         cat: 'system',
         method: 'POST',
         path: '/api/v1/system/resource',
-        desc: 'Informasi komprehensif resource router: CPU model, CPU load, total memory, free memory, RouterOS version, uptime, dan board name.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "data": {\n    "cpu-load": "3",\n    "free-memory": "119283712",\n    "total-memory": "134217728",\n    "uptime": "2d14h20m",\n    "version": "7.14.3",\n    "board-name": "hAP ac2"\n  }\n}'
+        desc: 'Informasi sistem komprehensif: CPU load, free memory, routeros version, board name.',
+        defaultBody: '{}'
       },
       {
+        id: 'ep-sys-identity',
         cat: 'system',
         method: 'POST',
         path: '/api/v1/system/identity',
         desc: 'Ambil nama identitas router saat ini.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "name": "MikroTik-Main-Router"\n}'
+        defaultBody: '{}'
       },
       {
-        cat: 'system',
-        method: 'POST',
-        path: '/api/v1/system/check-update',
-        desc: 'Periksa ketersediaan update firmware RouterOS dari server MikroTik.',
-        req: '{}',
-        res: '{\n  "success": true,\n  "installed_version": "7.14.3",\n  "latest_version": "7.16.1",\n  "status": "New version is available"\n}'
-      },
-
-      // Backup & Files
-      {
-        cat: 'backup',
-        method: 'POST',
-        path: '/api/v1/backup/create',
-        desc: 'Membuat file backup binary terenkripsi (.backup) dari konfigurasi router.',
-        req: '{\n  "name": "auto-backup-daily",\n  "password": "StrongBackupPassword"\n}',
-        res: '{\n  "success": true,\n  "message": "Backup auto-backup-daily.backup berhasil dibuat."\n}'
-      },
-      {
-        cat: 'backup',
-        method: 'POST',
-        path: '/api/v1/backup/export',
-        desc: 'Export seluruh konfigurasi router ke file skrip teks (.rsc) yang terbaca.',
-        req: '{\n  "file": "config-export.rsc"\n}',
-        res: '{\n  "success": true,\n  "message": "Export config-export.rsc berhasil dibuat."\n}'
-      },
-
-      // Raw Command & Stream
-      {
+        id: 'ep-raw-cmd',
         cat: 'raw',
         method: 'POST',
         path: '/api/v1/command',
-        desc: 'Universal Raw Command Executor: eksekusi perintah RouterOS API arbitrer apapun dengan parameter bebas langsung ke router.',
-        req: '{\n  "command": "/system/resource/print",\n  "params": {}\n}',
-        res: '{\n  "success": true,\n  "data": [\n    { "cpu": "MIPS", "cpu-load": "2" }\n  ]\n}'
-      },
-      {
-        cat: 'raw',
-        method: 'POST',
-        path: '/api/v1/batch',
-        desc: 'Batch Command Executor: eksekusi daftar beberapa perintah RouterOS secara atomik berurutan dalam satu koneksi soket.',
-        req: '{\n  "commands": [\n    { "command": "/system/identity/print" },\n    { "command": "/system/resource/print" }\n  ]\n}',
-        res: '{\n  "success": true,\n  "results": [ ... ]\n}'
-      },
-      {
-        cat: 'raw',
-        method: 'WS',
-        path: '/ws',
-        desc: 'Full-duplex WebSocket Server untuk interaksi dua arah real-time, streaming tag, dan kontrol router tanpa overhead HTTP.',
-        req: 'ws://.../ws?token=<GATEWAY_TOKEN>',
-        res: '{"type":"welcome","client_id":"..."}'
+        desc: 'Universal Raw Command: jalankan perintah RouterOS API arbitrer apapun dengan parameter bebas.',
+        defaultBody: JSON.stringify({ command: "/system/resource/print", params: {} }, null, 2)
       }
     ];
 
-    let currentCat = 'all';
+    let currentCategory = 'all';
 
-    function renderEndpoints(list) {
-      const c = document.getElementById('endpoints-container');
-      c.innerHTML = '';
+    function renderEndpointsList(items) {
+      const container = document.getElementById('endpoint-list-container');
+      container.innerHTML = '';
 
-      if (list.length === 0) {
-        c.innerHTML = '<div style="text-align: center; padding: 48px; color: var(--text-muted);">Tidak ada endpoint yang cocok dengan pencarian.</div>';
+      if (items.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">Tidak ada endpoint yang cocok.</div>';
         return;
       }
 
-      list.forEach(ep => {
+      items.forEach(ep => {
         const card = document.createElement('div');
-        card.className = 'endpoint-card';
-        card.id = ep.path.replace(/\//g, '-');
+        card.className = 'ep-card';
+        card.id = ep.id;
 
-        const methodClass = ep.method === 'POST' ? 'method-post' : (ep.method === 'GET' ? 'method-get' : (ep.method === 'SSE' ? 'method-sse' : 'method-ws'));
+        const mClass = ep.method === 'POST' ? 'm-post' : (ep.method === 'GET' ? 'm-get' : 'm-ws');
 
         card.innerHTML = `
-          <div class="ep-header">
-            <div class="ep-title-row">
-              <span class="method-badge ${methodClass}">${ep.method}</span>
+          <div class="ep-head">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="ep-badge-method ${mClass}">${ep.method}</span>
               <span class="ep-path">${ep.path}</span>
             </div>
-            <div style="display: flex; gap: 8px;">
-              <button class="try-btn" onclick="copyCurl('${ep.path}', ${JSON.stringify(ep.req).replace(/"/g, '&quot;')})">📋 Copy cURL</button>
-              <button class="try-btn" onclick="copyJs('${ep.path}', ${JSON.stringify(ep.req).replace(/"/g, '&quot;')})">📜 Copy Fetch JS</button>
-              <a href="/?exec=${encodeURIComponent(ep.path)}" class="try-btn" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #34d399;">⚡ Coba di Playground</a>
+            <div class="ep-actions">
+              <button class="btn-snippet" onclick="copySnippet('${ep.path}', 'curl', '${ep.id}')">📋 cURL</button>
+              <button class="btn-snippet" onclick="copySnippet('${ep.path}', 'fetch', '${ep.id}')">📜 Fetch</button>
+              <button class="btn-snippet" onclick="copySnippet('${ep.path}', 'php', '${ep.id}')">🐘 Laravel</button>
+              <button class="btn-snippet" onclick="copySnippet('${ep.path}', 'dart', '${ep.id}')">💙 Flutter</button>
             </div>
           </div>
           <div class="ep-desc">${ep.desc}</div>
-          <div class="ep-details-grid">
-            <div>
-              <div class="box-label">
-                <span>Request Payload (JSON Body)</span>
-                <button class="copy-btn" onclick="copyText('${encodeURIComponent(ep.req)}')">Copy</button>
-              </div>
-              <pre class="code-box">${escapeHtml(ep.req)}</pre>
-            </div>
-            <div>
-              <div class="box-label">
-                <span>Contoh Response (JSON Output)</span>
-                <button class="copy-btn" onclick="copyText('${encodeURIComponent(ep.res)}')">Copy</button>
-              </div>
-              <pre class="code-box" style="color: #4ade80;">${escapeHtml(ep.res)}</pre>
-            </div>
+          <div>
+            <textarea id="${ep.id}-body" class="ep-body-editor" placeholder="JSON Request Body">${ep.defaultBody}</textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button class="btn-exec" onclick="executeEndpoint('${ep.path}', '${ep.id}')">
+              ▶️ Test Endpoint Ini
+            </button>
           </div>
         `;
-        c.appendChild(card);
+        container.appendChild(card);
       });
     }
 
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    async function executeEndpoint(path, epId) {
+      syncCredsFromBar();
+      const token = document.getElementById('g-token').value;
+      const host = document.getElementById('r-host').value;
+      const port = document.getElementById('r-port').value;
+      const user = document.getElementById('r-user').value;
+      const pass = document.getElementById('r-pass').value;
+
+      let payload = {};
+      try {
+        const raw = document.getElementById(`${epId}-body`).value.trim();
+        if (raw) payload = JSON.parse(raw);
+      } catch (e) {
+        alert("Payload JSON tidak valid: " + e.message);
+        return;
+      }
+
+      const consoleBox = document.getElementById('console-body');
+      const consoleMeta = document.getElementById('console-meta');
+      consoleBox.textContent = `Menghubungkan ke ${host}:${port} via Rust Connection Pool...\nMengirim request ke: ${path}`;
+      consoleMeta.textContent = "Sedang memproses...";
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'X-Router-Host': host,
+            'X-Router-Port': port,
+            'X-Router-User': user,
+            'X-Router-Pass': pass,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        const t1 = performance.now();
+        const data = await res.json();
+        const duration = (t1 - t0).toFixed(1);
+
+        consoleMeta.innerHTML = `<span style="color: ${res.status === 200 ? '#34d399' : '#f43f5e'}; font-weight: 700;">Status: ${res.status}</span> | Latency: <strong>${duration} ms</strong>`;
+        consoleBox.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        consoleMeta.textContent = "Error Jaringan / Timeout";
+        consoleBox.textContent = "Gagal memanggil API: " + err.message;
+      }
     }
 
-    function copyText(encoded) {
-      navigator.clipboard.writeText(decodeURIComponent(encoded));
-      alert("Teks berhasil disalin ke clipboard!");
-    }
+    function copySnippet(path, type, epId) {
+      syncCredsFromBar();
+      const token = document.getElementById('g-token').value;
+      const host = document.getElementById('r-host').value;
+      const port = document.getElementById('r-port').value;
+      const user = document.getElementById('r-user').value;
+      const pass = document.getElementById('r-pass').value;
+      const body = document.getElementById(`${epId}-body`).value.trim().replace(/\n\s*/g, '');
 
-    function copyCurl(path, payload) {
-      const token = localStorage.getItem('ros_token') || 'change-me-to-a-long-random-string';
-      const host = localStorage.getItem('ros_host') || '192.168.88.1';
-      const port = localStorage.getItem('ros_port') || '8728';
-      const user = localStorage.getItem('ros_user') || 'admin';
-      const pass = localStorage.getItem('ros_pass') || '';
-
-      const curl = `curl -X POST "https://ros-gateway.samrifa.com${path}" \\
+      let text = '';
+      if (type === 'curl') {
+        text = `curl -X POST "https://ros-gateway.samrifa.com${path}" \\
   -H "Authorization: Bearer ${token}" \\
   -H "X-Router-Host: ${host}" \\
   -H "X-Router-Port: ${port}" \\
   -H "X-Router-User: ${user}" \\
   -H "X-Router-Pass: ${pass}" \\
   -H "Content-Type: application/json" \\
-  -d '${payload.replace(/\n\s*/g, '')}'`;
-
-      navigator.clipboard.writeText(curl);
-      alert("Snippet cURL lengkap berhasil disalin ke clipboard!");
-    }
-
-    function copyJs(path, payload) {
-      const token = localStorage.getItem('ros_token') || 'change-me-to-a-long-random-string';
-      const host = localStorage.getItem('ros_host') || '192.168.88.1';
-      const port = localStorage.getItem('ros_port') || '8728';
-      const user = localStorage.getItem('ros_user') || 'admin';
-      const pass = localStorage.getItem('ros_pass') || '';
-
-      const js = `const res = await fetch("https://ros-gateway.samrifa.com${path}", {
+  -d '${body}'`;
+      } else if (type === 'fetch') {
+        text = `const res = await fetch("https://ros-gateway.samrifa.com${path}", {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer ' + '${token}',
+    'Authorization': 'Bearer ${token}',
     'X-Router-Host': '${host}',
     'X-Router-Port': '${port}',
     'X-Router-User': '${user}',
     'X-Router-Pass': '${pass}',
     'Content-Type': 'application/json'
   },
-  body: JSON.stringify(${payload})
+  body: JSON.stringify(${body || '{}'})
 });
-const data = await res.json();
-console.log(data);`;
+const data = await res.json();`;
+      } else if (type === 'php') {
+        text = `use Illuminate\\Support\\Facades\\Http;
 
-      navigator.clipboard.writeText(js);
-      alert("Snippet JavaScript (Fetch) berhasil disalin ke clipboard!");
+$response = Http::withHeaders([
+    'Authorization' => 'Bearer ${token}',
+    'X-Router-Host' => '${host}',
+    'X-Router-Port' => '${port}',
+    'X-Router-User' => '${user}',
+    'X-Router-Pass' => '${pass}',
+    'Content-Type'  => 'application/json',
+])->post('https://ros-gateway.samrifa.com${path}', ${body || '[]'});
+$data = $response->json();`;
+      } else if (type === 'dart') {
+        text = `import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+final res = await http.post(
+  Uri.parse('https://ros-gateway.samrifa.com${path}'),
+  headers: {
+    'Authorization': 'Bearer ${token}',
+    'X-Router-Host': '${host}',
+    'X-Router-Port': '${port}',
+    'X-Router-User': '${user}',
+    'X-Router-Pass': '${pass}',
+    'Content-Type': 'application/json',
+  },
+  body: jsonEncode(${body || '{}'}),
+);`;
+      }
+
+      navigator.clipboard.writeText(text);
+      alert(`Snippet ${type.toUpperCase()} berhasil disalin ke clipboard!`);
     }
 
-    function jumpCategory(cat) {
-      currentCat = cat;
-      document.querySelectorAll('.sidebar .nav-item').forEach(el => el.classList.remove('active'));
-      event.currentTarget.classList.add('active');
-      filterEndpoints();
-    }
-
-    function filterEndpoints() {
-      const q = document.getElementById('filter-input').value.toLowerCase().trim();
+    function filterList() {
+      const q = document.getElementById('search-box').value.toLowerCase().trim();
       const filtered = ENDPOINTS.filter(ep => {
-        const matchCat = (currentCat === 'all' || ep.cat === currentCat);
-        const matchQuery = !q || ep.path.toLowerCase().includes(q) || ep.desc.toLowerCase().includes(q) || ep.cat.toLowerCase().includes(q);
-        return matchCat && matchQuery;
+        const mCat = currentCategory === 'all' || ep.cat === currentCategory;
+        const mQuery = !q || ep.path.toLowerCase().includes(q) || ep.desc.toLowerCase().includes(q) || ep.cat.toLowerCase().includes(q);
+        return mCat && mQuery;
       });
-      renderEndpoints(filtered);
+      renderEndpointsList(filtered);
+    }
+
+    function setCategory(cat, el) {
+      currentCategory = cat;
+      document.querySelectorAll('#cat-pills .cat-pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      filterList();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      document.getElementById('view-explorer').style.display = tabId === 'explorer' ? 'grid' : 'none';
+      document.getElementById('view-docs').style.display = tabId === 'docs' ? 'flex' : 'none';
+      document.getElementById('view-topology').style.display = tabId === 'topology' ? 'flex' : 'none';
+      document.getElementById('view-settings').style.display = tabId === 'settings' ? 'flex' : 'none';
+    }
+
+    function switchLang(lang, el) {
+      document.querySelectorAll('.lang-tab').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      const box = document.getElementById('lang-code-box');
+      if (lang === 'php') {
+        box.textContent = `use Illuminate\\Support\\Facades\\Http;
+
+$response = Http::withHeaders([
+    'Authorization' => 'Bearer change-me-to-a-long-random-string',
+    'X-Router-Host' => 'ath.vpnbersama.us',
+    'X-Router-Port' => '51121',
+    'X-Router-User' => 'salman',
+    'X-Router-Pass' => 'password_anda',
+    'Content-Type'  => 'application/json',
+])->post('https://ros-gateway.samrifa.com/api/v1/hotspot/active');
+
+$users = $response->json();`;
+      } else if (lang === 'js') {
+        box.textContent = `const response = await fetch('https://ros-gateway.samrifa.com/api/v1/hotspot/active', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer change-me-to-a-long-random-string',
+    'X-Router-Host': 'ath.vpnbersama.us',
+    'X-Router-Port': '51121',
+    'X-Router-User': 'salman',
+    'X-Router-Pass': 'password_anda',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({})
+});
+const users = await response.json();`;
+      } else if (lang === 'dart') {
+        box.textContent = `import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+final res = await http.post(
+  Uri.parse('https://ros-gateway.samrifa.com/api/v1/hotspot/active'),
+  headers: {
+    'Authorization': 'Bearer change-me-to-a-long-random-string',
+    'X-Router-Host': 'ath.vpnbersama.us',
+    'X-Router-Port': '51121',
+    'X-Router-User': 'salman',
+    'X-Router-Pass': 'password_anda',
+    'Content-Type': 'application/json',
+  },
+  body: jsonEncode({}),
+);
+final users = jsonDecode(res.body);`;
+      } else if (lang === 'python') {
+        box.textContent = `import requests
+
+res = requests.post(
+    'https://ros-gateway.samrifa.com/api/v1/hotspot/active',
+    headers={
+        'Authorization': 'Bearer change-me-to-a-long-random-string',
+        'X-Router-Host': 'ath.vpnbersama.us',
+        'X-Router-Port': '51121',
+        'X-Router-User': 'salman',
+        'X-Router-Pass': 'password_anda',
+    },
+    json={}
+)
+users = res.json()`;
+      } else if (lang === 'curl') {
+        box.textContent = `curl -X POST "https://ros-gateway.samrifa.com/api/v1/hotspot/active" \\
+  -H "Authorization: Bearer change-me-to-a-long-random-string" \\
+  -H "X-Router-Host: ath.vpnbersama.us" \\
+  -H "X-Router-Port: 51121" \\
+  -H "X-Router-User: salman" \\
+  -H "X-Router-Pass: password_anda" \\
+  -H "Content-Type: application/json" \\
+  -d '{}'`;
+      }
+    }
+
+    function syncCredsFromBar() {
+      localStorage.setItem('ros_token', document.getElementById('g-token').value);
+      localStorage.setItem('ros_host', document.getElementById('r-host').value);
+      localStorage.setItem('ros_port', document.getElementById('r-port').value);
+      localStorage.setItem('ros_user', document.getElementById('r-user').value);
+      localStorage.setItem('ros_pass', document.getElementById('r-pass').value);
+    }
+
+    function loadSavedCreds() {
+      if (localStorage.getItem('ros_token')) {
+        document.getElementById('g-token').value = localStorage.getItem('ros_token');
+        document.getElementById('cfg-token').value = localStorage.getItem('ros_token');
+      }
+      if (localStorage.getItem('ros_host')) {
+        document.getElementById('r-host').value = localStorage.getItem('ros_host');
+        document.getElementById('cfg-host').value = localStorage.getItem('ros_host');
+      }
+      if (localStorage.getItem('ros_port')) {
+        document.getElementById('r-port').value = localStorage.getItem('ros_port');
+        document.getElementById('cfg-port').value = localStorage.getItem('ros_port');
+      }
+      if (localStorage.getItem('ros_user')) {
+        document.getElementById('r-user').value = localStorage.getItem('ros_user');
+        document.getElementById('cfg-user').value = localStorage.getItem('ros_user');
+      }
+      if (localStorage.getItem('ros_pass')) {
+        document.getElementById('r-pass').value = localStorage.getItem('ros_pass');
+        document.getElementById('cfg-pass').value = localStorage.getItem('ros_pass');
+      }
+    }
+
+    function saveAllCreds() {
+      document.getElementById('g-token').value = document.getElementById('cfg-token').value;
+      document.getElementById('r-host').value = document.getElementById('cfg-host').value;
+      document.getElementById('r-port').value = document.getElementById('cfg-port').value;
+      document.getElementById('r-user').value = document.getElementById('cfg-user').value;
+      document.getElementById('r-pass').value = document.getElementById('cfg-pass').value;
+      syncCredsFromBar();
+      alert("Kredensial berhasil disimpan di browser (localStorage)!");
+      document.querySelectorAll('.tab-btn')[0].click();
+    }
+
+    function openVisualizerDirect() {
+      syncCredsFromBar();
+      const host = document.getElementById('r-host').value;
+      const port = document.getElementById('r-port').value;
+      const user = document.getElementById('r-user').value;
+      const pass = document.getElementById('r-pass').value;
+      const token = document.getElementById('g-token').value;
+      window.open(`/topology?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}&token=${encodeURIComponent(token)}`, '_blank');
+    }
+
+    function copyConsoleOutput() {
+      const text = document.getElementById('console-body').textContent;
+      navigator.clipboard.writeText(text);
+      alert("Respons JSON disalin ke clipboard!");
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('total-count').textContent = ENDPOINTS.length;
-      renderEndpoints(ENDPOINTS);
+      loadSavedCreds();
+      ['g-token', 'r-host', 'r-port', 'r-user', 'r-pass'].forEach(id => {
+        document.getElementById(id).addEventListener('input', syncCredsFromBar);
+      });
+      renderEndpointsList(ENDPOINTS);
     });
   </script>
 </body>
