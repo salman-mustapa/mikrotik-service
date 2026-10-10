@@ -490,7 +490,7 @@ pub async fn console_page() -> Html<&'static str> {
     </a>
 
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="badge-endpoints">155+ Enterprise Endpoints</span>
+      <span class="badge-endpoints">170+ Enterprise Endpoints</span>
       <span class="badge-engine"><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
     </div>
 
@@ -573,7 +573,7 @@ pub async fn console_page() -> Html<&'static str> {
 
         <!-- Category Filter Pills -->
         <div class="category-pills">
-          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (155+)</button>
+          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (170+)</button>
           <button class="cat-btn" onclick="filterCategory('notify', this)">💬 Bot &amp; Netwatch</button>
           <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher 2.0</button>
           <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path</button>
@@ -700,7 +700,23 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
       { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "MANYTANET HOTSPOT",\n  "dns_name": "inetmanyta.net",\n  "paper_width": "58mm"\n}' },
       { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "MANYTANET",\n  "login_url": "http://inetmanyta.net/login"\n}' },
-      { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' }
+      { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Mikhmon-Style Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
+      { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' },
+
+      // Hotspot Walled Garden & Advanced Session Management
+      { id: "hs_walled_garden", path: "/api/v1/hotspot/walled-garden", method: "GET", cat: "hotspot", desc: "Daftar domain dan IP subnet yang di-bypass sebelum login (Payment Gateway, Webhook, QRIS).", defaultPayload: "{}" },
+      { id: "hs_walled_garden_preset", path: "/api/v1/hotspot/walled-garden/deploy-preset", method: "POST", cat: "hotspot", desc: "1-Klik deploy preset bypass Walled Garden (Midtrans, Xendit, DANA, OVO, QRIS, WhatsApp API).", defaultPayload: '{\n  "preset": "payment_gateways"\n}' },
+      { id: "hs_cookies", path: "/api/v1/hotspot/cookies", method: "GET", cat: "hotspot", desc: "Daftar active MAC/User cookie Hotspot tersimpan di router.", defaultPayload: "{}" },
+      { id: "hs_reset_counters", path: "/api/v1/hotspot/user/reset-counters", method: "POST", cat: "hotspot", desc: "Reset traffic bytes dan uptime counter user hotspot tanpa menghapus voucher.", defaultPayload: '{\n  "name": "HOT-a89f2"\n}' },
+      { id: "hs_inject_expiry", path: "/api/v1/hotspot/profile/inject-expiry-script", method: "POST", cat: "hotspot", desc: "Pasang script On-Login first login validity tracker otomatis pada user profile hotspot.", defaultPayload: '{\n  "profile_name": "1JAM-3RB",\n  "validity": "1d"\n}' },
+
+      // Queues Burst Calculator & Helper
+      { id: "queues_burst_calc", path: "/api/v1/queues/burst-calculator", method: "POST", cat: "tools", desc: "Kalkulator & Formatter formula Burst Rate-Limit MikroTik (Max Limit, Burst, Threshold, Time, Priority).", defaultPayload: '{\n  "max_limit": "2M/2M",\n  "burst_limit": "5M/5M",\n  "burst_time": "8/8",\n  "threshold_percent": 75\n}' },
+
+      // User Manager (RADIUS Internal MikroTik v6 & v7)
+      { id: "userman_profiles", path: "/api/v1/user-manager/profiles", method: "GET", cat: "hotspot", desc: "Daftar billing profile User Manager (RADIUS internal MikroTik).", defaultPayload: "{}" },
+      { id: "userman_limitations", path: "/api/v1/user-manager/limitations", method: "GET", cat: "hotspot", desc: "Daftar limitations kecepatan & kuota paket User Manager.", defaultPayload: "{}" },
+      { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' }
     ];
 
     let currentEndpoint = ENDPOINTS[0];
@@ -1227,7 +1243,7 @@ pub async fn docs_page() -> Html<&'static str> {
     <a href="/" class="brand-group">
       <span style="font-size: 1.35rem;">🦀</span>
       <div class="brand-title">MikroTik Gateway API Reference</div>
-      <span class="badge-endpoints">155+ Endpoints Terdaftar &amp; Aktif</span>
+      <span class="badge-endpoints">170+ Endpoints Terdaftar &amp; Aktif</span>
     </a>
 
     <div class="nav-links">
@@ -1786,7 +1802,7 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.3.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 155+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 170+ endpoints"
         },
         "servers": [
             { "url": "https://ros-gateway.samrifa.com" },

@@ -715,6 +715,108 @@ pub async fn clean_expired(
     })))
 }
 
+#[derive(Deserialize, Debug, Default)]
+pub struct SalesReportReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub profile: Option<String>,
+    pub cashier: Option<String>,
+}
+
+/// GET /api/v1/hotspot/vouchers/sales-report - Mikhmon-Style Financial & Sales Revenue Summary
+pub async fn sales_report(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<SalesReportReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client.run(build_command("/ip/hotspot/user/print", std::iter::empty::<(&str, &str)>())).await?;
+
+    let mut total_vouchers = 0;
+    let mut total_sold = 0;
+    let mut total_available = 0;
+    let mut total_revenue: u64 = 0;
+    let mut potential_revenue: u64 = 0;
+
+    let mut profile_stats: HashMap<String, (u64, u64)> = HashMap::new();
+    let mut recent_sales = Vec::new();
+
+    for r in rows {
+        let name = r.get("name").unwrap_or("");
+        if name.is_empty() || name == "default-trial" { continue; }
+
+        let profile = r.get("profile").unwrap_or("default").to_string();
+        if let Some(ref p_filt) = req.profile {
+            if &profile != p_filt { continue; }
+        }
+
+        let comment = r.get("comment").unwrap_or("");
+        total_vouchers += 1;
+
+        // Parse price from comment, e.g. "Rp 3.000" or metadata tag
+        let price: u64 = if comment.contains("Rp ") {
+            comment.split("Rp ").nth(1)
+                .and_then(|p| p.split('|').next())
+                .unwrap_or("0")
+                .replace('.', "")
+                .trim()
+                .parse()
+                .unwrap_or(0)
+        } else {
+            0
+        };
+
+        let is_sold = comment.contains("[SOLD");
+        if is_sold {
+            total_sold += 1;
+            total_revenue += price;
+
+            let entry = profile_stats.entry(profile.clone()).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += price;
+
+            if recent_sales.len() < 25 {
+                recent_sales.push(json!({
+                    "username": name,
+                    "profile": profile,
+                    "price": price,
+                    "comment": comment
+                }));
+            }
+        } else {
+            total_available += 1;
+            potential_revenue += price;
+        }
+    }
+
+    let breakdown: Vec<Value> = profile_stats.into_iter().map(|(prof, (count, rev))| {
+        json!({
+            "profile": prof,
+            "vouchers_sold": count,
+            "revenue": rev,
+            "revenue_formatted": format!("Rp {}", rev)
+        })
+    }).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "financial_summary": {
+            "total_vouchers_in_router": total_vouchers,
+            "vouchers_sold": total_sold,
+            "vouchers_available": total_available,
+            "total_revenue": total_revenue,
+            "total_revenue_formatted": format!("Rp {}", total_revenue),
+            "potential_unrealized_revenue": potential_revenue,
+            "potential_unrealized_revenue_formatted": format!("Rp {}", potential_revenue),
+        },
+        "breakdown_by_profile": breakdown,
+        "recent_sales": recent_sales
+    })))
+}
+
 fn url_encode(input: &str) -> String {
     let mut encoded = String::new();
     for b in input.bytes() {

@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-155%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-170%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -186,6 +186,19 @@ graph TB
 * **ESC/POS Thermal Receipt Engine**: Generator format cetak struk kasir standar thermal paper 58mm & 80mm siap kirim ke printer Bluetooth/USB.
 * **POS Kasir WhatsApp Checkout**: Tandai voucher terjual dan kirim struk beserta tautan auto-login instan ke nomor WhatsApp pembeli melalui Gowa WhatsApp API.
 * **Safe Expired Voucher Cleaner**: Pembersihan berkala otomatis untuk voucher usang/kedaluwarsa tanpa merusak voucher yang belum digunakan.
+
+### 22. 💳 Walled Garden 1-Click Payment Bypass (`/api/v1/hotspot/walled-garden/*`)
+* **Bypass Gerbang Pembayaran Online**: Mengizinkan akses internet terbatas sebelum login ke domain payment gateway (Midtrans, Xendit, Tripay, QRIS, DANA, OVO, Bank Transfer, WhatsApp CDN) agar calon pembeli voucher dapat bertransaksi langsung dari captive portal.
+* **Preset 1-Klik Siap Pakai**: Deploy rule Walled Garden untuk ekosistem pembayaran dan chat hanya dalam satu panggilan API.
+
+### 23. 📊 Mikhmon-Style Financial & Sales Revenue Summary (`/api/v1/hotspot/vouchers/sales-report`)
+* **Rekap Pendapatan Otomatis**: Menghitung omset keuangan riil (Rp) dari seluruh voucher yang terjual, potensi omset voucher yang belum laku, rincian per-profil paket (misal: "1 Jam" Rp 150rb, "24 Jam" Rp 500rb), serta log transaksi kasir terkini langsung dari router.
+
+### 24. ⚡ Simple Queue & Hotspot Burst Rate-Limit Calculator (`/api/v1/queues/burst-calculator`)
+* **Kalkulator Formula Token Bucket**: Menghitung dan menyusun string formula Burst MikroTik yang rumit (`Rx/Tx Burst-Rx/Burst-Tx Thresh-Rx/Thresh-Tx Time Priority Min`) secara otomatis, memungkinkan kecepatan internet melesat di detik-detik awal browsing.
+
+### 25. 👥 User Manager (Internal RADIUS Server v6 & v7) (`/api/v1/user-manager/*`)
+* **Roaming Voucher & Multi-Router ISP**: Manajemen terpusat untuk jaringan ISP/WISP skala besar. Mendukung pembuatan User Manager profiles, limitations kuota/kecepatan, dan binding user lintas router.
 
 ---
 

@@ -154,7 +154,15 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/profiles", get(hotspot::profiles).post(hotspot::profiles))
         .route("/api/v1/hotspot/profile/add", post(hotspot::add_profile))
         .route("/api/v1/hotspot/profile/remove", post(hotspot::remove_profile))
+        .route("/api/v1/hotspot/profile/inject-expiry-script", post(hotspot::inject_expiry_script))
         .route("/api/v1/hotspot/ip-bindings", get(hotspot::ip_bindings).post(hotspot::ip_bindings))
+        .route("/api/v1/hotspot/walled-garden", get(hotspot::walled_garden).post(hotspot::walled_garden))
+        .route("/api/v1/hotspot/walled-garden/add", post(hotspot::add_walled_garden))
+        .route("/api/v1/hotspot/walled-garden/remove", post(hotspot::remove_walled_garden))
+        .route("/api/v1/hotspot/walled-garden/deploy-preset", post(hotspot::deploy_walled_garden_preset))
+        .route("/api/v1/hotspot/cookies", get(hotspot::cookies).post(hotspot::cookies))
+        .route("/api/v1/hotspot/cookie/remove", post(hotspot::remove_cookie))
+        .route("/api/v1/hotspot/user/reset-counters", post(hotspot::reset_counters))
 
         // --- User Manager (v6 & v7) ---
         .route("/api/v1/user-manager/users", get(user_manager::users).post(user_manager::users))
@@ -162,6 +170,10 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/user-manager/user/remove", post(user_manager::remove_user))
         .route("/api/v1/user-manager/sessions", get(user_manager::sessions).post(user_manager::sessions))
         .route("/api/v1/user-manager/profiles", get(user_manager::profiles).post(user_manager::profiles))
+        .route("/api/v1/user-manager/profile/add", post(user_manager::add_profile))
+        .route("/api/v1/user-manager/limitations", get(user_manager::limitations).post(user_manager::limitations))
+        .route("/api/v1/user-manager/limitation/add", post(user_manager::add_limitation))
+        .route("/api/v1/user-manager/user/assign-profile", post(user_manager::assign_profile))
 
         // --- Bridge & VLANs ---
         .route("/api/v1/bridge/all", get(bridge::bridges).post(bridge::bridges))
@@ -236,6 +248,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/queues/inspect-user", post(queues::inspect_user))
         .route("/api/v1/queues/overview-summary", get(queues::overview_summary).post(queues::overview_summary))
         .route("/api/v1/queues/test-limit", post(queues::test_limit))
+        .route("/api/v1/queues/burst-calculator", post(queues::burst_calculator))
 
         // --- Interfaces & Realtime Traffic ---
         .route("/api/v1/interfaces/all", get(interfaces::all).post(interfaces::all))
@@ -386,6 +399,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/vouchers/thermal-print", post(vouchers::thermal_print))
         .route("/api/v1/hotspot/vouchers/sell", post(vouchers::sell_voucher))
         .route("/api/v1/hotspot/vouchers/sell-and-send", post(vouchers::sell_and_send))
+        .route("/api/v1/hotspot/vouchers/sales-report", get(vouchers::sales_report).post(vouchers::sales_report))
         .route("/api/v1/hotspot/vouchers/clean-expired", post(vouchers::clean_expired))
         .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))
 

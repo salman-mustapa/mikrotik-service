@@ -486,3 +486,68 @@ pub async fn test_limit(
     }
 }
 
+#[derive(Deserialize, Debug)]
+pub struct BurstCalculatorReq {
+    pub max_limit: String,         // e.g. "2M/2M" or "upload/download"
+    pub burst_limit: String,       // e.g. "5M/5M"
+    pub burst_time: Option<String>,// e.g. "8/8" (default 8/8)
+    pub threshold_percent: Option<u64>, // default 75%
+    pub priority: Option<u8>,      // default 8
+    pub min_limit: Option<String>, // e.g. "1M/1M"
+}
+
+/// POST /api/v1/queues/burst-calculator - Helper to calculate & format complex MikroTik Burst Rate-Limit strings
+pub async fn burst_calculator(
+    Json(req): Json<BurstCalculatorReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (max_up, max_down) = parse_pair(&req.max_limit);
+    let (burst_up, burst_down) = parse_pair(&req.burst_limit);
+
+    if max_down == 0 || burst_down == 0 {
+        return Err(ApiError::BadRequest("max_limit dan burst_limit harus lebih besar dari 0 (contoh: 2M/2M)".into()));
+    }
+
+    let thresh_pct = req.threshold_percent.unwrap_or(75).clamp(10, 95);
+    let thresh_down = (max_down * thresh_pct) / 100;
+    let thresh_up = (max_up * thresh_pct) / 100;
+
+    let b_time = req.burst_time.as_deref().unwrap_or("8/8");
+    let prio = req.priority.unwrap_or(8).clamp(1, 8);
+    let min_lim = req.min_limit.unwrap_or_else(|| format!("{}/{}", max_up / 2, max_down / 2));
+
+    let formatted_mikrotik_string = format!(
+        "{}/{} {}/{} {}/{} {} {} {}",
+        max_up, max_down,
+        burst_up, burst_down,
+        thresh_up, thresh_down,
+        b_time,
+        prio,
+        min_lim
+    );
+
+    let readable_string = format!(
+        "Max: {} | Burst: {} | Threshold: {} ({}%) | Burst Time: {} | Priority: {}",
+        format_bps(max_down),
+        format_bps(burst_down),
+        format_bps(thresh_down),
+        thresh_pct,
+        b_time,
+        prio
+    );
+
+    Ok(Json(json!({
+        "success": true,
+        "mikrotik_rate_limit": formatted_mikrotik_string,
+        "readable_summary": readable_string,
+        "explanation": "Klien dapat melesat ke Burst Limit saat konsumsi rata-rata di bawah Threshold.",
+        "parameters": {
+            "max_limit": req.max_limit,
+            "burst_limit": req.burst_limit,
+            "burst_threshold": format!("{}/{}", thresh_up, thresh_down),
+            "burst_time": b_time,
+            "priority": prio,
+            "min_limit": min_lim
+        }
+    })))
+}
+

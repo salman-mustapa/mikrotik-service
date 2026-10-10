@@ -358,4 +358,262 @@ pub async fn bind_host(
     Ok(Json(json!({ "success": true, "message": "Host successfully added to IP binding (bypass/block/regular)" })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct AddWalledGardenReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub dst_host: Option<String>,      // e.g. "*.midtrans.com" or "api.whatsapp.com"
+    pub dst_address: Option<String>,   // e.g. "103.10.10.0/24" (for walled-garden ip)
+    pub protocol: Option<String>,
+    pub dst_port: Option<String>,
+    pub action: Option<String>,        // default "allow"
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DeployWalledGardenPresetReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub preset: String, // "payment_gateways", "whatsapp_messaging", "banking_qris", "all_essential"
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ResetUserCountersReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String, // Hotspot username
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InjectExpiryScriptReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub profile_name: String,
+    pub validity: String, // e.g. "1d", "3h", "30d"
+}
+
+/// GET /api/v1/hotspot/walled-garden - List allowed domain and IP bypasses before login
+pub async fn walled_garden(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let host_rows = client.run(build_command("/ip/hotspot/walled-garden/print", std::iter::empty::<(&str, &str)>())).await.unwrap_or_default();
+    let ip_rows = client.run(build_command("/ip/hotspot/walled-garden/ip/print", std::iter::empty::<(&str, &str)>())).await.unwrap_or_default();
+
+    let hosts: Vec<HashMap<String, String>> = host_rows.into_iter().map(|r| r.attrs).collect();
+    let ips: Vec<HashMap<String, String>> = ip_rows.into_iter().map(|r| r.attrs).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "total_rules": hosts.len() + ips.len(),
+        "walled_garden_domains": hosts,
+        "walled_garden_ips": ips
+    })))
+}
+
+/// POST /api/v1/hotspot/walled-garden/add - Add custom domain or IP to Walled Garden
+pub async fn add_walled_garden(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddWalledGardenReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let action = req.action.as_deref().unwrap_or("allow");
+    let comment = req.comment.as_deref().unwrap_or("Walled Garden Bypass");
+
+    if let Some(ref host) = req.dst_host {
+        let args = vec![("dst-host", host.as_str()), ("action", action), ("comment", comment)];
+        client.run(build_command("/ip/hotspot/walled-garden/add", args)).await?;
+        return Ok(Json(json!({ "success": true, "type": "domain", "dst_host": host, "message": "Domain berhasil di-bypass pada Walled Garden" })));
+    } else if let Some(ref ip) = req.dst_address {
+        let mut args = vec![("dst-address", ip.as_str()), ("action", action), ("comment", comment)];
+        if let Some(ref proto) = req.protocol { args.push(("protocol", proto.as_str())); }
+        if let Some(ref port) = req.dst_port { args.push(("dst-port", port.as_str())); }
+        client.run(build_command("/ip/hotspot/walled-garden/ip/add", args)).await?;
+        return Ok(Json(json!({ "success": true, "type": "ip", "dst_address": ip, "message": "IP subnet berhasil di-bypass pada Walled Garden IP" })));
+    }
+
+    Err(ApiError::BadRequest("Harus menyertakan 'dst_host' (domain) atau 'dst_address' (IP)".into()))
+}
+
+/// POST /api/v1/hotspot/walled-garden/remove - Remove Walled Garden rule by ID
+pub async fn remove_walled_garden(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let res = client.run(build_command("/ip/hotspot/walled-garden/remove", [(".id", req.id.as_str())])).await;
+    if res.is_err() {
+        client.run(build_command("/ip/hotspot/walled-garden/ip/remove", [(".id", req.id.as_str())])).await?;
+    }
+
+    Ok(Json(json!({ "success": true, "message": "Rule Walled Garden berhasil dihapus" })))
+}
+
+/// POST /api/v1/hotspot/walled-garden/deploy-preset - 1-Click bypass presets for Payment Gateways & Messaging
+pub async fn deploy_walled_garden_preset(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<DeployWalledGardenPresetReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let domains: Vec<&str> = match req.preset.as_str() {
+        "payment_gateways" => vec![
+            "*.midtrans.com", "*.xendit.co", "*.tripay.co.id", "*.faspay.co.id",
+            "*.duitku.com", "*.espay.id", "app.sandbox.midtrans.com", "api.midtrans.com"
+        ],
+        "whatsapp_messaging" => vec![
+            "*.whatsapp.com", "*.whatsapp.net", "api.whatsapp.com", "web.whatsapp.com",
+            "*.fbcdn.net", "*.facebook.com"
+        ],
+        "banking_qris" => vec![
+            "*.bca.co.id", "*.mandiri.co.id", "*.bri.co.id", "*.bni.co.id",
+            "*.dana.id", "*.ovo.id", "*.gopay.co.id", "*.linkaja.id", "qris.id"
+        ],
+        "all_essential" => vec![
+            "*.midtrans.com", "*.xendit.co", "*.tripay.co.id", "*.dana.id", "*.ovo.id",
+            "*.whatsapp.com", "*.whatsapp.net", "fonts.googleapis.com", "fonts.gstatic.com",
+            "cdn.jsdelivr.net", "cdnjs.cloudflare.com"
+        ],
+        _ => return Err(ApiError::BadRequest(format!("Preset '{}' tidak valid. Gunakan: 'payment_gateways', 'whatsapp_messaging', 'banking_qris', atau 'all_essential'", req.preset))),
+    };
+
+    let mut added_count = 0;
+    for d in &domains {
+        let comment = format!("[PRESET:{}]", req.preset);
+        let res = client.run(build_command(
+            "/ip/hotspot/walled-garden/add",
+            [("dst-host", *d), ("action", "allow"), ("comment", comment.as_str())],
+        )).await;
+        if res.is_ok() { added_count += 1; }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "preset": req.preset,
+        "total_domains": domains.len(),
+        "applied_rules": added_count,
+        "message": format!("Preset '{}' berhasil diterapkan ke Walled Garden!", req.preset)
+    })))
+}
+
+/// GET /api/v1/hotspot/cookies - List saved active Hotspot cookies
+pub async fn cookies(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client.run(build_command("/ip/hotspot/cookie/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+
+    Ok(Json(json!({ "success": true, "count": data.len(), "cookies": data })))
+}
+
+/// POST /api/v1/hotspot/cookie/remove - Remove a Hotspot cookie
+pub async fn remove_cookie(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/hotspot/cookie/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "Cookie hotspot berhasil dihapus" })))
+}
+
+/// POST /api/v1/hotspot/user/reset-counters - Reset bytes and uptime counter of a hotspot user
+pub async fn reset_counters(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ResetUserCountersReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // Find user ID
+    let rows = client.run(build_command(
+        "/ip/hotspot/user/print",
+        [("name", req.name.as_str())],
+    )).await?;
+
+    let u_row = rows.into_iter().next().ok_or_else(|| {
+        ApiError::BadRequest(format!("User '{}' tidak ditemukan pada router", req.name))
+    })?;
+
+    if let Some(id) = u_row.get(".id") {
+        client.run(build_command("/ip/hotspot/user/reset-counters", [(".id", id)])).await?;
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "username": req.name,
+        "message": format!("Counter traffic dan uptime untuk user '{}' berhasil di-reset ke nol!", req.name)
+    })))
+}
+
+/// POST /api/v1/hotspot/profile/inject-expiry-script - Mikhmon-style automatic On-Login first login validity injector
+pub async fn inject_expiry_script(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<InjectExpiryScriptReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // Find profile
+    let rows = client.run(build_command(
+        "/ip/hotspot/user/profile/print",
+        [("name", req.profile_name.as_str())],
+    )).await?;
+
+    let p_row = rows.into_iter().next().ok_or_else(|| {
+        ApiError::BadRequest(format!("Profile '{}' tidak ditemukan pada router", req.profile_name))
+    })?;
+
+    let id = p_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID Profile tidak ditemukan".into()))?;
+
+    // Mikhmon-style on-login script: checks if user has no expiration date, then tags comment with expiry timestamp
+    let on_login_script = format!(
+        ":local validity \"{}\";\n\
+         :local uComment [/ip hotspot user get [find name=$user] comment];\n\
+         :if ($uComment = \"\" or [:find $uComment \"EXP:\"] = nil) do={{\n\
+           :local date [/system clock get date];\n\
+           :local time [/system clock get time];\n\
+           /ip hotspot user set [find name=$user] comment=([/ip hotspot user get [find name=$user] comment] . \" [FIRST-LOGIN:\" . $date . \" \" . $time . \"|VAL:\" . $validity . \"]\");\n\
+         }}",
+        req.validity
+    );
+
+    client.run(build_command(
+        "/ip/hotspot/user/profile/set",
+        [
+            (".id", id),
+            ("on-login", on_login_script.as_str()),
+        ],
+    )).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "profile": req.profile_name,
+        "validity": req.validity,
+        "message": format!("Skrip On-Login First Login Expiry Tracker berhasil dipasang pada profil '{}'!", req.profile_name)
+    })))
+}
+
 
