@@ -21,6 +21,13 @@ Service ini dirancang sebagai **jembatan universal berperforma tinggi** antara p
 * 📱 **Mobile Apps**: Flutter (Dart), React Native, Kotlin, Swift.
 * ⚡ **Backend Stacks**: Laravel (PHP), Express / Nest.js (Node.js), Go, Python (FastAPI/Django), Java (Spring).
 
+### 🔗 Portal Langsung & Akses Cepat (Production)
+* 📖 **Dokumentasi API & Endpoint Explorer**: [`https://ros-gateway.samrifa.com/docs`](https://ros-gateway.samrifa.com/docs)
+* 🎮 **Live Web Playground**: [`https://ros-gateway.samrifa.com/`](https://ros-gateway.samrifa.com/)
+* 🌐 **Topology & Relational Visualizer**: [`https://ros-gateway.samrifa.com/topology`](https://ros-gateway.samrifa.com/topology)
+* 🩺 **Healthcheck Service**: [`https://ros-gateway.samrifa.com/health`](https://ros-gateway.samrifa.com/health)
+* 📋 **OpenAPI Specification (JSON)**: [`https://ros-gateway.samrifa.com/api/v1/spec`](https://ros-gateway.samrifa.com/api/v1/spec)
+
 ---
 
 ## 💡 Mengapa Menggunakan Engine Rust Ini?
