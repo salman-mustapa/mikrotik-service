@@ -149,9 +149,12 @@ pub async fn visualizer_page() -> Html<&'static str> {
     }
     .nav-link-btn:hover { background: #e2e8f0; }
 
-    /* Canvas Area */
+    /* Canvas & Workspace Area */
     #workspace {
       flex: 1;
+      height: calc(100vh - 60px);
+      max-height: calc(100vh - 60px);
+      min-height: 0;
       position: relative;
       overflow: hidden;
       display: flex;
@@ -163,6 +166,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
       background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
       background-size: 24px 24px;
       cursor: grab;
+      min-height: 0;
     }
     #canvas-container:active { cursor: grabbing; }
 
@@ -179,7 +183,16 @@ pub async fn visualizer_page() -> Html<&'static str> {
       stroke-dasharray: 5, 5;
       animation: dashflow 25s linear infinite;
     }
+    .edge-wan {
+      stroke: #0284c7 !important;
+      stroke-width: 3.2px !important;
+      stroke-dasharray: 7, 4 !important;
+      animation: wandashflow 12s linear infinite !important;
+    }
     @keyframes dashflow {
+      to { stroke-dashoffset: -1000; }
+    }
+    @keyframes wandashflow {
       to { stroke-dashoffset: -1000; }
     }
 
@@ -189,21 +202,29 @@ pub async fn visualizer_page() -> Html<&'static str> {
       transition: transform 0.1s;
     }
     .node-group:hover circle {
-      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
     }
     .node-label {
       font-size: 11px;
       font-weight: 700;
-      fill: #1e293b;
+      fill: #0f172a;
       text-anchor: middle;
       pointer-events: none;
+      paint-order: stroke fill;
+      stroke: #ffffff;
+      stroke-width: 3.5px;
+      stroke-linejoin: round;
     }
     .node-subtext {
-      font-size: 9px;
+      font-size: 9.5px;
       font-weight: 600;
-      fill: #64748b;
+      fill: #475569;
       text-anchor: middle;
       pointer-events: none;
+      paint-order: stroke fill;
+      stroke: #ffffff;
+      stroke-width: 2.5px;
+      stroke-linejoin: round;
     }
 
     /* Floating Zoom Controls */
@@ -236,17 +257,48 @@ pub async fn visualizer_page() -> Html<&'static str> {
     }
     .zoom-btn:hover { background: #f1f5f9; }
 
-    /* Node Inspector Drawer */
+    /* Node Inspector Drawer with Smooth Internal Scrolling */
     #drawer {
-      width: 360px;
+      width: 380px;
+      min-width: 380px;
+      max-width: 380px;
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
       background: var(--card-bg);
       border-left: 1px solid var(--card-border);
-      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.06);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
       display: none;
       flex-direction: column;
-      padding: 20px;
-      z-index: 15;
-      overflow-y: auto;
+      padding: 18px 18px 40px 18px;
+      z-index: 25;
+      overflow-y: auto !important;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    #drawer::-webkit-scrollbar {
+      width: 6px;
+    }
+    #drawer::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    #drawer::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    #drawer::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .scrollable-device-list::-webkit-scrollbar {
+      width: 5px;
+    }
+    .scrollable-device-list::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .scrollable-device-list::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
     }
     .drawer-header {
       display: flex;
@@ -429,7 +481,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
         </div>
       </div>
 
-      <div style="margin-top: auto;">
+      <div style="margin-top: 12px; padding-bottom: 24px;">
         <button class="btn-action btn-danger" onclick="blockCurrentNode()">🚫 Blokir IP Perangkat di Firewall</button>
       </div>
     </div>
@@ -545,7 +597,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
       loadTopology();
     }
 
-    /* Hierarchical Branch Layout: Router at Center -> Interfaces radiate out -> Devices branch from their port */
+    /* Hierarchical Multi-Tier Branch Layout: Internet -> WAN Port -> Core Router -> Interfaces & APs -> Client Devices */
     function buildHierarchicalLayout(nodes, edges) {
       const svg = document.getElementById('graph');
       const width = svg.clientWidth || window.innerWidth;
@@ -556,11 +608,12 @@ pub async fn visualizer_page() -> Html<&'static str> {
       nodePositions = {};
 
       const routerNode = nodes.find(n => n.node_type === 'router') || { id: 'node_router', label: 'Router' };
+      const internetNode = nodes.find(n => n.node_type === 'internet');
       const ifaceNodes = nodes.filter(n => n.node_type === 'interface');
       const apNodes = nodes.filter(n => n.node_type === 'ap');
       const deviceNodes = nodes.filter(n => n.node_type === 'device');
 
-      // 1. Center Router
+      // 1. Center Root Router
       nodePositions[routerNode.id] = {
         x: centerX,
         y: centerY,
@@ -572,12 +625,32 @@ pub async fn visualizer_page() -> Html<&'static str> {
         data: routerNode
       };
 
-      // 2. Interfaces radiate out around center
-      const ifaceRadius = Math.min(width, height) * 0.22;
-      const totalIfaces = Math.max(1, ifaceNodes.length);
+      // 2. Identify WAN interface (e.g. ether1 or port with sub_type wan)
+      const wanNode = ifaceNodes.find(i => i.sub_type === 'wan' || i.id === 'if_ether1' || i.label.toLowerCase().includes('wan'));
+      const wanAngle = -Math.PI * 0.55; // Placed at top-left (~100 degrees)
 
-      ifaceNodes.forEach((ifNode, i) => {
-        const angle = (i / totalIfaces) * 2 * Math.PI - (Math.PI / 2);
+      // 3. Position Interfaces radially around Router Core
+      const ifaceRadius = Math.max(185, Math.min(width, height) * 0.24);
+      const otherIfaces = ifaceNodes.filter(i => !wanNode || i.id !== wanNode.id);
+      const totalOther = Math.max(1, otherIfaces.length);
+
+      if (wanNode) {
+        nodePositions[wanNode.id] = {
+          x: centerX + ifaceRadius * Math.cos(wanAngle),
+          y: centerY + ifaceRadius * Math.sin(wanAngle),
+          r: 23,
+          angle: wanAngle,
+          color: '#0284c7',
+          bg: '#e0f2fe',
+          textColor: '#0369a1',
+          icon: '🔌',
+          data: wanNode
+        };
+      }
+
+      otherIfaces.forEach((ifNode, i) => {
+        // Distribute other interfaces around the remaining angular circle
+        const angle = -Math.PI * 0.25 + (i / totalOther) * (Math.PI * 1.5);
         const ifX = centerX + ifaceRadius * Math.cos(angle);
         const ifY = centerY + ifaceRadius * Math.sin(angle);
 
@@ -594,19 +667,43 @@ pub async fn visualizer_page() -> Html<&'static str> {
         };
       });
 
-      // 3. AP nodes (e.g. AP on ether5) radiate slightly further out from interface
+      // 4. Position Upstream Internet Node (ISP Cloud feeding into WAN interface)
+      if (internetNode) {
+        const wanPos = (wanNode && nodePositions[wanNode.id]) || { x: centerX - 180, y: centerY - 150, angle: wanAngle };
+        const inetDist = 135;
+        const inetAngle = wanPos.angle !== undefined ? wanPos.angle : wanAngle;
+        const inetX = wanPos.x + inetDist * Math.cos(inetAngle);
+        const inetY = wanPos.y + inetDist * Math.sin(inetAngle);
+
+        nodePositions[internetNode.id] = {
+          x: inetX,
+          y: inetY,
+          r: 28,
+          angle: inetAngle,
+          color: '#0284c7',
+          bg: '#e0f2fe',
+          textColor: '#0369a1',
+          icon: '🌐',
+          data: internetNode
+        };
+      }
+
+      // 5. Position Access Points outward from their parent interface
       apNodes.forEach(apNode => {
         const parentId = apNode.parent_id || 'node_router';
         const parentPos = nodePositions[parentId] || { x: centerX, y: centerY, angle: 0 };
-        const angle = parentPos.angle || 0;
-        const apX = parentPos.x + 80 * Math.cos(angle);
-        const apY = parentPos.y + 80 * Math.sin(angle);
+        const baseAngle = parentPos.angle !== undefined
+          ? parentPos.angle
+          : Math.atan2(parentPos.y - centerY, parentPos.x - centerX);
+        const apDist = 105;
+        const apX = parentPos.x + apDist * Math.cos(baseAngle);
+        const apY = parentPos.y + apDist * Math.sin(baseAngle);
 
         nodePositions[apNode.id] = {
           x: apX,
           y: apY,
-          r: 20,
-          angle: angle,
+          r: 21,
+          angle: baseAngle,
           color: '#d97706',
           bg: '#fffbeb',
           textColor: '#b45309',
@@ -615,7 +712,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
         };
       });
 
-      // 4. Group Devices by Parent Node (so children branch from their respective port/AP!)
+      // 6. Group Devices by Parent Node (Interface or AP)
       const childrenByParent = {};
       deviceNodes.forEach(dev => {
         const parentId = dev.parent_id || 'node_router';
@@ -623,47 +720,106 @@ pub async fn visualizer_page() -> Html<&'static str> {
         childrenByParent[parentId].push(dev);
       });
 
-      // Position children outward in arc around their parent node
+      function assignChildNode(child, cx, cy) {
+        let color = '#059669';
+        let bg = '#ecfdf5';
+        let textColor = '#047857';
+        let icon = '📱';
+
+        if (child.sub_type === 'hotspot') {
+          color = '#7c3aed'; bg = '#f5f3ff'; textColor = '#6d28d9'; icon = '🎟️';
+        } else if (child.sub_type === 'pppoe') {
+          color = '#2563eb'; bg = '#eff6ff'; textColor = '#1d4ed8'; icon = '🌐';
+        } else if (child.sub_type === 'wifi') {
+          color = '#d97706'; bg = '#fffbeb'; textColor = '#b45309'; icon = '📶';
+        }
+
+        nodePositions[child.id] = {
+          x: cx,
+          y: cy,
+          r: 16,
+          color,
+          bg,
+          textColor,
+          icon,
+          data: child
+        };
+      }
+
+      // 7. Multi-Tier Concentric Orbital Placement for Child Devices
       Object.keys(childrenByParent).forEach(parentId => {
         const children = childrenByParent[parentId];
         const parentPos = nodePositions[parentId] || { x: centerX, y: centerY, angle: 0 };
-        const baseAngle = parentPos.angle !== undefined ? parentPos.angle : 0;
-        const branchDist = 125;
-        const arcSpread = Math.min(Math.PI * 0.9, children.length * 0.35);
+        const outwardAngle = (parentPos.x !== centerX || parentPos.y !== centerY)
+          ? Math.atan2(parentPos.y - centerY, parentPos.x - centerX)
+          : (parentPos.angle || 0);
 
-        children.forEach((child, idx) => {
-          const offsetAngle = children.length > 1
-            ? (idx / (children.length - 1) - 0.5) * arcSpread
-            : 0;
-          const childAngle = baseAngle + offsetAngle;
-          const childX = parentPos.x + branchDist * Math.cos(childAngle);
-          const childY = parentPos.y + branchDist * Math.sin(childAngle);
+        if (children.length <= 5) {
+          // Single Ring: up to 5 children with comfortable arc
+          const arcSpread = Math.min(Math.PI * 0.75, Math.max(0.4, children.length * 0.35));
+          const branchDist = 115;
+          children.forEach((child, idx) => {
+            const offset = children.length > 1 ? (idx / (children.length - 1) - 0.5) * arcSpread : 0;
+            const childAngle = outwardAngle + offset;
+            const childX = parentPos.x + branchDist * Math.cos(childAngle);
+            const childY = parentPos.y + branchDist * Math.sin(childAngle);
+            assignChildNode(child, childX, childY);
+          });
+        } else {
+          // Multi-Tier Concentric Orbital Rings (e.g. 20+ Hotspot hosts on ether3)
+          const ringCapacities = [6, 8, 10, 12];
+          let assigned = 0;
+          let ringIndex = 0;
 
-          let color = '#059669';
-          let bg = '#ecfdf5';
-          let textColor = '#047857';
-          let icon = '📱';
+          while (assigned < children.length) {
+            const cap = ringCapacities[ringIndex] || 12;
+            const slice = children.slice(assigned, assigned + cap);
+            const dist = 115 + (ringIndex * 78);
+            const arcSpread = Math.min(Math.PI * 1.15, 0.45 + (slice.length * 0.22));
+            const step = slice.length > 1 ? arcSpread / (slice.length - 1) : 0;
+            const stagger = (ringIndex % 2 === 1 && slice.length > 1) ? (step * 0.5) : 0;
+            const startAngle = outwardAngle - (arcSpread / 2) + stagger;
 
-          if (child.sub_type === 'hotspot') {
-            color = '#7c3aed'; bg = '#f5f3ff'; textColor = '#6d28d9'; icon = '🎟️';
-          } else if (child.sub_type === 'pppoe') {
-            color = '#2563eb'; bg = '#eff6ff'; textColor = '#1d4ed8'; icon = '🌐';
-          } else if (child.sub_type === 'wifi') {
-            color = '#d97706'; bg = '#fffbeb'; textColor = '#b45309'; icon = '📶';
+            slice.forEach((child, idx) => {
+              const childAngle = slice.length === 1 ? outwardAngle : startAngle + (idx * step);
+              const childX = parentPos.x + dist * Math.cos(childAngle);
+              const childY = parentPos.y + dist * Math.sin(childAngle);
+              assignChildNode(child, childX, childY);
+            });
+
+            assigned += slice.length;
+            ringIndex++;
           }
-
-          nodePositions[child.id] = {
-            x: childX,
-            y: childY,
-            r: 16,
-            color,
-            bg,
-            textColor,
-            icon,
-            data: child
-          };
-        });
+        }
       });
+
+      // 8. Collision Relaxation Pass (40 iterations) to guarantee ZERO overlapping nodes
+      const allIds = Object.keys(nodePositions);
+      for (let iter = 0; iter < 40; iter++) {
+        for (let i = 0; i < allIds.length; i++) {
+          for (let j = i + 1; j < allIds.length; j++) {
+            const a = nodePositions[allIds[i]];
+            const b = nodePositions[allIds[j]];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.hypot(dx, dy) || 0.001;
+            const minClearance = a.r + b.r + 38; // radius sum + 38px clearance for labels
+            if (dist < minClearance) {
+              const push = (minClearance - dist) * 0.5;
+              const nx = (dx / dist) * push;
+              const ny = (dy / dist) * push;
+              if (a.data.node_type !== 'router') {
+                a.x -= nx;
+                a.y -= ny;
+              }
+              if (b.data.node_type !== 'router') {
+                b.x += nx;
+                b.y += ny;
+              }
+            }
+          }
+        }
+      }
 
       drawSvgGraph();
     }
@@ -680,15 +836,16 @@ pub async fn visualizer_page() -> Html<&'static str> {
         const t = nodePositions[edge.target];
         if (!s || !t) return;
 
+        const isWan = edge.edge_type === 'wan';
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', s.x);
         line.setAttribute('y1', s.y);
         line.setAttribute('x2', t.x);
         line.setAttribute('y2', t.y);
-        line.setAttribute('class', 'edge-line');
+        line.setAttribute('class', isWan ? 'edge-line edge-wan' : 'edge-line');
         line.setAttribute('id', `edge-${edge.id}`);
-        line.setAttribute('stroke', edge.edge_type === 'physical' ? '#64748b' : '#94a3b8');
-        line.setAttribute('stroke-width', edge.edge_type === 'physical' ? '2.5' : '1.8');
+        line.setAttribute('stroke', isWan ? '#0284c7' : (edge.edge_type === 'physical' ? '#64748b' : '#94a3b8'));
+        line.setAttribute('stroke-width', isWan ? '3.5' : (edge.edge_type === 'physical' ? '2.5' : '1.8'));
         edgesLayer.appendChild(line);
       });
 
@@ -716,13 +873,13 @@ pub async fn visualizer_page() -> Html<&'static str> {
         iconText.setAttribute('font-size', p.r * 0.9);
         iconText.textContent = p.icon;
 
-        // Node Label
+        // Node Label with stroke halo for high contrast
         const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         labelText.setAttribute('class', 'node-label');
         labelText.setAttribute('y', p.r + 14);
-        labelText.textContent = n.label.length > 20 ? n.label.substring(0, 18) + '...' : n.label;
+        labelText.textContent = n.label.length > 22 ? n.label.substring(0, 20) + '...' : n.label;
 
-        // Subtext (IP or type)
+        // Subtext (IP or vendor)
         const subText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         subText.setAttribute('class', 'node-subtext');
         subText.setAttribute('y', p.r + 26);
@@ -833,7 +990,12 @@ pub async fn visualizer_page() -> Html<&'static str> {
       isPanning = false;
     });
 
-    /* Node Inspector Drawer */
+    function openDrawerById(nodeId) {
+      const node = graphData.nodes.find(n => n.id === nodeId);
+      if (node) openDrawer(node);
+    }
+
+    /* Node Inspector Drawer with Deduplicated Fields & Scrollable Hierarchy */
     function openDrawer(node) {
       selectedNode = node;
       document.getElementById('d-title').textContent = node.label;
@@ -841,8 +1003,15 @@ pub async fn visualizer_page() -> Html<&'static str> {
       document.getElementById('d-type').textContent = `${node.node_type} (${node.sub_type})`;
       document.getElementById('d-ip').textContent = node.ip || 'N/A';
       document.getElementById('d-mac').textContent = node.mac || 'N/A';
-      document.getElementById('d-vendor').textContent = node.vendor || 'Generic';
-      document.getElementById('d-parent').textContent = node.parent_id ? node.parent_id.replace('if_', '').replace('node_', '') : 'Core';
+      document.getElementById('d-vendor').textContent = node.vendor || 'Generic Device';
+
+      let parentLabel = 'Core Router';
+      if (node.node_type === 'internet') {
+        parentLabel = 'ISP Global Cloud (Upstream)';
+      } else if (node.parent_id) {
+        parentLabel = node.parent_id.replace('if_', 'Port ').replace('node_', '');
+      }
+      document.getElementById('d-parent').textContent = parentLabel;
       document.getElementById('d-status').textContent = node.status.toUpperCase();
 
       // Highlight edges connecting to this node
@@ -854,55 +1023,82 @@ pub async fn visualizer_page() -> Html<&'static str> {
         if (edge.source === node.id || edge.target === node.id) {
           const line = document.getElementById(`edge-${edge.id}`);
           if (line) {
-            line.style.stroke = '#4f46e5';
+            line.style.stroke = edge.edge_type === 'wan' ? '#0284c7' : '#4f46e5';
             line.style.strokeWidth = '3.5';
           }
         }
       });
 
+      // Filter out duplicate fields from extra-card that are already shown above
+      const skipKeys = new Set(['id', 'ip', 'mac', 'vendor', 'parent', 'status', 'type', 'web_url', 'device_type', 'port', 'interface', 'identity']);
       const extraDiv = document.getElementById('extra-rows');
       extraDiv.innerHTML = '';
+      let hasExtra = false;
+
       if (node.extra) {
         Object.keys(node.extra).forEach(k => {
-          const row = document.createElement('div');
-          row.className = 'detail-row';
-          row.innerHTML = `<span class="detail-label">${k}:</span><span class="detail-val">${node.extra[k]}</span>`;
-          extraDiv.appendChild(row);
+          if (!skipKeys.has(k.toLowerCase())) {
+            hasExtra = true;
+            const row = document.createElement('div');
+            row.className = 'detail-row';
+            const cleanLabel = k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            row.innerHTML = `<span class="detail-label">${cleanLabel}:</span><span class="detail-val">${node.extra[k]}</span>`;
+            extraDiv.appendChild(row);
+          }
         });
       }
 
-      // If node has web management URL (e.g. Access Point), show direct clickable button
+      const extraCard = document.getElementById('extra-card');
+      extraCard.style.display = hasExtra ? 'block' : 'none';
+
+      // AP Web Management button
+      let webBtnContainer = document.getElementById('ap-web-btn-container');
+      if (!webBtnContainer) {
+        webBtnContainer = document.createElement('div');
+        webBtnContainer.id = 'ap-web-btn-container';
+        extraCard.parentNode.insertBefore(webBtnContainer, extraCard.nextSibling);
+      }
+      webBtnContainer.innerHTML = '';
       if (node.extra && node.extra.web_url) {
-        const webRow = document.createElement('div');
-        webRow.style.marginTop = '10px';
-        webRow.innerHTML = `<a href="${node.extra.web_url}" target="_blank" style="display:block; text-align:center; padding:8px; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; font-weight:700; font-size:0.8rem; border-radius:6px; text-decoration:none;">🔗 Buka Web Management AP (${node.extra.web_url})</a>`;
-        extraDiv.appendChild(webRow);
+        webBtnContainer.innerHTML = `
+          <div style="margin-bottom: 14px;">
+            <a href="${node.extra.web_url}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-weight:700; font-size:0.82rem; border-radius:8px; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+              <span>🌐</span>
+              <span>Buka Web GUI AP (${node.extra.web_url})</span>
+            </a>
+          </div>`;
       }
 
-      // If interface or AP node, list child devices connected to this branch!
+      // Scrollable Connected Children list for interface or AP node
+      let childSection = document.getElementById('child-devices-section');
+      if (!childSection) {
+        childSection = document.createElement('div');
+        childSection.id = 'child-devices-section';
+        const pingBox = document.querySelector('.ping-box');
+        pingBox.parentNode.insertBefore(childSection, pingBox);
+      }
+      childSection.innerHTML = '';
+
       const children = graphData.nodes.filter(n => n.parent_id === node.id);
       if (children.length > 0) {
-        const childSection = document.createElement('div');
-        childSection.style.marginTop = '14px';
-        childSection.innerHTML = `<div style="font-size: 0.78rem; font-weight: 800; color: #475569; margin-bottom: 6px;">Perangkat Terkoneksi Pada Port Ini (${children.length}):</div>`;
-        const list = document.createElement('div');
-        list.style.display = 'flex';
-        list.style.flexDirection = 'column';
-        list.style.gap = '5px';
-        children.forEach(c => {
-          const item = document.createElement('div');
-          item.style.padding = '6px 10px';
-          item.style.background = '#f8fafc';
-          item.style.border = '1px solid #e2e8f0';
-          item.style.borderRadius = '6px';
-          item.style.fontSize = '0.74rem';
-          item.style.cursor = 'pointer';
-          item.innerHTML = `<strong>${c.label}</strong> <br><span style="color:#64748b; font-size:0.7rem;">IP: ${c.ip || 'N/A'} | MAC: ${c.mac || 'N/A'}</span>`;
-          item.onclick = (e) => { e.stopPropagation(); openDrawer(c); };
-          list.appendChild(item);
-        });
-        childSection.appendChild(list);
-        extraDiv.appendChild(childSection);
+        childSection.innerHTML = `
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 0.8rem; font-weight: 800; color: #334155; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <span>Perangkat Terkoneksi Pada Port Ini:</span>
+              <span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;">${children.length} Device</span>
+            </div>
+            <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 8px; padding: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;" class="scrollable-device-list">
+              ${children.map(c => `
+                <div style="padding: 8px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.12s;" onmouseover="this.style.borderColor='#93c5fd';this.style.background='#eff6ff';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#ffffff';" onclick="event.stopPropagation(); openDrawerById('${c.id}')">
+                  <div>
+                    <div style="font-weight: 700; color: #1e293b;">${c.label}</div>
+                    <div style="color: #64748b; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">${c.ip || 'No IP'} | ${c.mac || 'No MAC'}</div>
+                  </div>
+                  <span style="font-size: 0.72rem; color: #4f46e5; font-weight: 700;">Lihat →</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
       }
 
       document.getElementById('ping-result').textContent = "Klik tombol di atas untuk uji latency";
