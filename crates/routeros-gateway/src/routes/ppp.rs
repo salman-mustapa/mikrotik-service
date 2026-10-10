@@ -50,8 +50,9 @@ pub struct IdReq {
 pub async fn secrets(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ppp/secret/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -96,8 +97,9 @@ pub async fn remove_secret(
 pub async fn active(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ppp/active/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -119,8 +121,9 @@ pub async fn disconnect(
 pub async fn profiles(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ppp/profile/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -287,8 +290,9 @@ pub async fn restore_customer(
 pub async fn pppoe_servers(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/pppoe-server/server/print", std::iter::empty::<(&str, &str)>())).await?;

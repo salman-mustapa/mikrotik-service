@@ -37,8 +37,9 @@ pub struct IdReq {
 pub async fn addresses(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/address/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -75,8 +76,9 @@ pub async fn remove_address(
 pub async fn routes(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/route/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -133,8 +135,9 @@ pub async fn remove_route(
 pub async fn dns(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/dns/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -155,8 +158,9 @@ pub struct AddPoolReq {
 pub async fn pools(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/pool/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -206,8 +210,9 @@ pub struct AddArpReq {
 pub async fn arp(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/arp/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;

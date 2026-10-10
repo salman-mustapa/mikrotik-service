@@ -65,9 +65,10 @@ struct DeviceAggregation {
 pub async fn connected_devices(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<ConnectedDevicesReq>,
+    req: Option<Json<ConnectedDevicesReq>>,
 ) -> Result<Json<Value>, ApiError> {
     let t0 = Instant::now();
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

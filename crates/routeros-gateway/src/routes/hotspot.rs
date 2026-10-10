@@ -45,8 +45,9 @@ pub struct IdReq {
 pub async fn users(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/hotspot/user/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -93,8 +94,9 @@ pub async fn remove_user(
 pub async fn active(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/hotspot/active/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -116,8 +118,9 @@ pub async fn kick(
 pub async fn profiles(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/hotspot/user/profile/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -182,8 +185,9 @@ pub async fn remove_profile(
 pub async fn ip_bindings(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/hotspot/ip-binding/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -309,8 +313,9 @@ fn default_binding_type() -> String {
 pub async fn hosts(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/hotspot/host/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;

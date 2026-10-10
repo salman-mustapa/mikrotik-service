@@ -25,8 +25,9 @@ pub struct IdentityReq {
 pub async fn resource(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -37,8 +38,9 @@ pub async fn resource(
 pub async fn routerboard(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/routerboard/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -49,8 +51,9 @@ pub async fn routerboard(
 pub async fn identity(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -72,8 +75,9 @@ pub async fn set_identity(
 pub async fn check_update(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/package/update/check-for-updates", std::iter::empty::<(&str, &str)>())).await?;
@@ -100,14 +104,14 @@ pub async fn reboot(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/system/reboot", std::iter::empty::<(&str, &str)>())).await?;
-    Ok(Json(json!({ "success": true, "message": "Reboot command sent" })))
+    Ok(Json(json!({ "success": true, "message": "Reboot command dispatched" })))
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ChannelReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
-    pub channel: String, // "stable", "testing", "long-term", "development"
+    pub channel: String, // "stable", "long-term", "testing", "development"
 }
 
 pub async fn download_update(
@@ -135,13 +139,27 @@ pub async fn set_channel(
 pub async fn packages(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/package/print", std::iter::empty::<(&str, &str)>())).await?;
     let data: Vec<_> = rows.into_iter().map(|r| r.attrs).collect();
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+pub async fn clock(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/system/clock/print", std::iter::empty::<(&str, &str)>())).await?;
+    let first = rows.into_iter().next().map(|r| r.attrs).unwrap_or_default();
+    Ok(Json(json!({ "success": true, "data": first })))
 }
 
 #[derive(Deserialize, Debug)]
@@ -157,8 +175,9 @@ pub struct ToggleServiceReq {
 pub async fn services(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/service/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -195,4 +214,3 @@ pub async fn toggle_service(
         "message": format!("Service '{}' updated (disabled: {})", req.service_name, req.disabled)
     })))
 }
-

@@ -69,7 +69,7 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 async fn playground() -> Html<&'static str> {
-    routes::docs::docs_page().await
+    routes::docs::console_page().await
 }
 
 #[tokio::main]
