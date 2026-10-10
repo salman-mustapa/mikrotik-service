@@ -43,8 +43,9 @@ pub struct IdReq {
 pub async fn filters(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/firewall/filter/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -55,8 +56,9 @@ pub async fn filters(
 pub async fn nat(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/firewall/nat/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -67,8 +69,9 @@ pub async fn nat(
 pub async fn address_lists(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/firewall/address-list/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;

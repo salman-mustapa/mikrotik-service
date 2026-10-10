@@ -50,12 +50,13 @@ pub struct IdReq {
     pub id: String,
 }
 
-/// POST /api/v1/scripts/all - Daftar skrip RouterOS
+/// POST or GET /api/v1/scripts/all - Daftar skrip RouterOS
 pub async fn scripts(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/script/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -91,12 +92,13 @@ pub async fn add_script(
     Ok(Json(json!({ "success": true, "message": "Script added" })))
 }
 
-/// POST /api/v1/schedulers/all - Daftar scheduler / cron otomatis
+/// POST or GET /api/v1/schedulers/all - Daftar scheduler / cron otomatis
 pub async fn schedulers(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/system/scheduler/print", std::iter::empty::<(&str, &str)>())).await?;

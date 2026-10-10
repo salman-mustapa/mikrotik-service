@@ -35,12 +35,13 @@ pub struct IdReq {
     pub id: String,
 }
 
-/// POST /api/v1/wireguard/interfaces - Daftar interface WireGuard (RouterOS v7)
+/// POST or GET /api/v1/wireguard/interfaces - Daftar interface WireGuard (RouterOS v7)
 pub async fn interfaces(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireguard/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -48,12 +49,13 @@ pub async fn interfaces(
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
 
-/// POST /api/v1/wireguard/peers - Daftar peer WireGuard
+/// POST or GET /api/v1/wireguard/peers - Daftar peer WireGuard
 pub async fn peers(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireguard/peers/print", std::iter::empty::<(&str, &str)>())).await?;

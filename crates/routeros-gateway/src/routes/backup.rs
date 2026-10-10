@@ -80,12 +80,13 @@ pub async fn export_config(
     Ok(Json(json!({ "success": true, "message": "Configuration export triggered" })))
 }
 
-/// POST /api/v1/files/all - Daftar file di storage MikroTik
+/// POST or GET /api/v1/files/all - Daftar file di storage MikroTik
 pub async fn files(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/file/print", std::iter::empty::<(&str, &str)>())).await?;

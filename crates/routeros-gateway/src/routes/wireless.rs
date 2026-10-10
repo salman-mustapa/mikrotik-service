@@ -29,8 +29,9 @@ pub struct IdReq {
 pub async fn interfaces(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireless/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -42,8 +43,9 @@ pub async fn interfaces(
 pub async fn registrations(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireless/registration-table/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
@@ -55,8 +57,9 @@ pub async fn registrations(
 pub async fn security_profiles(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireless/security-profiles/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -68,8 +71,9 @@ pub async fn security_profiles(
 pub async fn access_list(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<FilterReq>,
+    req: Option<Json<FilterReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/interface/wireless/access-list/print", std::iter::empty::<(&str, &str)>())).await?;

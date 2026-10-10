@@ -50,12 +50,13 @@ pub struct DeploySeparationReq {
     pub game_reserved: Option<String>,   // e.g. "10M"
 }
 
-/// POST /api/v1/traffic/mangle/rules - Lists all firewall mangle rules
+/// POST or GET /api/v1/traffic/mangle/rules - Lists all firewall mangle rules
 pub async fn mangle_rules(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -99,12 +100,13 @@ pub async fn add_mangle(
     })))
 }
 
-/// POST /api/v1/traffic/queue-tree - Lists hierarchical Queue Tree bandwidth rules
+/// POST or GET /api/v1/traffic/queue-tree - Lists hierarchical Queue Tree bandwidth rules
 pub async fn queue_tree(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

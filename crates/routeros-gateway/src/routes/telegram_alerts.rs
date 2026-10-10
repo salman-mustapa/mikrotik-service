@@ -139,12 +139,13 @@ pub async fn setup_netwatch(
     })))
 }
 
-/// POST /api/v1/telegram/list-monitors - Lists all configured Netwatch monitors on the router
+/// POST or GET /api/v1/telegram/list-monitors - Lists all configured Netwatch monitors on the router
 pub async fn list_monitors(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

@@ -45,12 +45,13 @@ pub struct VacuumDbReq {
     pub file: Option<String>, // e.g. "disk1/dude/dude.db" or "dude.db"
 }
 
-/// POST /api/v1/dude/status - Checks The Dude Server status, database location, and operational state
+/// POST or GET /api/v1/dude/status - Checks The Dude Server status, database location, and operational state
 pub async fn status(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -144,12 +145,13 @@ pub async fn vacuum(
     })))
 }
 
-/// POST /api/v1/dude/devices - Lists all network devices/nodes monitored by The Dude
+/// POST or GET /api/v1/dude/devices - Lists all network devices/nodes monitored by The Dude
 pub async fn devices(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

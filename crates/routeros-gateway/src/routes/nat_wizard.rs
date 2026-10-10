@@ -100,12 +100,13 @@ pub async fn add_port_forward(
     })))
 }
 
-/// POST /api/v1/firewall/port-forward/list - Lists all active Dst-NAT port forwarding rules
+/// POST or GET /api/v1/firewall/port-forward/list - Lists all active Dst-NAT port forwarding rules
 pub async fn list_port_forwards(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

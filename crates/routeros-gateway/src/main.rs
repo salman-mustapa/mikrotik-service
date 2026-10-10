@@ -17,7 +17,31 @@ fn ct_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-async fn auth(State(st): State<Arc<AppState>>, req: Request, next: Next) -> Response {
+fn percent_decode(s: &str) -> String {
+    let mut bytes = Vec::with_capacity(s.len());
+    let mut chars = s.bytes();
+    while let Some(b) = chars.next() {
+        match b {
+            b'+' => bytes.push(b' '),
+            b'%' => {
+                let h1 = chars.next();
+                let h2 = chars.next();
+                if let (Some(h1), Some(h2)) = (h1, h2) {
+                    let hex_str = [h1, h2];
+                    if let Ok(val) = u8::from_str_radix(std::str::from_utf8(&hex_str).unwrap_or(""), 16) {
+                        bytes.push(val);
+                        continue;
+                    }
+                }
+                bytes.push(b'%');
+            }
+            _ => bytes.push(b),
+        }
+    }
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
+async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> Response {
     let header_ok = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -25,22 +49,59 @@ async fn auth(State(st): State<Arc<AppState>>, req: Request, next: Next) -> Resp
         .and_then(|v| v.strip_prefix("Bearer "))
         .is_some_and(|t| ct_eq(t, &st.token));
 
+    let mut query_params = std::collections::HashMap::new();
+    if let Some(q) = req.uri().query() {
+        for pair in q.split('&') {
+            if let Some((k, v)) = pair.split_once('=') {
+                query_params.insert(k.to_lowercase(), percent_decode(v));
+            }
+        }
+    }
+
     let query_ok = if !header_ok {
-        req.uri().query().and_then(|q| {
-            q.split('&').find_map(|pair| {
-                let mut parts = pair.splitn(2, '=');
-                if parts.next()? == "token" {
-                    parts.next()
-                } else {
-                    None
-                }
-            })
-        }).is_some_and(|t| ct_eq(t, &st.token))
+        query_params.get("token").is_some_and(|t| ct_eq(t, &st.token))
     } else {
         false
     };
 
     if header_ok || query_ok {
+        let headers = req.headers_mut();
+        if !headers.contains_key("x-router-host") {
+            if let Some(h) = query_params.get("host").or_else(|| query_params.get("router_host")) {
+                if let Ok(val) = header::HeaderValue::from_str(h) {
+                    headers.insert(header::HeaderName::from_static("x-router-host"), val);
+                }
+            }
+        }
+        if !headers.contains_key("x-router-port") {
+            if let Some(p) = query_params.get("port").or_else(|| query_params.get("router_port")) {
+                if let Ok(val) = header::HeaderValue::from_str(p) {
+                    headers.insert(header::HeaderName::from_static("x-router-port"), val);
+                }
+            }
+        }
+        if !headers.contains_key("x-router-user") {
+            if let Some(u) = query_params.get("user").or_else(|| query_params.get("router_user")) {
+                if let Ok(val) = header::HeaderValue::from_str(u) {
+                    headers.insert(header::HeaderName::from_static("x-router-user"), val);
+                }
+            }
+        }
+        if !headers.contains_key("x-router-pass") {
+            if let Some(p) = query_params.get("pass").or_else(|| query_params.get("password")).or_else(|| query_params.get("router_pass")) {
+                if let Ok(val) = header::HeaderValue::from_str(p) {
+                    headers.insert(header::HeaderName::from_static("x-router-pass"), val);
+                }
+            }
+        }
+        if !headers.contains_key("x-router-id") {
+            if let Some(id) = query_params.get("router_id").or_else(|| query_params.get("id")) {
+                if let Ok(val) = header::HeaderValue::from_str(id) {
+                    headers.insert(header::HeaderName::from_static("x-router-id"), val);
+                }
+            }
+        }
+
         let mut resp = next.run(req).await;
         resp.headers_mut().insert(
             header::HeaderName::from_static("x-content-type-options"),

@@ -45,7 +45,7 @@ pub struct SetRomonReq {
     pub secrets: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct SetWatchdogReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
@@ -56,11 +56,11 @@ pub struct SetWatchdogReq {
     pub send_email_from: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct SetNtpReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
-    pub enabled: bool,
+    pub enabled: Option<bool>,
     pub servers: Option<String>, // e.g. "0.pool.ntp.org,1.pool.ntp.org"
     pub time_zone_name: Option<String>, // e.g. "Asia/Jakarta"
 }
@@ -143,12 +143,13 @@ pub async fn ip_scan(
     })))
 }
 
-/// POST /api/v1/tools/romon/status - Checks RoMON (Router Management Overlay Network) status
+/// POST or GET /api/v1/tools/romon/status - Checks RoMON (Router Management Overlay Network) status
 pub async fn romon_status(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -179,12 +180,13 @@ pub async fn romon_set(
     })))
 }
 
-/// POST /api/v1/tools/romon/discover - Discovers peer routers via RoMON L2 overlay
+/// POST or GET /api/v1/tools/romon/discover - Discovers peer routers via RoMON L2 overlay
 pub async fn romon_discover(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -198,12 +200,13 @@ pub async fn romon_discover(
     })))
 }
 
-/// POST /api/v1/system/watchdog - Configures hardware watchdog auto-reboot on ISP gateway failure
+/// POST or GET /api/v1/system/watchdog - Configures hardware watchdog auto-reboot on ISP gateway failure
 pub async fn watchdog(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<SetWatchdogReq>,
+    req: Option<Json<SetWatchdogReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -214,7 +217,8 @@ pub async fn watchdog(
     if let Some(to) = req.ping_timeout.as_deref() { args.push(("ping-timeout", to)); }
     if let Some(boot) = req.ping_start_after_boot.as_deref() { args.push(("ping-start-after-boot", boot)); }
 
-    if !args.is_empty() {
+    let is_updating = !args.is_empty();
+    if is_updating {
         client.run(build_command("/system/watchdog/set", args)).await?;
     }
 
@@ -223,33 +227,39 @@ pub async fn watchdog(
 
     Ok(Json(json!({
         "success": true,
-        "message": "Watchdog konfigurasi diperbarui",
+        "message": if is_updating { "Watchdog konfigurasi diperbarui" } else { "Watchdog konfigurasi saat ini" },
         "current_settings": current
     })))
 }
 
-/// POST /api/v1/system/ntp - Configures NTP Client time synchronization
+/// POST or GET /api/v1/system/ntp - Configures NTP Client time synchronization
 pub async fn ntp_config(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<SetNtpReq>,
+    req: Option<Json<SetNtpReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let en_str = if req.enabled { "yes" } else { "no" };
-    let mut args = vec![("enabled", en_str)];
-    if let Some(srv) = req.servers.as_deref() { args.push(("servers", srv)); }
+    let mut configured = false;
+    if let Some(en) = req.enabled {
+        let en_str = if en { "yes" } else { "no" };
+        let mut args = vec![("enabled", en_str)];
+        if let Some(srv) = req.servers.as_deref() { args.push(("servers", srv)); }
 
-    // Try RouterOS v7 /system/ntp/client/set, fallback to v6 /system/ntp/client/set
-    let res = client.run(build_command("/system/ntp/client/set", args.clone())).await;
-    if res.is_err() {
-        // v6 format e.g. primary-ntp
-        let _ = client.run(build_command("/system/ntp/client/set", [("enabled", en_str)])).await;
+        // Try RouterOS v7 /system/ntp/client/set, fallback to v6 /system/ntp/client/set
+        let res = client.run(build_command("/system/ntp/client/set", args.clone())).await;
+        if res.is_err() {
+            // v6 format e.g. primary-ntp
+            let _ = client.run(build_command("/system/ntp/client/set", [("enabled", en_str)])).await;
+        }
+        configured = true;
     }
 
     if let Some(tz) = req.time_zone_name.as_deref() {
         let _ = client.run(build_command("/system/clock/set", [("time-zone-name", tz)])).await;
+        configured = true;
     }
 
     let rows = client.run(build_command("/system/ntp/client/print", std::iter::empty::<(&str, &str)>())).await.unwrap_or_default();
@@ -257,17 +267,18 @@ pub async fn ntp_config(
 
     Ok(Json(json!({
         "success": true,
-        "message": "NTP Client & Clock Timezone berhasil disetel",
+        "message": if configured { "NTP Client & Clock Timezone berhasil disetel" } else { "NTP Client konfigurasi saat ini" },
         "settings": current
     })))
 }
 
-/// POST /api/v1/ip/dhcp-client/all - Lists all DHCP Clients on the router
+/// POST or GET /api/v1/ip/dhcp-client/all - Lists all DHCP Clients on the router
 pub async fn dhcp_clients(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

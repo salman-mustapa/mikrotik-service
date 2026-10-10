@@ -38,12 +38,13 @@ pub struct IdReq {
     pub id: String,
 }
 
-/// POST /api/v1/users/all - Daftar akun administrator MikroTik
+/// POST or GET /api/v1/users/all - Daftar akun administrator MikroTik
 pub async fn users(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/user/print", std::iter::empty::<(&str, &str)>())).await?;
@@ -83,12 +84,13 @@ pub async fn remove_user(
     Ok(Json(json!({ "success": true, "message": "User removed" })))
 }
 
-/// POST /api/v1/users/groups - Daftar hak akses group (full, write, read)
+/// POST or GET /api/v1/users/groups - Daftar hak akses group (full, write, read)
 pub async fn groups(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/user/group/print", std::iter::empty::<(&str, &str)>())).await?;
