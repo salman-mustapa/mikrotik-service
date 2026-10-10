@@ -238,6 +238,28 @@ graph TB
   * `GET /api/v1/audit/stats`: Ringkasan analitik performa per-tenant (rata-rata latency ms, p95 latency, tingkat keberhasilan %, throughput).
   * `POST /api/v1/audit/clear`: Menghapus riwayat log milik tenant pemanggil secara aman.
 
+### 31. ⏰ 1-Klik NTP Client & Timezone Synchronization Engine (`/api/v1/system/ntp/*`)
+* **Penyelamat Desinkronisasi Jam Router**: Mengatasi masalah klasik jam MikroTik yang kembali ke tahun 1970 saat mati lampu atau reboot (penyebab utama voucher dan member langsung kedaluwarsa seketika).
+* **Multi-Version NTP Setter**: Otomatis mendeteksi dan mengonfigurasi NTP pool (`id.pool.ntp.org`, `time.google.com`) baik di RouterOS v7 maupun v6 serta menyelaraskan zona waktu (`Asia/Jakarta` / WIB, WITA, WIT) dalam 1 kali pemanggilan API (<10ms).
+* **Endpoints**:
+  * `POST /api/v1/system/ntp/setup`: Sinkronisasi NTP dan set nama zona waktu.
+  * `GET /api/v1/system/ntp`: Cek status koneksi NTP client dan waktu clock saat ini.
+
+### 32. 🌊 IP Pool Utilization Telemetry & Exhaustion Early Warning (`/api/v1/ip/pools/*`)
+* **Peringatan Dini Pool Habis**: Menghitung secara otomatis kapasitas total rentang IP pool, jumlah IP yang sedang terpakai, serta persentase utilisasi IP.
+* **Status Alert Proaktif**: Otomatis mengkategorikan status pool (`HEALTHY`, `WARNING_HIGH` jika >80%, dan `CRITICAL_EXHAUSTED` jika >95%) untuk mencegah insiden pelanggan baru gagal mendapatkan IP atau gagal login hotspot.
+* **Endpoints**:
+  * `GET /api/v1/ip/pools/utilization`: Telemetri persentase pemakaian dan kapasitas seluruh IP Pool.
+  * `GET /api/v1/ip/pools/used`: Daftar seluruh alokasi IP aktif dari pool beserta nama pool pemiliknya.
+
+### 33. 📌 DHCP Static Lease CRUD & Device Renaming (`/api/v1/dhcp/lease/*`)
+* **Binding & Labeling Perangkat**: Menambahkan lease statis baru permanen atau mengedit lease yang sudah ada untuk memperbarui nama perangkat/comment, alamat IP, dan status enable/disable.
+* **Endpoints**:
+  * `POST /api/v1/dhcp/lease/add`: Menambahkan static lease baru (`address`, `mac-address`, `comment`).
+  * `POST /api/v1/dhcp/lease/set`: Memperbarui IP, MAC, atau comment pada lease yang ada.
+  * `POST /api/v1/dhcp/lease/make-static`: Mengubah lease dinamis menjadi statis permanen dengan 1 klik.
+  * `POST /api/v1/dhcp/lease/remove`: Menghapus lease.
+
 ---
 
 ## ⚡ Fleksibilitas Pemanggilan: Dual Transport (GET & POST)

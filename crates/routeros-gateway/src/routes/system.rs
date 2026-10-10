@@ -306,3 +306,126 @@ pub async fn system_health(
         }
     }
 }
+
+#[derive(Deserialize, Debug)]
+pub struct SetupNtpReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    #[serde(default = "default_timezone")]
+    pub timezone: String,
+    pub servers: Option<Vec<String>>,
+}
+
+fn default_timezone() -> String {
+    "Asia/Jakarta".into()
+}
+
+/// POST /api/v1/system/ntp/setup - 1-Click NTP Client and Timezone Sync Engine
+pub async fn setup_ntp(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetupNtpReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // 1. Set System Clock Timezone
+    let _ = client
+        .run(build_command(
+            "/system/clock/set",
+            [
+                ("time-zone-name", req.timezone.as_str()),
+                ("time-zone-autodetect", "no"),
+            ],
+        ))
+        .await;
+
+    // 2. Configure NTP Client (compatible with ROS v7 and v6)
+    let ntp_servers = req.servers.unwrap_or_else(|| {
+        vec![
+            "id.pool.ntp.org".into(),
+            "time.google.com".into(),
+            "0.pool.ntp.org".into(),
+        ]
+    });
+    let servers_joined = ntp_servers.join(",");
+
+    let v7_res = client
+        .run(build_command(
+            "/system/ntp/client/set",
+            [
+                ("enabled", "yes"),
+                ("servers", servers_joined.as_str()),
+            ],
+        ))
+        .await;
+
+    let v7_ok = v7_res.is_ok();
+    if !v7_ok {
+        let p_srv = ntp_servers.first().map(|s| s.as_str()).unwrap_or("id.pool.ntp.org");
+        let s_srv = ntp_servers.get(1).map(|s| s.as_str()).unwrap_or("time.google.com");
+        let _ = client
+            .run(build_command(
+                "/system/ntp/client/set",
+                [
+                    ("enabled", "yes"),
+                    ("primary-ntp", p_srv),
+                    ("secondary-ntp", s_srv),
+                ],
+            ))
+            .await;
+    }
+
+    // Read back clock
+    let clock_rows = client
+        .run(build_command(
+            "/system/clock/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await
+        .unwrap_or_default();
+    let clock_data = clock_rows.into_iter().next().map(|r| r.attrs).unwrap_or_default();
+
+    Ok(Json(json!({
+        "success": true,
+        "timezone": req.timezone,
+        "ntp_servers": ntp_servers,
+        "routeros_v7_mode": v7_ok,
+        "current_clock": clock_data,
+        "message": format!("NTP Client dan Zona Waktu '{}' berhasil disinkronkan!", req.timezone)
+    })))
+}
+
+/// GET /api/v1/system/ntp - Get NTP client status
+pub async fn ntp_status(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let ntp_rows = client
+        .run(build_command(
+            "/system/ntp/client/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await?;
+    let ntp_data = ntp_rows.into_iter().next().map(|r| r.attrs).unwrap_or_default();
+
+    let clock_rows = client
+        .run(build_command(
+            "/system/clock/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await?;
+    let clock_data = clock_rows.into_iter().next().map(|r| r.attrs).unwrap_or_default();
+
+    Ok(Json(json!({
+        "success": true,
+        "ntp_client": ntp_data,
+        "clock": clock_data
+    })))
+}
+

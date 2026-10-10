@@ -250,3 +250,116 @@ pub async fn remove_arp(
     Ok(Json(json!({ "success": true, "message": "ARP entry removed" })))
 }
 
+/// GET /api/v1/ip/pools/used - List active allocated IPs from pools
+pub async fn pools_used(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client
+        .run(build_command(
+            "/ip/pool/used/print",
+            req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        ))
+        .await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "used_ips": data })))
+}
+
+/// GET /api/v1/ip/pools/utilization - Telemetry analisis utilisasi kapasitas IP Pool & Deteksi Exhaustion
+pub async fn pools_utilization(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let pool_rows = client
+        .run(build_command(
+            "/ip/pool/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await?;
+    let used_rows = client
+        .run(build_command(
+            "/ip/pool/used/print",
+            std::iter::empty::<(&str, &str)>(),
+        ))
+        .await
+        .unwrap_or_default();
+
+    let mut used_counts: HashMap<String, usize> = HashMap::new();
+    for u in &used_rows {
+        if let Some(p_name) = u.get("pool") {
+            *used_counts.entry(p_name.to_string()).or_insert(0) += 1;
+        }
+    }
+
+    let mut pool_stats = Vec::new();
+    for p in pool_rows {
+        let name = p.get("name").unwrap_or("unknown").to_string();
+        let ranges = p.get("ranges").unwrap_or("").to_string();
+        let used = *used_counts.get(&name).unwrap_or(&0);
+
+        let total_est = estimate_pool_capacity(&ranges);
+        let usage_percent = if total_est > 0 {
+            (used as f64 / total_est as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let status = if usage_percent >= 95.0 {
+            "CRITICAL_EXHAUSTED"
+        } else if usage_percent >= 80.0 {
+            "WARNING_HIGH"
+        } else {
+            "HEALTHY"
+        };
+
+        pool_stats.push(json!({
+            "name": name,
+            "ranges": ranges,
+            "used_ips": used,
+            "estimated_capacity": total_est,
+            "usage_percent": format!("{:.1}%", usage_percent),
+            "status": status
+        }));
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "total_pools": pool_stats.len(),
+        "total_used_ips": used_rows.len(),
+        "pools": pool_stats
+    })))
+}
+
+fn estimate_pool_capacity(ranges: &str) -> usize {
+    let mut total = 0;
+    for part in ranges.split(',') {
+        let part = part.trim();
+        if let Some((start_ip, end_ip)) = part.split_once('-') {
+            if let (Some(s_last), Some(e_last)) = (start_ip.split('.').last(), end_ip.split('.').last()) {
+                if let (Ok(s), Ok(e)) = (s_last.parse::<usize>(), e_last.parse::<usize>()) {
+                    if e >= s {
+                        total += (e - s) + 1;
+                    }
+                }
+            }
+        } else {
+            total += 1;
+        }
+    }
+    if total == 0 {
+        254
+    } else {
+        total
+    }
+}
+
+

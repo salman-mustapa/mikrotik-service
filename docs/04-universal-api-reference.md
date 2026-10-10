@@ -883,6 +883,36 @@ Pencatatan riwayat eksekusi, latensi responsif, dan analitik performa dengan pro
 | `GET` / `POST` | `/api/v1/audit/stats` | **Analitik Kecepatan & Throughput**: Menghitung rata-rata latency ms, p95 latency, tingkat sukses %, throughput, dan daftar router aktif milik tenant | `{}` |
 | `POST` | `/api/v1/audit/clear` | **Bersihkan Riwayat Audit**: Menghapus riwayat log milik tenant pemanggil secara aman tanpa menyentuh log tenant lain | `{}` |
 
+---
+
+### III. ⏰ 1-Klik NTP Client & Timezone Synchronization Engine (`/api/v1/system/ntp/*`)
+Penyelarasan jam sistem otomatis dengan server NTP satelit untuk mencegah korupsi masa aktif voucher:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/system/ntp/setup` | **Setup NTP & Timezone**: Otomatis konfigurasi NTP pool dan nama zona waktu (kompatibel ROS v7 & v6) | `{"timezone": "Asia/Jakarta", "servers": ["id.pool.ntp.org", "time.google.com"]}` |
+| `GET` / `POST` | `/api/v1/system/ntp` | **Status NTP Client**: Melihat status sinkronisasi waktu dan detail clock router saat ini | `{}` |
+
+---
+
+### JJJ. 🌊 IP Pool Utilization Telemetry & Exhaustion Early Warning (`/api/v1/ip/pools/*`)
+Pemantauan kapasitas IP pool dan deteksi dini kehabisan IP alokasi:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/ip/pools/utilization` | **Analisis Utilisasi IP Pool**: Menghitung kapasitas estimasi, pemakaian riil, persentase utilisasi, dan status kewaspadaan (`HEALTHY`, `WARNING_HIGH`, `CRITICAL_EXHAUSTED`) | `{}` |
+| `GET` / `POST` | `/api/v1/ip/pools/used` | **Daftar Alokasi IP Aktif**: Melihat daftar IP address yang sedang dialokasikan oleh IP pool beserta nama pool | `{}` |
+
+---
+
+### KKK. 📌 DHCP Static Lease CRUD & Device Renaming (`/api/v1/dhcp/lease/*`)
+Pengelolaan lease DHCP statis dan identifikasi perangkat:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/dhcp/lease/add` | **Tambah Static Lease**: Mendaftarkan IP statis permanen baru untuk perangkat | `{"address": "192.168.88.50", "mac_address": "AA:BB:CC:DD:EE:FF", "comment": "Printer Kantor"}` |
+| `POST` | `/api/v1/dhcp/lease/set` | **Update Lease**: Mengubah IP, MAC, atau comment deskripsi pada lease | `{"id": "*1", "comment": "Laptop Finance", "address": "192.168.88.55"}` |
+| `POST` | `/api/v1/dhcp/lease/make-static` | **Ubah Lease Menjadi Statis**: Mengonversi lease dinamis aktif menjadi statis permanen | `{"id": "*1"}` |
+| `POST` | `/api/v1/dhcp/lease/remove` | **Hapus Lease**: Menghapus alokasi lease DHCP | `{"id": "*1"}` |
+
+
 
 
 

@@ -74,6 +74,76 @@ pub async fn remove_lease(
 }
 
 #[derive(Deserialize, Debug)]
+pub struct AddLeaseReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub address: String,
+    pub mac_address: String,
+    pub server: Option<String>,
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetLeaseReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+    pub address: Option<String>,
+    pub mac_address: Option<String>,
+    pub comment: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+/// POST /api/v1/dhcp/lease/add - Add static DHCP lease
+pub async fn add_lease(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddLeaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("address", req.address.as_str()),
+        ("mac-address", req.mac_address.as_str()),
+    ];
+    if let Some(ref s) = req.server {
+        args.push(("server", s.as_str()));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/ip/dhcp-server/lease/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP static lease added" })))
+}
+
+/// POST /api/v1/dhcp/lease/set - Update DHCP lease IP, MAC, or comment
+pub async fn set_lease(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetLeaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![(".id", req.id.as_str())];
+    if let Some(ref a) = req.address {
+        args.push(("address", a.as_str()));
+    }
+    if let Some(ref m) = req.mac_address {
+        args.push(("mac-address", m.as_str()));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    client.run(build_command("/ip/dhcp-server/lease/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP lease updated" })))
+}
+
+#[derive(Deserialize, Debug)]
 pub struct AddDhcpNetworkReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,

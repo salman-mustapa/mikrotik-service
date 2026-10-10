@@ -490,7 +490,7 @@ pub async fn console_page() -> Html<&'static str> {
     </a>
 
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="badge-endpoints">170+ Enterprise Endpoints</span>
+      <span class="badge-endpoints">185+ Enterprise Endpoints</span>
       <span class="badge-engine"><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
     </div>
 
@@ -1778,6 +1778,109 @@ pub async fn docs_page() -> Html<&'static str> {
           <div class="ep-desc">Buka tunnel port forwarding sementara agar administrator dapat mengakses Web GUI Access Point pihak ketiga dari luar LAN.</div>
         </div>
       </section>
+
+      <!-- Section: Hotspot Member Management & Pre-Login Verifier -->
+      <section class="doc-section" id="sec-members">
+        <div class="section-header">👤 Hotspot Member Management &amp; Pre-Login Verifier</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/members/register</div>
+          </div>
+          <div class="ep-desc">Registrasi member bulanan/VIP: username &amp; password terpisah, metadata Nama, HP, masa aktif (EXP:YYYY-MM-DD), harga, dan catatan tersimpan rapi di router.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/members</div>
+          </div>
+          <div class="ep-desc">Daftar terstruktur seluruh member: parsing otomatis status (ACTIVE, EXPIRED, SUSPENDED), sisa hari jatuh tempo, total kuota bytes in/out, dan uptime.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/members/renew</div>
+          </div>
+          <div class="ep-desc">Perpanjangan masa aktif bulanan (+30 hari), otomatis update tanggal expired baru, reset counter traffic, dan aktifkan kembali akun member.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/members/suspend</div>
+          </div>
+          <div class="ep-desc">Isolir member yang menunggak tagihan (pindah profile isolir / disable, serta langsung kick sesi aktif seketika).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/verify-login</div>
+          </div>
+          <div class="ep-desc">Unified Pre-Login Authentication Engine: verifikasi kredensial captive portal (voucher vs member, password, tanggal kadaluarsa, batas kuota/uptime, dan batas shared-users) sebelum dikirim ke router.</div>
+        </div>
+      </section>
+
+      <!-- Section: Multi-Tenant Segregated Audit Logging & Latency Analytics -->
+      <section class="doc-section" id="sec-audit">
+        <div class="section-header">🔒 Multi-Tenant Segregated Audit Logging &amp; Latency Analytics</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/audit/logs</div>
+          </div>
+          <div class="ep-desc">Riwayat log audit eksekusi dan latency ms: diisolasi 100% ketat berbasis hash token tenant (Zero-Leak Boundary). Tenant A tidak bisa melihat riwayat Tenant B.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/audit/stats</div>
+          </div>
+          <div class="ep-desc">Metrik analitik performa: rata-rata latency ms, p95 latency, tingkat sukses %, throughput, dan daftar router aktif milik tenant.</div>
+        </div>
+      </section>
+
+      <!-- Section: System Health, NTP, IP Pool & DHCP Lease -->
+      <section class="doc-section" id="sec-system-pro">
+        <div class="section-header">🌡️ System Health, NTP Sync &amp; IP Pool Exhaustion</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/health</div>
+          </div>
+          <div class="ep-desc">Hardware telemetry: sensor suhu CPU (°C), voltase board (V), watt, dan kecepatan fan RPM (dengan graceful fallback untuk CHR/VM).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/ntp/setup</div>
+          </div>
+          <div class="ep-desc">1-Klik NTP &amp; Timezone Sync: sinkronisasi jam satelit internet (id.pool.ntp.org, time.google.com) dan set timezone agar jam router tidak reset ke 1970 saat reboot.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ip/pools/utilization</div>
+          </div>
+          <div class="ep-desc">Deteksi dini pool exhaustion: hitung kapasitas rentang IP, pemakaian riil, persentase utilisasi, dan alert (HEALTHY, WARNING_HIGH, CRITICAL_EXHAUSTED).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/lease/add</div>
+          </div>
+          <div class="ep-desc">Daftarkan static DHCP lease baru permanen dengan IP, MAC address, dan comment identitas perangkat.</div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -1802,7 +1905,7 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.3.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 180+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 185+ endpoints"
         },
         "servers": [
             { "url": "http://127.0.0.1:8080" },

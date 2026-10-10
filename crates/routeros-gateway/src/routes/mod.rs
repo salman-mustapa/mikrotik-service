@@ -91,6 +91,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/service/toggle", post(system::toggle_service))
         .route("/api/v1/system/reboot", post(system::reboot))
         .route("/api/v1/system/health", get(system::system_health).post(system::system_health))
+        .route("/api/v1/system/ntp/setup", post(system::setup_ntp))
+        .route("/api/v1/system/ntp", get(system::ntp_status).post(system::ntp_status))
 
         // --- IPv4, ARP & Routing ---
         .route("/api/v1/ip/addresses", get(ip::addresses).post(ip::addresses))
@@ -101,6 +103,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/route/remove", post(ip::remove_route))
         .route("/api/v1/ip/dns", get(ip::dns).post(ip::dns))
         .route("/api/v1/ip/pools", get(ip::pools).post(ip::pools))
+        .route("/api/v1/ip/pools/used", get(ip::pools_used).post(ip::pools_used))
+        .route("/api/v1/ip/pools/utilization", get(ip::pools_utilization).post(ip::pools_utilization))
         .route("/api/v1/ip/pool/add", post(ip::add_pool))
         .route("/api/v1/ip/pool/remove", post(ip::remove_pool))
         .route("/api/v1/ip/arp", get(ip::arp).post(ip::arp))
@@ -135,6 +139,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/leases", get(dhcp::leases).post(dhcp::leases))
         .route("/api/v1/dhcp/leases/list", get(dhcp::leases).post(dhcp::leases))
         .route("/api/v1/dhcp/lease/make-static", post(dhcp::make_static))
+        .route("/api/v1/dhcp/lease/add", post(dhcp::add_lease))
+        .route("/api/v1/dhcp/lease/set", post(dhcp::set_lease))
         .route("/api/v1/dhcp/lease/remove", post(dhcp::remove_lease))
         .route("/api/v1/dhcp/alerts", get(dhcp::alerts).post(dhcp::alerts))
         .route("/api/v1/dhcp/alert/add", post(dhcp::add_alert))
