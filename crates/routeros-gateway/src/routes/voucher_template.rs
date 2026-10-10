@@ -30,7 +30,7 @@ fn default_template_type() -> String {
     "card_grid".into()
 }
 
-/// POST /api/v1/hotspot/voucher-template/render - Render ready-to-print HTML vouchers (Thermal 58/80mm or Grid Cards)
+/// POST /api/v1/hotspot/voucher-template/render - Render ready-to-print HTML vouchers with QR-Code Auto-Login
 pub async fn render_template(
     Json(req): Json<RenderVoucherReq>,
 ) -> Result<Html<String>, ApiError> {
@@ -55,6 +55,8 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
         let profile = v.profile.as_deref().unwrap_or("Regular");
         let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
         let price = v.price.as_deref().unwrap_or("3.000");
+        let login_url = format!("http://{}/login?username={}&password={}", dns, v.username, v.password);
+        let qr_src = format!("https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={}", urlencoding_simple(&login_url));
 
         cards.push_str(&format!(
             r#"<div class="voucher-card">
@@ -63,18 +65,26 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
                 <span class="badge">#{idx}</span>
               </div>
               <div class="card-body">
-                <div class="code-box">
-                  <span class="label">KODE VOUCHER</span>
-                  <div class="code-val">{user}</div>
-                </div>
-                <div class="info-row">
-                  <span>Paket:</span><strong>{profile}</strong>
-                </div>
-                <div class="info-row">
-                  <span>Durasi:</span><strong>{validity}</strong>
-                </div>
-                <div class="info-row price-row">
-                  <span>Tarif:</span><span class="price-val">{curr} {price}</span>
+                <div class="card-body-flex">
+                  <div style="flex: 1;">
+                    <div class="code-box">
+                      <span class="label">KODE VOUCHER</span>
+                      <div class="code-val">{user}</div>
+                    </div>
+                    <div class="info-row">
+                      <span>Paket:</span><strong>{profile}</strong>
+                    </div>
+                    <div class="info-row">
+                      <span>Masa Aktif:</span><strong>{validity}</strong>
+                    </div>
+                    <div class="info-row price-row">
+                      <span>Tarif:</span><span class="price-val">{curr} {price}</span>
+                    </div>
+                  </div>
+                  <div class="qr-box">
+                    <img src="{qr_src}" alt="QR Login" width="70" height="70" loading="lazy">
+                    <span class="qr-hint">Scan utk Login</span>
+                  </div>
                 </div>
               </div>
               <div class="card-footer">
@@ -88,7 +98,8 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
             validity = validity,
             curr = curr,
             price = price,
-            dns = dns
+            dns = dns,
+            qr_src = qr_src
         ));
     }
 
@@ -97,9 +108,9 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Cetak Voucher Hotspot</title>
+  <title>Cetak Voucher Hotspot ({total})</title>
   <style>
-    @page {{ size: A4 portrait; margin: 10mm; }}
+    @page {{ size: A4 portrait; margin: 8mm; }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
     body {{ background: #f8fafc; color: #1e293b; padding: 15px; }}
     .grid-container {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
@@ -114,13 +125,17 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
     .card-header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }}
     .card-header h3 {{ font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; }}
     .badge {{ font-size: 9px; background: #e0f2fe; color: #0369a1; padding: 2px 5px; border-radius: 4px; }}
-    .code-box {{ background: #f0fdf4; border: 1px solid #86efac; border-radius: 4px; text-align: center; padding: 6px; margin: 6px 0; }}
+    .card-body-flex {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; }}
+    .code-box {{ background: #f0fdf4; border: 1px solid #86efac; border-radius: 4px; text-align: center; padding: 4px; margin: 5px 0; }}
     .code-box .label {{ font-size: 8px; color: #15803d; font-weight: bold; letter-spacing: 0.5px; }}
-    .code-val {{ font-size: 15px; font-weight: 900; letter-spacing: 2px; color: #14532d; }}
-    .info-row {{ display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 3px; color: #64748b; }}
+    .code-val {{ font-size: 14px; font-weight: 900; letter-spacing: 1.5px; color: #14532d; }}
+    .info-row {{ display: flex; justify-content: space-between; font-size: 8.5px; margin-bottom: 2px; color: #64748b; }}
     .info-row strong {{ color: #0f172a; }}
-    .price-row {{ border-top: 1px dashed #e2e8f0; padding-top: 4px; margin-top: 4px; }}
+    .price-row {{ border-top: 1px dashed #e2e8f0; padding-top: 3px; margin-top: 3px; }}
     .price-val {{ font-weight: 900; color: #ea580c; font-size: 11px; }}
+    .qr-box {{ text-align: center; flex-shrink: 0; }}
+    .qr-box img {{ border: 1px solid #e2e8f0; border-radius: 4px; display: block; margin: 0 auto; }}
+    .qr-hint {{ font-size: 7.5px; color: #64748b; font-weight: 600; display: block; margin-top: 2px; }}
     .card-footer {{ text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 4px; margin-top: 4px; }}
     .print-btn {{
       position: fixed; bottom: 20px; right: 20px; background: #0284c7; color: white;
@@ -147,13 +162,19 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
         let profile = v.profile.as_deref().unwrap_or("Regular");
         let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
         let price = v.price.as_deref().unwrap_or("3.000");
+        let login_url = format!("http://{}/login?username={}&password={}", dns, v.username, v.password);
+        let qr_src = format!("https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={}", urlencoding_simple(&login_url));
 
         receipts.push_str(&format!(
             r#"<div class="thermal-receipt">
               <div class="t-center bold">{title}</div>
               <div class="t-center text-xs">Login: http://{dns}</div>
               <div class="divider">================================</div>
-              <div class="t-center bold big" style="margin: 8px 0;">{user}</div>
+              <div class="t-center bold big" style="margin: 6px 0;">{user}</div>
+              <div class="t-center" style="margin: 6px 0;">
+                <img src="{qr_src}" width="75" height="75" style="display:block; margin:0 auto;">
+                <div class="text-xs" style="margin-top:2px;">Scan utk Login Otomatis</div>
+              </div>
               <div class="divider">--------------------------------</div>
               <div class="row"><span>Paket:</span><span>{profile}</span></div>
               <div class="row"><span>Masa Aktif:</span><span>{validity}</span></div>
@@ -168,7 +189,8 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
             validity = validity,
             curr = curr,
             price = price,
-            idx = i + 1
+            idx = i + 1,
+            qr_src = qr_src
         ));
     }
 
@@ -177,7 +199,7 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Cetak Struk Thermal</title>
+  <title>Cetak Struk Thermal ({total})</title>
   <style>
     @page {{ size: 58mm auto; margin: 0; }}
     * {{ font-family: "Courier New", Courier, monospace; box-sizing: border-box; }}
@@ -199,25 +221,41 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
   {receipts}
 </body>
 </html>"#,
+        total = vouchers.len(),
         receipts = receipts
     )
 }
 
-fn render_custom(vouchers: &[VoucherItem], tpl: &str, title: &str, dns: &str, curr: &str) -> String {
+fn render_custom(vouchers: &[VoucherItem], template: &str, title: &str, dns: &str, curr: &str) -> String {
     let mut out = String::new();
     for (i, v) in vouchers.iter().enumerate() {
-        let rendered = tpl
+        let profile = v.profile.as_deref().unwrap_or("Regular");
+        let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
+        let price = v.price.as_deref().unwrap_or("3.000");
+
+        let rendered = template
             .replace("{{username}}", &v.username)
             .replace("{{password}}", &v.password)
-            .replace("{{profile}}", v.profile.as_deref().unwrap_or("Regular"))
-            .replace("{{timelimit}}", v.timelimit.as_deref().unwrap_or(""))
-            .replace("{{datalimit}}", v.datalimit.as_deref().unwrap_or(""))
-            .replace("{{price}}", v.price.as_deref().unwrap_or(""))
+            .replace("{{profile}}", profile)
+            .replace("{{validity}}", validity)
+            .replace("{{price}}", price)
             .replace("{{currency}}", curr)
             .replace("{{hotspot_name}}", title)
-            .replace("{{login_url}}", &format!("http://{dns}"))
-            .replace("{{serial}}", &(i + 1).to_string());
+            .replace("{{dns_name}}", dns)
+            .replace("{{index}}", &(i + 1).to_string());
+
         out.push_str(&rendered);
+    }
+    out
+}
+
+fn urlencoding_simple(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
     }
     out
 }

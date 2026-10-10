@@ -131,3 +131,58 @@ pub async fn remove_network(
     client.run(build_command("/ip/dhcp-server/network/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "DHCP network removed" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddDhcpAlertReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub interface: String,
+    pub valid_server: Option<String>,
+    pub alert_timeout: Option<String>,
+}
+
+/// GET or POST /api/v1/dhcp/alerts - Daftar pemantauan Rogue DHCP Server Alert
+pub async fn alerts(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/dhcp-server/alert/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/dhcp/alert/add - Pasang alarm deteksi Rogue DHCP Server pada interface
+pub async fn add_alert(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddDhcpAlertReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![("interface", req.interface.as_str())];
+    if let Some(vs) = req.valid_server.as_deref() {
+        args.push(("valid-server", vs));
+    }
+    if let Some(at) = req.alert_timeout.as_deref() {
+        args.push(("alert-timeout", at));
+    }
+    client.run(build_command("/ip/dhcp-server/alert/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP alert watcher added for interface" })))
+}
+
+/// POST /api/v1/dhcp/alert/remove - Hapus alarm deteksi DHCP
+pub async fn remove_alert(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-server/alert/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP alert watcher removed" })))
+}
+

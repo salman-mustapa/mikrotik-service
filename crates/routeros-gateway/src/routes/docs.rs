@@ -667,7 +667,13 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "fw_filters", path: "/api/v1/firewall/filters", method: "GET", cat: "firewall", desc: "Daftar rule firewall filter (input, forward, output).", defaultPayload: "{}" },
       { id: "fw_nat", path: "/api/v1/firewall/nat", method: "GET", cat: "firewall", desc: "Daftar rule NAT (Masquerade, Port Forwarding, dst-nat).", defaultPayload: "{}" },
       { id: "fw_addr_list", path: "/api/v1/firewall/address-lists", method: "GET", cat: "firewall", desc: "Daftar Address-List firewall (Whitelist, Blacklist, isolir).", defaultPayload: "{}" },
-      { id: "tools_ping", path: "/api/v1/tools/ping", method: "POST", cat: "tools", desc: "Kirim ICMP Ping langsung dari router ke target host/IP dengan hitungan latency.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 4\n}' }
+      { id: "fw_conntrack", path: "/api/v1/firewall/connections", method: "GET", cat: "firewall", desc: "Inspeksi tabel conntrack aktif (IP sumber, tujuan, protokol, timeout).", defaultPayload: "{}" },
+      { id: "fw_top_talkers", path: "/api/v1/firewall/connections/top-talkers", method: "GET", cat: "firewall", desc: "Deteksi top talkers / host penghabis sesi koneksi (BitTorrent, DDoS, botnet).", defaultPayload: "{}" },
+      { id: "dns_adlist", path: "/api/v1/dns/adlist", method: "GET", cat: "ip", desc: "RouterOS v7 native AdList (Blocklist Iklan & Malware tingkat router).", defaultPayload: "{}" },
+      { id: "dns_adlist_presets", path: "/api/v1/dns/adlist/presets", method: "GET", cat: "ip", desc: "Katalog preset blocklist resmi aman (HaGeZi, StevenBlack, AdGuard).", defaultPayload: "{}" },
+      { id: "dhcp_alerts", path: "/api/v1/dhcp/alerts", method: "GET", cat: "dhcp", desc: "Monitoring alarm Rogue DHCP Server ilegal di jaringan lokal.", defaultPayload: "{}" },
+      { id: "tools_ping", path: "/api/v1/tools/ping", method: "POST", cat: "tools", desc: "Kirim ICMP Ping langsung dari router ke target host/IP dengan hitungan latency.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 4\n}' },
+      { id: "tools_multi_ping", path: "/api/v1/tools/multi-ping", method: "GET", cat: "tools", desc: "Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare, Google, OpenDNS) dengan ringkasan SLA.", defaultPayload: '{\n  "targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"],\n  "count": 3\n}' }
     ];
 
     let currentEndpoint = ENDPOINTS[0];
@@ -1465,6 +1471,78 @@ pub async fn docs_page() -> Html<&'static str> {
           </div>
           <div class="ep-desc">Ringkasan tabel routing aktif dengan rincian protokol (Connected, Static, BGP, OSPF).</div>
         </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/tools/multi-ping</div>
+          </div>
+          <div class="ep-desc">Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare 1.1.1.1, Google 8.8.8.8, OpenDNS) dengan kalkulasi packet loss %, RTT min/avg/max, jitter, dan status SLA global.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dns/adlist</div>
+          </div>
+          <div class="ep-desc">RouterOS v7 native AdList DNS ad-blocker & malware prevention table (Pi-hole tanpa hardware eksternal).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span></div>
+            <div class="ep-path">/api/v1/dns/adlist/presets</div>
+          </div>
+          <div class="ep-desc">Katalog preset blocklist resmi aman (HaGeZi Multi Light, StevenBlack Hosts, Threat Intelligence TIF, AdGuard DNS).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dns/adlist/deploy-preset</div>
+          </div>
+          <div class="ep-desc">Deploy satu klik preset blocklist pilihan ke router MikroTik dengan ssl-verify bypass otomatis.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections</div>
+          </div>
+          <div class="ep-desc">Inspeksi tabel Connection Tracking (Conntrack) aktif secara realtime lengkap dengan filter protokol, IP asal, IP tujuan, dan status TCP.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections/top-talkers</div>
+          </div>
+          <div class="ep-desc">Analisis Top Talkers & Conntrack Hogs: deteksi otomatis 15 IP teratas yang menghabiskan kuota tabel sesi (BitTorrent, DDoS botnet, malware).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections/flush</div>
+          </div>
+          <div class="ep-desc">Flush / putus paksa sesi koneksi dari IP tertentu atau seluruh sesi conntrack untuk mitigasi darurat DDoS.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/alerts</div>
+          </div>
+          <div class="ep-desc">Monitoring deteksi Rogue DHCP Server ilegal di port LAN (mencegah tabrakan IP router rumah tetangga yang terbalik colok).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/alert/add</div>
+          </div>
+          <div class="ep-desc">Pasang alarm pengawas Rogue DHCP Server pada interface tertentu dengan opsi valid-server dan timeout.</div>
+        </div>
       </section>
     </main>
   </div>
@@ -1490,7 +1568,7 @@ pub async fn api_spec_json() -> Json<Value> {
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
             "version": "0.2.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 120+ endpoints"
+            "description": "High-performance sub-millisecond MikroTik management gateway with 130+ endpoints"
         },
         "servers": [
             { "url": "https://ros-gateway.samrifa.com" },

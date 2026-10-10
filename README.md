@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-120%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-130%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -43,7 +43,7 @@ Sebagai tim NOC atau operator ISP/WISP, masalah terbesar pada integrasi API Rout
 | **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda atomik `.tag`. |
 | **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Anti-Hang Guard** dan FastTrack connection bypass. |
 | **Kecepatan Respons**: 200 ms – 1.5 detik per request. | **Sub-Milidetik**: Rata-rata respons **< 1.5 milidetik** berkat protokol biner tingkat rendah (*raw wire format*). |
-| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 115+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
+| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 130+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
 | **Ketergantungan Stack**: Terikat library bahasa tertentu. | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
 | **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`, `[Anti-Tethering]`). |
 
@@ -141,6 +141,24 @@ graph TB
 * **BGP Sessions**: Status peering BGP ISP (*Established / Active / Idle*, AS number, prefix count yang diterima, uptime) kompatibel RouterOS v6 dan v7.
 * **OSPF Neighbors**: Monitoring OSPF Neighbor Adjacency (*Full, 2-Way, Init*, Designated Router, Interface link).
 * **Route Table Breakdown**: Rekapitulasi rute aktif berdasarkan protokol (*Connected, Static, BGP, OSPF*).
+
+### 11. 🎯 Multi-Target SLA Ping Matrix (`/api/v1/tools/multi-ping`)
+* Mengirim ping sekaligus ke gateway ISP lokal dan DNS publik global (Cloudflare 1.1.1.1, Google 8.8.8.8, OpenDNS) secara otomatis.
+* Mengalkulasi packet loss %, RTT min/avg/max, estimasi jitter, dan status SLA (`EXCELLENT`, `HEALTHY`, `DEGRADED`, `DOWN`).
+
+### 12. 🛡️ Native RouterOS v7 AdList DNS Blocker (`/api/v1/dns/adlist/*`)
+* Pengelolaan DNS AdList bawaan MikroTik (RouterOS v7) untuk blokir iklan dan pelacak seluruh jaringan setara Pi-hole tanpa perangkat keras tambahan.
+* Dilengkapi preset resmi terverifikasi: HaGeZi Multi Light, StevenBlack Hosts, Threat Intelligence TIF, dan AdGuard DNS.
+
+### 13. 🔍 Conntrack Top Talkers & DDoS Mitigation (`/api/v1/firewall/connections/*`)
+* Inspeksi tabel *Connection Tracking* router dan analisis otomatis 15 host penghabis sesi koneksi (*Top Talkers*) untuk melacak penyalahgunaan BitTorrent, malware zombie, atau SYN flood.
+* Opsi *Flush Connections* instan untuk memutus paksa sesi koneksi dari IP tertentu.
+
+### 14. 🚨 Rogue DHCP Server Watchdog (`/api/v1/dhcp/alerts`)
+* Pemasangan alarm deteksi server DHCP ilegal/liar pada interface LAN untuk mencegah insiden tabrakan IP akibat pelanggan salah mencolokkan port LAN router rumahan.
+
+### 15. 🎫 Auto-Login QR Code Hotspot Vouchers (`/api/v1/hotspot/voucher-template/render`)
+* Template pencetakan voucher kartu (Grid A4) dan struk thermal kasir (58mm) dilengkapi **QR Code Auto-Login** (`http://{dns}/login?username={user}&password={pass}`). Pelanggan cukup scan kamera smartphone langsung terhubung tanpa mengetik manual.
 
 ---
 

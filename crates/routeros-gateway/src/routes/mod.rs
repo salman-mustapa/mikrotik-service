@@ -101,11 +101,16 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/arp/add", post(ip::add_arp))
         .route("/api/v1/ip/arp/remove", post(ip::remove_arp))
 
-        // --- Static DNS & Cache ---
+        // --- Static DNS, AdList & Cache ---
         .route("/api/v1/dns/static", get(dns::static_records).post(dns::static_records))
         .route("/api/v1/dns/static/add", post(dns::add_static))
         .route("/api/v1/dns/static/remove", post(dns::remove_static))
         .route("/api/v1/dns/cache/flush", post(dns::flush_cache))
+        .route("/api/v1/dns/adlist", get(dns::adlist).post(dns::adlist))
+        .route("/api/v1/dns/adlist/add", post(dns::add_adlist))
+        .route("/api/v1/dns/adlist/remove", post(dns::remove_adlist))
+        .route("/api/v1/dns/adlist/presets", get(dns::adlist_presets))
+        .route("/api/v1/dns/adlist/deploy-preset", post(dns::deploy_adlist_preset))
 
         // --- IPv6 ---
         .route("/api/v1/ipv6/addresses", get(ipv6::addresses).post(ipv6::addresses))
@@ -115,7 +120,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ipv6/pools", get(ipv6::pools).post(ipv6::pools))
         .route("/api/v1/ipv6/nd", get(ipv6::nd).post(ipv6::nd))
 
-        // --- DHCP ---
+        // --- DHCP & Rogue Detection ---
         .route("/api/v1/dhcp/servers", get(dhcp::servers).post(dhcp::servers))
         .route("/api/v1/dhcp/networks", get(dhcp::networks).post(dhcp::networks))
         .route("/api/v1/dhcp/network/add", post(dhcp::add_network))
@@ -124,6 +129,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/leases/list", get(dhcp::leases).post(dhcp::leases))
         .route("/api/v1/dhcp/lease/make-static", post(dhcp::make_static))
         .route("/api/v1/dhcp/lease/remove", post(dhcp::remove_lease))
+        .route("/api/v1/dhcp/alerts", get(dhcp::alerts).post(dhcp::alerts))
+        .route("/api/v1/dhcp/alert/add", post(dhcp::add_alert))
+        .route("/api/v1/dhcp/alert/remove", post(dhcp::remove_alert))
 
         // --- Hotspot, Vouchers & Hosts ---
         .route("/api/v1/hotspot/users", get(hotspot::users).post(hotspot::users))
@@ -204,6 +212,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/firewall/address-lists", get(firewall::address_lists).post(firewall::address_lists))
         .route("/api/v1/firewall/block-ip", post(firewall::block_ip))
         .route("/api/v1/firewall/unblock-ip", post(firewall::unblock_ip))
+        .route("/api/v1/firewall/connections", get(firewall::connections).post(firewall::connections))
+        .route("/api/v1/firewall/connections/top-talkers", get(firewall::top_talkers).post(firewall::top_talkers))
+        .route("/api/v1/firewall/connections/flush", post(firewall::flush_connections))
 
         // --- Queues (Bandwidth Limiting & Live Inspection) ---
         .route("/api/v1/queues/simple", get(queues::simple).post(queues::simple))
@@ -223,6 +234,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- Network Tools & Diagnostics ---
         .route("/api/v1/tools/ping", post(tools::ping))
+        .route("/api/v1/tools/multi-ping", get(tools::multi_ping).post(tools::multi_ping))
         .route("/api/v1/tools/traceroute", post(tools::traceroute))
         .route("/api/v1/tools/profile", post(tools::profile))
         .route("/api/v1/tools/netwatch", post(tools::netwatch))

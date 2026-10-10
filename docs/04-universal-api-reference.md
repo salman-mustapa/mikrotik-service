@@ -745,3 +745,52 @@ Monitoring routing dinamis untuk router core ISP, backbone BGP, dan datacenter (
 | `GET` / `POST` | `/api/v1/routing/ospf/neighbors` | **OSPF Neighbor Adjacencies**: Status neighbor (*Full, 2-Way, Init*), router-id, interface link, dan priority | `{}` |
 | `GET` / `POST` | `/api/v1/routing/routes` | **Rekapitulasi Tabel Routing**: Rangkuman rute aktif beserta rincian protokol (*Connected, Static, BGP, OSPF*) dan jarak administratif | `{}` |
 
+---
+
+### UU. 🎯 Multi-Target SLA Ping Matrix (`/api/v1/tools/multi-ping`)
+Menguji matriks konektivitas uplink WAN dan DNS publik sekaligus dalam 1 kali panggilan API:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/tools/multi-ping` | **SLA Ping Matrix Otomatis**: Ping paralel/sekuensial ke Default Gateway dan benchmark publik (`1.1.1.1`, `8.8.8.8`, `208.67.222.222`). Menghasilkan persentase packet loss, RTT min/avg/max, jitter, dan status SLA (`ALL_ONLINE_OPTIMAL`, `PARTIAL_OUTAGE_DEGRADED`, `CRITICAL_LINK_DOWN`) | `{"targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"], "count": 3}` |
+
+---
+
+### VV. 🛡️ Native RouterOS v7 AdList DNS Blocker (`/api/v1/dns/adlist/*`)
+Memanfaatkan fitur native AdList RouterOS v7.12+ untuk memblokir jutaan domain iklan dan malware setara Pi-hole tanpa hardware eksternal:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/dns/adlist` | **Daftar Sumber AdList**: Melihat blocklist eksternal yang sedang aktif di-load oleh DNS cache MikroTik | `{}` |
+| `POST` | `/api/v1/dns/adlist/add` | **Tambah URL Blocklist**: Mendaftarkan URL file host/adblock eksternal | `{"url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/light.txt", "ssl_verify": false}` |
+| `POST` | `/api/v1/dns/adlist/remove` | **Hapus Sumber AdList**: Menghapus blocklist dari MikroTik | `{"id": "*1"}` |
+| `GET` | `/api/v1/dns/adlist/presets` | **Katalog Blocklist Aman**: Menampilkan daftar preset terkurasi (HaGeZi Light, StevenBlack, Anti-Malware TIF, AdGuard) | `{}` |
+| `POST` | `/api/v1/dns/adlist/deploy-preset` | **1-Klik Deploy Blocklist**: Menerapkan preset blocklist langsung ke router | `{"preset": "hagezi-light"}` |
+
+---
+
+### WW. 🔍 Conntrack Top Talkers & DDoS Session Killer (`/api/v1/firewall/connections/*`)
+Menginspeksi tabel *Connection Tracking* router untuk mitigasi darurat saat jaringan padat atau router mengalami lonjakan CPU:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/firewall/connections` | **Tabel Conntrack Aktif**: Melihat daftar koneksi TCP/UDP/ICMP aktif, IP asal, IP tujuan, timeout, dan flag akselerasi | `{"limit": 100, "protocol": "tcp"}` |
+| `GET` / `POST` | `/api/v1/firewall/connections/top-talkers` | **Deteksi 15 Host Pembunuh Sesi (Top Talkers)**: Mengagregasikan seluruh koneksi aktif berdasarkan IP sumber untuk mengungkap mesin yang menjalankan BitTorrent, botnet, atau DDoS flood | `{}` |
+| `POST` | `/api/v1/firewall/connections/flush` | **Flush / Putus Sesi Tertentu**: Memutuskan paksa seluruh koneksi dari IP target atau protokol tertentu | `{"src_address": "192.168.1.50"}` |
+
+---
+
+### XX. 🚨 Rogue DHCP Server Watchdog (`/api/v1/dhcp/alerts` & `/alert/add`)
+Mencegah insiden downtime massal di jaringan RT-RW Net atau kos-kosan akibat pelanggan salah colok port LAN router:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/dhcp/alerts` | **Daftar Alarm Rogue DHCP**: Melihat status monitoring server DHCP liar di setiap interface | `{}` |
+| `POST` | `/api/v1/dhcp/alert/add` | **Pasang Pengawas Rogue DHCP**: Menugaskan router untuk memicu alert saat terdeteksi broadcast DHCP server tidak dikenal di port LAN | `{"interface": "ether5", "valid_server": "192.168.100.1"}` |
+| `POST` | `/api/v1/dhcp/alert/remove` | **Hapus Pengawas Rogue DHCP**: Menghapus aturan alert | `{"id": "*1"}` |
+
+---
+
+### YY. 🎫 Auto-Login QR Code Hotspot Vouchers (`/api/v1/hotspot/voucher-template/render`)
+Mempermudah pengguna akhir login ke jaringan Hotspot tanpa perlu mengetik manual username dan password:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/hotspot/voucher-template/render` | **Render Voucher Siap Cetak (A4 Grid & Thermal 58mm)**: Menghasilkan dokumen cetak HTML lengkap dengan **QR Code Auto-Login** (`http://{dns}/login?username={user}&password={pass}`). Pengguna cukup memindai dengan kamera ponsel untuk langsung login | `{"template_type": "grid", "title": "WIFI WARUNG", "dns_name": "hotspot.net", "vouchers": [...]}` |
+
+
