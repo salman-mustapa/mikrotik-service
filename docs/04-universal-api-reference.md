@@ -267,10 +267,10 @@ Mengeksekusi banyak perintah sekaligus dalam 1 kali HTTP request secara paralel:
 ```json
 {
   "router": {
-    "host": "ath.vpnbersama.us",
-    "port": 51121,
+    "host": "192.168.88.1",
+    "port": 8728,
     "user": "admin",
-    "password": "secretpassword"
+    "password": "yourpassword"
   },
   "commands": [
     { "command": "/ip/hotspot/user/add", "args": { "name": "user01", "password": "123", "profile": "default" } },
@@ -287,10 +287,10 @@ Mengeksekusi perintah RouterOS arbitrary apa pun secara bebas tanpa batas:
 ```json
 {
   "router": {
-    "host": "ath.vpnbersama.us",
-    "port": 51121,
+    "host": "192.168.88.1",
+    "port": 8728,
     "user": "admin",
-    "password": "secretpassword"
+    "password": "yourpassword"
   },
   "command": "/tool/ping",
   "args": {
@@ -705,7 +705,7 @@ Melengkapi operasi CRUD penuh pada level infrastruktur IP RouterOS:
 Menjawab kebutuhan administrator untuk mengetahui rincian limit kecepatan user, penggunaan kuota real-time, dan status bottleneck:
 | Method | Endpoint | Kegunaan | Payload Tambahan |
 |---|---|---|---|
-| `POST` | `/api/v1/queues/inspect-user` | **Inspeksi Lengkap Limit & Kecepatan User**: Mengetahui limit max (`5M/10M`), kecepatan real-time upload & download saat ini, persentase utilisasi antrean, kuota total transfer, packet drops, dan status antrean (`THROTTLED` / `ACTIVE` / `IDLE`) | `{"query": "192.168.88.50"}` atau `{"query": "salman"}` |
+| `POST` | `/api/v1/queues/inspect-user` | **Inspeksi Lengkap Limit & Kecepatan User**: Mengetahui limit max (`5M/10M`), kecepatan real-time upload & download saat ini, persentase utilisasi antrean, kuota total transfer, packet drops, dan status antrean (`THROTTLED` / `ACTIVE` / `IDLE`) | `{"query": "192.168.88.50"}` atau `{"query": "user1"}` |
 | `POST` | `/api/v1/queues/overview-summary` | **Executive NOC Bandwidth Dashboard**: Menghitung total bandwidth yang dialokasikan router vs konsumsi real-time, top 5 user downloader terberat, dan daftar antrean yang sedang bottleneck | `{}` |
 | `POST` | `/api/v1/queues/test-limit` | **Uji Validasi Limit Kecepatan**: Memverifikasi apakah target IP dibatasi dengan benar sesuai batas max-limit yang ditetapkan | `{"target_ip": "192.168.88.50"}` |
 

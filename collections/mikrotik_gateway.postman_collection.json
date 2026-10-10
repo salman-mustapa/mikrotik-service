@@ -18,12 +18,12 @@
     },
     {
       "key": "router_host",
-      "value": "ath.vpnbersama.us",
+      "value": "192.168.88.1",
       "type": "string"
     },
     {
       "key": "router_port",
-      "value": "51121",
+      "value": "8728",
       "type": "string"
     },
     {

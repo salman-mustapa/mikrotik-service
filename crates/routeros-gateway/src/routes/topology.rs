@@ -362,7 +362,7 @@ pub async fn topology_graph(
             let is_relevant = match filter.as_str() {
                 "all" => ["ether", "bridge", "wlan", "vlan", "pppoe", "wireguard"].iter().any(|t| if_type.contains(t)),
                 "pppoe" => if_type.contains("pppoe") || name.contains("pppoe"),
-                "hotspot" => name == "MANYTAL" || if_type == "bridge" || if_type.contains("wlan") || is_wan,
+                "hotspot" => name.to_lowercase().contains("hotspot") || name.to_lowercase().contains("hs") || if_type == "bridge" || if_type.contains("wlan") || is_wan,
                 "dhcp" => if_type == "ether" || if_type == "bridge" || if_type.contains("wlan") || is_wan,
                 "wifi" => if_type.contains("wlan") || if_type.contains("wireless"),
                 _ => true,
@@ -622,8 +622,8 @@ pub async fn topology_graph(
                 }
             }
         }
-        // Fallback to bridge, hotspot interface MANYTAL, or core router
-        if let Some(bridge_node) = iface_nodes_map.get("bridge").or_else(|| iface_nodes_map.get("MANYTAL")) {
+        // Fallback to bridge, any hotspot/wlan interface, or core router
+        if let Some(bridge_node) = iface_nodes_map.get("bridge").or_else(|| iface_nodes_map.iter().find(|(k, _)| k.to_lowercase().contains("bridge") || k.to_lowercase().contains("hotspot") || k.to_lowercase().contains("wlan")).map(|(_, v)| v)) {
             bridge_node.clone()
         } else {
             "node_router".into()

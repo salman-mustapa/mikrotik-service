@@ -54,7 +54,11 @@ impl IntoResponse for ApiError {
             ),
             ApiError::UnknownRouter(id) => (
                 StatusCode::NOT_FOUND,
-                json!({ "success": false, "error": format!("router '{id}' not found in configuration") }),
+                json!({
+                    "success": false,
+                    "error": format!("router '{id}' not found in configuration. Sertakan target router via HTTP Headers (X-Router-Host, X-Router-Port, X-Router-User, X-Router-Pass), Query Params (?host=..&user=..), atau daftarkan router slot di config.toml"),
+                    "code": "ROUTER_NOT_FOUND"
+                }),
             ),
             ApiError::RouterTrap { message, category } => (
                 StatusCode::UNPROCESSABLE_ENTITY,

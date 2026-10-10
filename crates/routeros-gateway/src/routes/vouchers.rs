@@ -36,7 +36,7 @@ pub struct GenerateBatchVouchersReq {
     pub price: Option<String>,       // e.g. "3000", "5000", "10000"
     pub server: Option<String>,      // default "all"
     pub comment_tag: Option<String>, // custom batch tag, e.g. "BATCH-OKT"
-    pub dns_name: Option<String>,    // e.g. "inetmanyta.net" or "login.wifi"
+    pub dns_name: Option<String>,    // e.g. "hotspot.local" or "login.wifi"
 }
 
 fn default_prefix() -> String { "V-".into() }
@@ -199,7 +199,7 @@ pub async fn generate_vouchers(
 
     let qty = req.qty.clamp(1, 1000);
     let len = req.length.clamp(4, 16);
-    let dns = req.dns_name.unwrap_or_else(|| "inetmanyta.net".into());
+    let dns = req.dns_name.unwrap_or_else(|| "hotspot.local".into());
     let price_str = req.price.unwrap_or_else(|| "3000".into());
 
     let charset: &'static [u8] = match req.character_set.as_str() {
@@ -480,8 +480,8 @@ pub async fn thermal_print(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let hotspot = req.hotspot_name.as_deref().unwrap_or("WIFI HOTSPOT MANYTAL");
-    let dns = req.dns_name.as_deref().unwrap_or("inetmanyta.net");
+    let hotspot = req.hotspot_name.as_deref().unwrap_or("WIFI HOTSPOT");
+    let dns = req.dns_name.as_deref().unwrap_or("hotspot.local");
     let is_80mm = req.paper_width == "80mm";
     let line_width = if is_80mm { 42 } else { 32 };
     let separator = "-".repeat(line_width);
@@ -565,7 +565,7 @@ pub async fn sell_voucher(
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let hotspot = req.hotspot_name.as_deref().unwrap_or("WIFI HOTSPOT");
-    let dns = req.dns_name.as_deref().unwrap_or("inetmanyta.net");
+    let dns = req.dns_name.as_deref().unwrap_or("hotspot.local");
     let cust_name = req.customer_name.as_deref().unwrap_or("Pelanggan");
     let clean_phone = req.customer_phone.as_deref().map(|p| p.replace(['+', '-', ' '], "")).unwrap_or_default();
     let cashier = req.cashier.as_deref().unwrap_or("Admin Kasir");

@@ -12,8 +12,8 @@ const config = {
   gatewayUrl: "http://127.0.0.1:8080",
   token: "change-me-to-a-long-random-string",
   router: {
-    host: "ath.vpnbersama.us",
-    port: 51121,
+    host: "192.168.88.1",
+    port: 8728,
     user: "admin",
     password: "password_anda"
   }
@@ -66,8 +66,8 @@ class MikrotikApiService {
   final String token = 'change-me-to-a-long-random-string';
   
   final Map<String, dynamic> router = {
-    'host': 'ath.vpnbersama.us',
-    'port': 51121,
+    'host': '192.168.88.1',
+    'port': 8728,
     'user': 'admin',
     'password': 'password_anda',
   };
@@ -121,8 +121,8 @@ HEADERS = {
 }
 
 ROUTER = {
-    "host": "ath.vpnbersama.us",
-    "port": 51121,
+    "host": "192.168.88.1",
+    "port": 8728,
     "user": "admin",
     "password": "password_anda"
 }
@@ -161,8 +161,8 @@ def block_ip(ip_address: str):
 use Illuminate\Support\Facades\Http;
 
 $router = [
-    'host'     => 'ath.vpnbersama.us',
-    'port'     => 51121,
+    'host'     => '192.168.88.1',
+    'port'     => 8728,
     'user'     => 'admin',
     'password' => 'password_anda',
 ];
@@ -205,8 +205,8 @@ import (
 func main() {
 	payload := map[string]interface{}{
 		"router": map[string]interface{}{
-			"host":     "ath.vpnbersama.us",
-			"port":     51121,
+			"host":     "192.168.88.1",
+			"port":     8728,
 			"user":     "admin",
 			"password": "password_anda",
 		},
@@ -234,7 +234,7 @@ func main() {
 Browser Web atau aplikasi Mobile cukup menghubungkan ke URL endpoint stream SSE:
 
 ```javascript
-const url = "http://127.0.0.1:8080/api/v1/interfaces/stream?host=ath.vpnbersama.us&port=51121&user=admin&password=password_anda&interface=ether1";
+const url = "http://127.0.0.1:8080/api/v1/interfaces/stream?host=192.168.88.1&port=8728&user=admin&password=password_anda&interface=ether1";
 
 const eventSource = new EventSource(url);
 
@@ -281,8 +281,8 @@ const overview = ref({});
 let socket = null;
 
 const routerTarget = {
-  host: "ath.vpnbersama.us",
-  port: 51121,
+  host: "192.168.88.1",
+  port: 8728,
   user: "admin",
   password: "password_anda"
 };
@@ -350,8 +350,8 @@ app.get('/api/router/overview', async (req, res) => {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GATEWAY_TOKEN}`,
-        'X-Router-Host': 'ath.vpnbersama.us',
-        'X-Router-Port': '51121',
+        'X-Router-Host': '192.168.88.1',
+        'X-Router-Port': '8728',
         'X-Router-User': 'admin',
         'X-Router-Pass': 'password_anda',
         'Content-Type': 'application/json'
@@ -371,7 +371,7 @@ wsClient.on('open', () => {
   console.log("Terhubung ke Rust Gateway WebSocket");
   wsClient.send(JSON.stringify({
     action: "listen_logs",
-    router: { host: "ath.vpnbersama.us", port: 51121, user: "admin", password: "password_anda" },
+    router: { host: "192.168.88.1", port: 8728, user: "admin", password: "password_anda" },
     tag: "log-daemon",
     params: { topic: "critical" }
   }));
@@ -404,8 +404,8 @@ class MikrotikBillingService
     protected string $token = 'change-me-to-a-long-random-string';
 
     protected array $router = [
-        'host'     => 'ath.vpnbersama.us',
-        'port'     => 51121,
+        'host'     => '192.168.88.1',
+        'port'     => 8728,
         'user'     => 'admin',
         'password' => 'password_anda',
     ];

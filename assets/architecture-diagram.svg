@@ -112,7 +112,7 @@
   <rect x="56" y="474" width="238" height="188" rx="9" fill="#1e1b4b" stroke="#6366f1" stroke-width="1" stroke-dasharray="4 3" />
   <text x="70" y="496" class="badge" fill="#a5b4fc">UNIVERSAL HEADERS / PARAMS:</text>
   <text x="70" y="516" class="text-xs" fill="#cbd5e1">• X-Router-Host : 192.168.88.1</text>
-  <text x="70" y="534" class="text-xs" fill="#cbd5e1">• X-Router-Port : 8728 / 51121</text>
+  <text x="70" y="534" class="text-xs" fill="#cbd5e1">• X-Router-Port : 8728 / 8729</text>
   <text x="70" y="552" class="text-xs" fill="#cbd5e1">• X-Router-User : admin</text>
   <text x="70" y="570" class="text-xs" fill="#cbd5e1">• X-Router-Pass : ••••••••</text>
   <text x="70" y="588" class="text-xs" fill="#93c5fd">• URL Query : ?host=..&amp;token=..</text>
@@ -229,7 +229,7 @@
   <text x="1028" y="292" class="h2" font-size="12.5">Remote Router (VPN)</text>
   <text x="1028" y="308" class="text-xs">Branch Office / Remote Site</text>
   <rect x="998" y="320" width="214" height="24" rx="5" fill="#1e293b" />
-  <text x="1105" y="336" text-anchor="middle" class="badge" fill="#38bdf8">PORT 51121 (NAT Forwarded)</text>
+  <text x="1105" y="336" text-anchor="middle" class="badge" fill="#38bdf8">PORT 8728 (Branch / VPN)</text>
 
   <!-- Card 3: Cloud Hosted (CHR) -->
   <rect x="986" y="372" width="238" height="88" rx="9" fill="#0f172a" stroke="#a855f7" stroke-width="1" />

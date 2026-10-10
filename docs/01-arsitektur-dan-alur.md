@@ -63,7 +63,7 @@ graph TB
 
     subgraph MikrotikEnv ["Armada Perangkat RouterOS (v6.x & v7.x)"]
         MT1["Router 1: Edge Core (CCR / RB4011) - Port 8728"]
-        MT2["Router 2: Branch VPN (Port 51121)"]
+        MT2["Router 2: Branch VPN (Port 8728)"]
         MT3["Router 3: Cloud Hosted (CHR / AWS) - Port 8729"]
     end
 

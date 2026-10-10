@@ -64,8 +64,8 @@ pub struct WhatsAppConfig {
 pub struct SetupNetwatchReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
-    pub host: String,                  // IP to monitor, e.g. "172.16.10.2"
-    pub device_name: Option<String>,   // e.g. "FAUJIA HOTSPOT 1"
+    pub host: String,                  // IP to monitor, e.g. "192.168.88.2"
+    pub device_name: Option<String>,   // e.g. "AP-HOTSPOT-1"
     pub interval: Option<String>,      // default "5s"
     pub timeout: Option<String>,       // default "1000ms"
     pub comment: Option<String>,

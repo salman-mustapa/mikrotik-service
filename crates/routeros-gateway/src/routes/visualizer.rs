@@ -412,9 +412,9 @@ pub async fn visualizer_page() -> Html<&'static str> {
     <!-- Active Router Target Bar -->
     <div class="creds-inline">
       <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Router:</span>
-      <input type="text" id="target-host" placeholder="Host IP / Domain" style="width: 130px;" value="192.168.88.1">
-      <input type="number" id="target-port" placeholder="Port" style="width: 60px;" value="8728">
-      <input type="text" id="target-user" placeholder="User" style="width: 75px;" value="admin">
+      <input type="text" id="target-host" placeholder="192.168.88.1" style="width: 130px;" value="">
+      <input type="number" id="target-port" placeholder="8728" style="width: 60px;" value="">
+      <input type="text" id="target-user" placeholder="admin" style="width: 75px;" value="">
       <input type="password" id="target-pass" placeholder="Password" style="width: 80px;">
       <button class="btn-connect" onclick="loadTopology()">⚡ Render Graf</button>
     </div>
@@ -556,6 +556,11 @@ pub async fn visualizer_page() -> Html<&'static str> {
       const user = document.getElementById('target-user').value.trim();
       const pass = document.getElementById('target-pass').value;
       const token = localStorage.getItem('ros_token') || 'change-me-to-a-long-random-string';
+
+      if (!host && !user) {
+        showNotice("ℹ️ Masukkan Host & User Router target di atas lalu klik Render Graf", false);
+        return;
+      }
 
       showNotice("Menghubungkan ke MikroTik & mengkorelasikan relasi cabang...");
       const t0 = performance.now();
@@ -1191,7 +1196,12 @@ pub async fn visualizer_page() -> Html<&'static str> {
 
     window.addEventListener('DOMContentLoaded', () => {
       initCreds();
-      loadTopology();
+      const host = document.getElementById('target-host').value.trim();
+      if (host) {
+        loadTopology();
+      } else {
+        showNotice("ℹ️ Masukkan Host Router target di atas lalu klik Render Graf", false);
+      }
     });
   </script>
 </body>

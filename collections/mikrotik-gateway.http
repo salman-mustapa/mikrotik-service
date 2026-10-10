@@ -2,9 +2,9 @@
 @baseUrl = http://127.0.0.1:8080
 @token = change-me-to-a-long-random-string
 
-### Target Router Variables (Bisa diubah ke IP mana saja, e.g. 192.168.88.1 atau ath.vpnbersama.us)
-@routerHost = ath.vpnbersama.us
-@routerPort = 51121
+### Target Router Variables (Bisa diubah ke IP mana saja, e.g. 192.168.88.1)
+@routerHost = 192.168.88.1
+@routerPort = 8728
 @routerUser = admin
 @routerPass = password_anda
 

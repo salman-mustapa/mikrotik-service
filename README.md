@@ -74,7 +74,7 @@ graph TB
 
     subgraph Hardware ["Perangkat RouterOS (v6.x & v7.x)"]
         R1["Local Hardware (Port 8728: CCR / RB4011 / hEX / hAP)"]
-        R2["Remote Branch / VPN (Port 51121)"]
+        R2["Remote Branch / VPN (Port 8728)"]
         R3["Cloud Hosted Router (Port 8729: CHR / x86)"]
     end
 
@@ -176,7 +176,7 @@ graph TB
 
 ### 20. 💬 Integrasi Notifikasi & Chatbot Multi-Platform (Telegram & WhatsApp Gowa) + Netwatch Fleet (`/api/v1/integrations/*`)
 * **Telegram & WhatsApp Gowa Dispatcher**: Kirim pesan alert seketika via RouterOS `/tool fetch` atau layanan WhatsApp API lokal (`gowa`) dengan format teks profesional dan level urgensi (*INFO, WARNING, CRITICAL*).
-* **Netwatch AP Fleet Automation**: Otomatisasi pendaftaran pemantauan armada Access Point (misal `FAUJIA HOTSPOT 1..4` pada `172.16.10.2..5`) lengkap dengan *Up-script* dan *Down-script* otomatis yang mengirim peringatan ke Telegram/WhatsApp begitu link down tanpa butuh server tambahan.
+* **Netwatch AP Fleet Automation**: Otomatisasi pendaftaran pemantauan armada Access Point (misal `AP-HOTSPOT-1..4` pada `192.168.88.2..5`) lengkap dengan *Up-script* dan *Down-script* otomatis yang mengirim peringatan ke Telegram/WhatsApp begitu link down tanpa butuh server tambahan.
 * **Scheduled NOC Daily Reports**: Script & Scheduler RouterOS otomatis untuk mengirim rekap harian active users hotspot, PPPoE online, penggunaan CPU/RAM, dan traffic ISP ke grup Telegram teknisi.
 * **Hotspot Live Chat Widget Embed**: Generator snippet HTML/JS siap pasang (Intergram Telegram Live Chat + Tombol WhatsApp CS) untuk halaman `login.html` dan `status.html` hotspot MikroTik.
 

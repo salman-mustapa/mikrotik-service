@@ -506,19 +506,19 @@ pub async fn console_page() -> Html<&'static str> {
     <div class="creds-inputs">
       <div class="cred-group">
         <span class="cred-label">Router Host:</span>
-        <input type="text" id="target-host" class="cred-field" style="width: 140px;" value="192.168.88.1">
+        <input type="text" id="target-host" class="cred-field" style="width: 140px;" value="" placeholder="192.168.88.1">
       </div>
       <div class="cred-group">
         <span class="cred-label">API Port:</span>
-        <input type="number" id="target-port" class="cred-field" style="width: 60px;" value="8728">
+        <input type="number" id="target-port" class="cred-field" style="width: 60px;" value="" placeholder="8728">
       </div>
       <div class="cred-group">
         <span class="cred-label">User:</span>
-        <input type="text" id="target-user" class="cred-field" style="width: 80px;" value="admin">
+        <input type="text" id="target-user" class="cred-field" style="width: 80px;" value="" placeholder="admin">
       </div>
       <div class="cred-group">
         <span class="cred-label">Password:</span>
-        <input type="password" id="target-pass" class="cred-field" style="width: 90px;">
+        <input type="password" id="target-pass" class="cred-field" style="width: 90px;" placeholder="••••••">
       </div>
       <div class="cred-group">
         <span class="cred-label">Bearer Token:</span>
@@ -532,29 +532,29 @@ pub async fn console_page() -> Html<&'static str> {
     <!-- KPI Overview Cards Grid -->
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-title">Identitas Router <span id="kpi-board" style="color: var(--accent-indigo);">RB951Ui-2HnD</span></div>
-        <div class="kpi-val" id="kpi-identity">Router Manyta</div>
-        <div class="kpi-sub" id="kpi-ros">RouterOS v6.48.6 | Uptime: 1w4d</div>
+        <div class="kpi-title">Identitas Router <span id="kpi-board" style="color: var(--accent-indigo);">-</span></div>
+        <div class="kpi-val" id="kpi-identity">Belum Terhubung</div>
+        <div class="kpi-sub" id="kpi-ros">Masukkan host &amp; klik Sinkronisasi</div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">CPU Load &amp; Frekuensi <span id="kpi-freq">600 MHz</span></div>
-        <div class="kpi-val" id="kpi-cpu">38%</div>
+        <div class="kpi-title">CPU Load &amp; Frekuensi <span id="kpi-freq">- MHz</span></div>
+        <div class="kpi-val" id="kpi-cpu">0%</div>
         <div class="progress-bar-wrap">
-          <div class="progress-fill" id="kpi-cpu-bar" style="width: 38%;"></div>
+          <div class="progress-fill" id="kpi-cpu-bar" style="width: 0%;"></div>
         </div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Memori RAM Bebas <span id="kpi-total-ram">128 MB</span></div>
-        <div class="kpi-val" id="kpi-free-ram">89 MB</div>
-        <div class="kpi-sub" id="kpi-mem-percent">Penggunaan RAM: 30.1%</div>
+        <div class="kpi-title">Memori RAM Bebas <span id="kpi-total-ram">- MB</span></div>
+        <div class="kpi-val" id="kpi-free-ram">- MB</div>
+        <div class="kpi-sub" id="kpi-mem-percent">Penggunaan RAM: -%</div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Klien &amp; Relasi Jaringan <span style="color: var(--accent-emerald);">● Online</span></div>
-        <div class="kpi-val" id="kpi-clients">17 Perangkat</div>
-        <div class="kpi-sub" id="kpi-clients-sub">DHCP: 7 | Hotspot: 10 | PPPoE: 0</div>
+        <div class="kpi-title">Klien &amp; Relasi Jaringan <span style="color: var(--text-muted);">● Menunggu Data</span></div>
+        <div class="kpi-val" id="kpi-clients">0 Perangkat</div>
+        <div class="kpi-sub" id="kpi-clients-sub">DHCP: 0 | Hotspot: 0 | PPPoE: 0</div>
       </div>
     </div>
 
@@ -688,8 +688,8 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "integ_tg_send", path: "/api/v1/integrations/telegram/send", method: "POST", cat: "notify", desc: "Kirim pesan/alert instan ke Telegram Bot via socket fetch RouterOS.", defaultPayload: '{\n  "bot_token": "YOUR_BOT_TOKEN",\n  "chat_id": "123456789",\n  "text": "🚨 *ALERT NOC*: Link Internet Utama DOWN!"\n}' },
       { id: "integ_wa_send", path: "/api/v1/integrations/whatsapp/send", method: "POST", cat: "notify", desc: "Kirim notifikasi pesan WhatsApp langsung via Gowa API service.", defaultPayload: '{\n  "phone": "081234567890",\n  "message": "Halo, voucher internet hotspot Anda: *HOT-9812* berlaku 24 Jam.",\n  "gowa_url": "http://127.0.0.1:3000"\n}' },
       { id: "integ_multi_notify", path: "/api/v1/integrations/notify", method: "POST", cat: "notify", desc: "Multi-platform notification dispatcher (Telegram + WhatsApp) dengan severity level.", defaultPayload: '{\n  "channel": "all",\n  "severity": "WARNING",\n  "title": "Koneksi AP Terganggu",\n  "message": "AP Ruang Meeting down sejak 2 menit yang lalu.",\n  "telegram_bot_token": "",\n  "telegram_chat_id": "",\n  "whatsapp_phone": ""\n}' },
-      { id: "integ_netwatch_setup", path: "/api/v1/integrations/netwatch/setup", method: "POST", cat: "notify", desc: "Setup probe Netwatch RouterOS otomatis dengan skrip alert instan ke Telegram & WhatsApp.", defaultPayload: '{\n  "host": "172.16.10.2",\n  "comment": "FAUJIA HOTSPOT 1",\n  "interval": "00:00:10",\n  "timeout": "1000ms",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
-      { id: "integ_netwatch_batch", path: "/api/v1/integrations/netwatch/batch-setup", method: "POST", cat: "notify", desc: "Otomatisasi pengawasan Netwatch armada seluruh Access Point (AP Fleet) sekaligus.", defaultPayload: '{\n  "items": [\n    { "host": "172.16.10.2", "comment": "FAUJIA HOTSPOT 1" },\n    { "host": "172.16.10.3", "comment": "FAUJIA HOTSPOT 2" },\n    { "host": "172.16.10.4", "comment": "FAUJIA HOTSPOT 3" },\n    { "host": "172.16.10.5", "comment": "FAUJIA HOTSPOT 4" }\n  ],\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_setup", path: "/api/v1/integrations/netwatch/setup", method: "POST", cat: "notify", desc: "Setup probe Netwatch RouterOS otomatis dengan skrip alert instan ke Telegram & WhatsApp.", defaultPayload: '{\n  "host": "192.168.88.2",\n  "comment": "AP-HOTSPOT-1",\n  "interval": "00:00:10",\n  "timeout": "1000ms",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_batch", path: "/api/v1/integrations/netwatch/batch-setup", method: "POST", cat: "notify", desc: "Otomatisasi pengawasan Netwatch armada seluruh Access Point (AP Fleet) sekaligus.", defaultPayload: '{\n  "items": [\n    { "host": "192.168.88.2", "comment": "AP-HOTSPOT-1" },\n    { "host": "192.168.88.3", "comment": "AP-HOTSPOT-2" },\n    { "host": "192.168.88.4", "comment": "AP-HOTSPOT-3" },\n    { "host": "192.168.88.5", "comment": "AP-HOTSPOT-4" }\n  ],\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
       { id: "integ_netwatch_list", path: "/api/v1/integrations/netwatch/list", method: "GET", cat: "notify", desc: "Daftar seluruh probe Netwatch, status up/down/since, dan skrip alert terpasang.", defaultPayload: "{}" },
       { id: "integ_netwatch_toggle", path: "/api/v1/integrations/netwatch/toggle", method: "POST", cat: "notify", desc: "Enable atau Disable probe Netwatch target pada router.", defaultPayload: '{\n  "id": "*1",\n  "disabled": false\n}' },
       { id: "integ_reports_sched", path: "/api/v1/integrations/reports/scheduler", method: "POST", cat: "notify", desc: "Pasang skrip & scheduler otomatis RouterOS untuk rekap laporan harian NOC ke Telegram.", defaultPayload: '{\n  "name": "noc-daily-report",\n  "start_time": "07:00:00",\n  "interval": "1d",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
@@ -698,8 +698,8 @@ pub async fn console_page() -> Html<&'static str> {
       // Hotspot Voucher Engine 2.0 (Mikhmon Killer)
       { id: "vouchers_gen", path: "/api/v1/hotspot/vouchers/generate", method: "POST", cat: "voucher", desc: "Ultra-fast parallel batch voucher generator (1-1000 voucher, ROS v6/v7 safe, custom prefix, time/quota limit).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "count": 5,\n  "prefix": "HOT-",\n  "user_mode": "same",\n  "charset": "alphanumeric_lower",\n  "length": 6,\n  "timelimit": "1h",\n  "datalimit": "500M",\n  "price": 3000,\n  "selling_price": 3000\n}' },
       { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
-      { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "MANYTANET HOTSPOT",\n  "dns_name": "inetmanyta.net",\n  "paper_width": "58mm"\n}' },
-      { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "MANYTANET",\n  "login_url": "http://inetmanyta.net/login"\n}' },
+      { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "dns_name": "hotspot.local",\n  "paper_width": "58mm"\n}' },
+      { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "login_url": "http://hotspot.local/login"\n}' },
       { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Mikhmon-Style Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
       { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' },
 
@@ -881,13 +881,18 @@ pub async fn console_page() -> Html<&'static str> {
     }
 
     async function testConnectionAndSnapshot() {
-      executeCurrentEndpoint();
-      // Fetch overview to update KPI cards
       const host = document.getElementById('target-host').value.trim();
       const port = document.getElementById('target-port').value.trim();
       const user = document.getElementById('target-user').value.trim();
       const pass = document.getElementById('target-pass').value;
       const token = document.getElementById('gw-token').value.trim();
+
+      if (!host && !user) {
+        document.getElementById('resp-viewer').textContent = "// Masukkan Router Host & User pada form di atas, lalu klik '⚡ Sinkronisasi & Snapshot' untuk menghubungkan ke router.";
+        return;
+      }
+
+      executeCurrentEndpoint();
 
       try {
         const res = await fetch('/api/v1/overview', {
@@ -935,7 +940,10 @@ pub async fn console_page() -> Html<&'static str> {
     window.addEventListener('DOMContentLoaded', () => {
       initCreds();
       populateDropdown('all');
-      setTimeout(testConnectionAndSnapshot, 400);
+      const host = document.getElementById('target-host').value.trim();
+      if (host) {
+        setTimeout(testConnectionAndSnapshot, 400);
+      }
     });
   </script>
 </body>
@@ -1344,7 +1352,7 @@ pub async fn docs_page() -> Html<&'static str> {
             <div class="ep-path">/api/v1/integrations/netwatch/batch-setup</div>
             <a href="/?endpoint=integ_netwatch_batch" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
           </div>
-          <div class="ep-desc">Otomatisasi pengawasan Netwatch armada Access Point (AP Fleet) sekaligus (misal FAUJIA HOTSPOT 1..4 pada IP 172.16.10.2..5) hanya dalam satu panggilan API.</div>
+          <div class="ep-desc">Otomatisasi pengawasan Netwatch armada Access Point (AP Fleet) sekaligus (misal AP-HOTSPOT-1..4 pada IP 192.168.88.2..5) hanya dalam satu panggilan API.</div>
         </div>
 
         <div class="ep-doc-card">

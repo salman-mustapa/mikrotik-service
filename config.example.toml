@@ -1,18 +1,13 @@
-# Konfigurasi Rust MikroTik Gateway
+# Konfigurasi MikroTik Universal Rust Gateway Engine
+# Gateway dapat berjalan secara stateless (multi-tenant) via Header HTTP X-Router-Host,
+# atau menggunakan slot router terdaftar di bawah ini:
 
-listen = "127.0.0.1:8080"
+listen = "0.0.0.0:8080"
 api_token = "change-me-to-a-long-random-string"
 
-# Router Lokal (Default)
-[[router]]
-id = "main"
-addr = "192.168.88.1:8728"
-user = "admin"
-password = ""
-
-# Contoh Router Remote via VPN / IP Public (Contoh: ath.vpnbersama.us)
-[[router]]
-id = "remote_vpn"
-addr = "ath.vpnbersama.us:51121"
-user = "admin"
-password = "isi_password_router_anda"
+# Opsional: Daftarkan router tetap jika diperlukan
+# [[router]]
+# id = "main"
+# addr = "192.168.88.1:8728"
+# user = "admin"
+# password = ""
