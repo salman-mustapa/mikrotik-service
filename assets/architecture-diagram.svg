@@ -35,12 +35,12 @@
   </defs>
 
   <style>
-    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 800; fill: #f8fafc; }
-    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 400; fill: #94a3b8; }
-    .h2 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 700; fill: #f1f5f9; }
-    .text-sm { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 500; fill: #cbd5e1; }
-    .text-xs { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 400; fill: #94a3b8; }
-    .badge { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 600; }
+    .title { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 800; fill: #f8fafc; }
+    .subtitle { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 400; fill: #94a3b8; }
+    .h2 { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 700; fill: #f1f5f9; }
+    .text-sm { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 500; font-size: 11.5px; fill: #cbd5e1; }
+    .text-xs { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 400; font-size: 10.5px; fill: #94a3b8; }
+    .badge { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 600; }
   </style>
 
   <!-- Background Base Canvas -->
@@ -109,16 +109,17 @@
   <text x="175" y="438" text-anchor="middle" class="badge" fill="#34d399">Standard HTTP JSON Client</text>
 
   <!-- Universal Credentials Box -->
-  <rect x="56" y="474" width="238" height="186" rx="9" fill="#1e1b4b" stroke="#6366f1" stroke-width="1" stroke-dasharray="4 3" />
-  <text x="70" y="498" class="badge" fill="#a5b4fc">UNIVERSAL HEADERS / PARAMS:</text>
-  <text x="70" y="522" class="text-xs" fill="#cbd5e1">• X-Router-Host : 192.168.88.1</text>
-  <text x="70" y="542" class="text-xs" fill="#cbd5e1">• X-Router-Port : 8728 / 51121</text>
-  <text x="70" y="562" class="text-xs" fill="#cbd5e1">• X-Router-User : admin</text>
-  <text x="70" y="582" class="text-xs" fill="#cbd5e1">• X-Router-Pass : ••••••••</text>
+  <rect x="56" y="474" width="238" height="188" rx="9" fill="#1e1b4b" stroke="#6366f1" stroke-width="1" stroke-dasharray="4 3" />
+  <text x="70" y="496" class="badge" fill="#a5b4fc">UNIVERSAL HEADERS / PARAMS:</text>
+  <text x="70" y="516" class="text-xs" fill="#cbd5e1">• X-Router-Host : 192.168.88.1</text>
+  <text x="70" y="534" class="text-xs" fill="#cbd5e1">• X-Router-Port : 8728 / 51121</text>
+  <text x="70" y="552" class="text-xs" fill="#cbd5e1">• X-Router-User : admin</text>
+  <text x="70" y="570" class="text-xs" fill="#cbd5e1">• X-Router-Pass : ••••••••</text>
+  <text x="70" y="588" class="text-xs" fill="#93c5fd">• URL Query : ?host=..&amp;token=..</text>
   
-  <rect x="68" y="602" width="214" height="42" rx="6" fill="#0f172a" stroke="#4338ca" stroke-width="0.8" />
-  <text x="175" y="620" text-anchor="middle" class="badge" fill="#38bdf8">Dynamic Connection Pool</text>
-  <text x="175" y="634" text-anchor="middle" class="text-xs" fill="#94a3b8">Multi-tenant per-request routing</text>
+  <rect x="68" y="604" width="214" height="44" rx="6" fill="#0f172a" stroke="#4338ca" stroke-width="0.8" />
+  <text x="175" y="622" text-anchor="middle" class="badge" fill="#38bdf8">Dynamic Connection Pool</text>
+  <text x="175" y="638" text-anchor="middle" class="text-xs" fill="#94a3b8">Multi-tenant per-request routing</text>
 
   <!-- ================= MIDDLE COLUMN: RUST UNIVERSAL GATEWAY (Width: 560) ================= -->
   <!-- Column Outer Frame -->
@@ -133,16 +134,16 @@
   <text x="396" y="167" class="badge" fill="#38bdf8">1. INGRESS &amp; PROTOCOL INTERFACES</text>
   
   <rect x="396" y="176" width="156" height="38" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="0.8" />
-  <text x="474" y="192" text-anchor="middle" class="h2" font-size="11">REST API Engine</text>
-  <text x="474" y="206" text-anchor="middle" class="badge" fill="#94a3b8">192 Modular Endpoints</text>
+  <text x="474" y="191" text-anchor="middle" class="h2" font-size="10.5">REST API Engine</text>
+  <text x="474" y="205" text-anchor="middle" class="badge" fill="#94a3b8">115+ Enterprise Endpoints</text>
 
   <rect x="562" y="176" width="156" height="38" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="0.8" />
-  <text x="640" y="192" text-anchor="middle" class="h2" font-size="11">WebSocket (/ws)</text>
-  <text x="640" y="206" text-anchor="middle" class="badge" fill="#34d399">Full-Duplex Stream</text>
+  <text x="640" y="191" text-anchor="middle" class="h2" font-size="10.5">WebSocket (/ws)</text>
+  <text x="640" y="205" text-anchor="middle" class="badge" fill="#34d399">Full-Duplex Stream</text>
 
   <rect x="728" y="176" width="156" height="38" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="0.8" />
-  <text x="806" y="192" text-anchor="middle" class="h2" font-size="11">SSE Stream (/listen)</text>
-  <text x="806" y="206" text-anchor="middle" class="badge" fill="#fbbf24">EventSource Pipe</text>
+  <text x="806" y="191" text-anchor="middle" class="h2" font-size="10.5">SSE Stream (/listen)</text>
+  <text x="806" y="205" text-anchor="middle" class="badge" fill="#fbbf24">EventSource Pipe</text>
 
   <!-- Sub-Block 2: Speed Engines & Fast-Path -->
   <rect x="380" y="234" width="520" height="90" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.2" />
@@ -164,8 +165,8 @@
   <circle cx="396" cy="351" r="4" fill="#ea580c" />
   <text x="408" y="355" class="badge" fill="#fb923c">3. DYNAMIC PERSISTENT CONNECTION POOL</text>
   
-  <text x="396" y="373" class="text-xs" fill="#cbd5e1">Maintains warm authenticated TCP sockets per user@host:port in memory</text>
-  <text x="396" y="388" class="text-xs" fill="#94a3b8">Pool managed with Arc&lt;Mutex&lt;Pool&gt;&gt; for instant zero-handshake request dispatch</text>
+  <text x="396" y="372" class="text-xs" fill="#cbd5e1">Maintains warm authenticated TCP sockets per target router in memory</text>
+  <text x="396" y="387" class="text-xs" fill="#94a3b8">Managed via thread-safe Arc&lt;Mutex&lt;Pool&gt;&gt; for zero-handshake dispatch</text>
 
   <rect x="396" y="398" width="242" height="66" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="0.8" />
   <text x="410" y="416" class="h2" font-size="11">Zero Handshake Churn</text>
@@ -182,8 +183,8 @@
   <circle cx="396" cy="503" r="4" fill="#6366f1" />
   <text x="408" y="507" class="badge" fill="#818cf8">4. WIRE CODEC &amp; .tag MULTIPLEXER</text>
   
-  <text x="396" y="525" class="text-xs" fill="#cbd5e1">Single socket concurrently routes multiple distinct requests via atomic tags</text>
-  <text x="396" y="540" class="text-xs" fill="#94a3b8">Decodes RouterOS wire sentences directly to caller async Tokio channels</text>
+  <text x="396" y="524" class="text-xs" fill="#cbd5e1">Pipelines concurrent requests on a single socket using atomic .tag</text>
+  <text x="396" y="539" class="text-xs" fill="#94a3b8">Decodes RouterOS wire sentences directly to caller async Tokio channels</text>
 
   <rect x="396" y="552" width="156" height="96" rx="6" fill="#1e293b" />
   <text x="410" y="574" class="h2" font-size="11">Tag #101</text>

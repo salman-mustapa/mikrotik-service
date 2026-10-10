@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-192%20Active-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-115%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -14,35 +14,38 @@
 
 ## 🌟 Ikhtisar (Overview)
 
-**MikroTik Universal Rust Gateway Engine** adalah service perantara jaringan tingkat perusahaan (*Enterprise NOC Gateway*) yang dibangun murni menggunakan **Rust** asinkron (`tokio`, `axum`).
+**MikroTik Universal Rust Gateway Engine** adalah service orkestrasi jaringan tingkat perusahaan (*Enterprise NOC Gateway & BRAS Middleware*) yang dibangun murni menggunakan bahasa **Rust** asinkron (`tokio`, `axum`).
 
-Service ini dirancang sebagai **jembatan universal berperforma tinggi** antara perangkat keras MikroTik RouterOS (dari seri hemat daya seperti *hAP lite, hAP mini, RB750Gr3* hingga *CCR, Cloud Hosted Router (CHR)* dan *x86*) dengan **seluruh ekosistem aplikasi pengembang** tanpa batasan bahasa pemrograman:
-* 🌐 **Web Frontend**: Vue.js, React, Next.js, Nuxt, Svelte, Angular.
+Service ini dirancang dari perspektif **Network Operations Center (NOC) Engineer** & **ISP Network Architect** untuk mengatasi kelemahan fundamental integrasi RouterOS konvensional. Gateway ini berfungsi sebagai **jembatan universal berperforma tinggi** antara armada perangkat keras MikroTik RouterOS (dari perangkat kelas CPE/WISP seperti *hAP lite, hAP mini, RB750Gr3* hingga core router *CCR, Cloud Hosted Router (CHR)*, dan *x86*) dengan **seluruh ekosistem aplikasi modern** tanpa batasan bahasa pemrograman:
+* 🌐 **Web Frontends**: Vue.js, React, Next.js, Nuxt, Svelte, Angular.
 * 📱 **Mobile Apps**: Flutter (Dart), React Native, Kotlin, Swift.
 * ⚡ **Backend Stacks**: Laravel (PHP), Express / Nest.js (Node.js), Go, Python (FastAPI/Django), Java (Spring).
 
 ### 🔗 Portal Langsung & Akses Cepat (Production)
-* 📖 **Dokumentasi API & Endpoint Explorer**: [`https://ros-gateway.samrifa.com/docs`](https://ros-gateway.samrifa.com/docs)
-* 🎮 **Live Web Playground**: [`https://ros-gateway.samrifa.com/`](https://ros-gateway.samrifa.com/)
-* 🌐 **Topology & Relational Visualizer**: [`https://ros-gateway.samrifa.com/topology`](https://ros-gateway.samrifa.com/topology)
+* 📖 **Dokumentasi API & Interactive Explorer**: [`https://ros-gateway.samrifa.com/docs`](https://ros-gateway.samrifa.com/docs)
+* 🎮 **Live Web Management Portal**: [`https://ros-gateway.samrifa.com/`](https://ros-gateway.samrifa.com/)
+* 🌐 **Interactive Topology & Relational Visualizer**: [`https://ros-gateway.samrifa.com/topology`](https://ros-gateway.samrifa.com/topology)
 * 🩺 **Healthcheck Service**: [`https://ros-gateway.samrifa.com/health`](https://ros-gateway.samrifa.com/health)
 * 📋 **OpenAPI Specification (JSON)**: [`https://ros-gateway.samrifa.com/api/v1/spec`](https://ros-gateway.samrifa.com/api/v1/spec)
 
 ---
 
-## 💡 Mengapa Menggunakan Engine Rust Ini?
+## 💡 Mengapa Menggunakan Engine Rust Ini? (Perspektif NOC Engineer)
 
 <p align="center">
   <img src="assets/tag-multiplexing-flow.svg" width="100%" alt="Tag Multiplexing vs Naive Single-Socket Churn" />
 </p>
 
+Sebagai tim NOC atau operator ISP/WISP, masalah terbesar pada integrasi API RouterOS konvensional (misal library PHP `routeros-api.php` atau library Node.js) adalah **Socket Churn** yang menyebabkan CPU RouterOS melonjak 100% dan mengunci sistem (*freeze/hang*).
+
 | Fitur Konvensional (Library PHP/Node.js) | 🦀 MikroTik Universal Rust Engine |
 |---|---|
-| **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda `.tag`. |
-| **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang/freeze saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Timeout Guard** dan FastTrack connection bypass. |
+| **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda atomik `.tag`. |
+| **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Anti-Hang Guard** dan FastTrack connection bypass. |
 | **Kecepatan Respons**: 200 ms – 1.5 detik per request. | **Sub-Milidetik**: Rata-rata respons **< 1.5 milidetik** berkat protokol biner tingkat rendah (*raw wire format*). |
-| **Ketergantungan Stack**: Terikat library spesifik (misal `routeros-api.php`). | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
-| **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`). |
+| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 115+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
+| **Ketergantungan Stack**: Terikat library bahasa tertentu. | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
+| **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`, `[Anti-Tethering]`). |
 
 ---
 
@@ -54,81 +57,107 @@ Service ini dirancang sebagai **jembatan universal berperforma tinggi** antara p
 
 ```mermaid
 graph TB
-    subgraph Stacks ["Aplikasi Klien (Bebas Stack)"]
-        W["Web: Vue / React / Nuxt"]
-        M["Mobile: Flutter / React Native"]
-        B["Backend: Laravel / Express / Go / Python"]
+    subgraph Stacks ["Aplikasi Klien & NOC Operations"]
+        W["Web Frontends: Vue / React / Nuxt"]
+        M["Mobile Apps: Flutter / React Native"]
+        B["Backend Microservices: Laravel / Go / Python"]
+        NOC["NOC Scripts: cURL / Browser GET / Webhooks"]
     end
 
     subgraph RustEngine ["Rust Universal Gateway Core (Port 8080)"]
-        AUTH["Bearer Token Middleware"]
+        AUTH["Bearer Token & Query Auth Middleware"]
         WS["Full-Duplex WebSocket (/ws)"]
-        REST["192 Modular REST API Endpoints"]
-        POOL["Async Multiplexed Connection Pool"]
+        REST["115+ Enterprise Endpoints (Dual GET & POST)"]
+        POOL["Async Multiplexed Connection Pool (Arc-Mutex)"]
         GUARD["15s Anti-Hang Timeout Guard"]
     end
 
     subgraph Hardware ["Perangkat RouterOS (v6.x & v7.x)"]
-        R1["Router Lokal (Port 8728)"]
-        R2["Router Remote VPN (Port 51121)"]
-        R3["Cloud Hosted Router / CCR"]
+        R1["Local Hardware (Port 8728: CCR / RB4011 / hEX / hAP)"]
+        R2["Remote Branch / VPN (Port 51121)"]
+        R3["Cloud Hosted Router (Port 8729: CHR / x86)"]
     end
 
     W -->|"HTTP JSON / WS"| RustEngine
     M -->|"HTTP JSON / WS"| RustEngine
     B -->|"HTTP POST JSON"| RustEngine
+    NOC -->|"HTTP GET & POST + Query Params"| RustEngine
 
     AUTH --> REST
     AUTH --> WS
     REST --> POOL
     WS --> POOL
     POOL --> GUARD
-    GUARD <-->|"Binary Wire Protocol"| R1
-    GUARD <-->|"Binary Wire Protocol"| R2
-    GUARD <-->|"Binary Wire Protocol"| R3
+    GUARD <-->|"Binary Wire Protocol (.tag)"| R1
+    GUARD <-->|"Binary Wire Protocol (.tag)"| R2
+    GUARD <-->|"Binary Wire Protocol (.tag)"| R3
 ```
 
 ---
 
-## 🎯 Matriks Fitur Unggulan
+## 🎯 Solusi & Fitur Kelas Enterprise untuk NOC & ISP
 
-### 1. 📵 Anti-Tethering & Anti-WiFi Sharing (`/api/v1/security/anti-tethering/*`)
-* Menyuntikkan aturan Mangle `action=change-ttl new-ttl=set:1` dan memaksa `shared-users=1`.
-* **Memblokir** upaya berbagi internet voucher melalui **QR Code WiFi Sharing, Bluetooth Tethering, maupun USB Tethering**.
+### 1. 👥 BRAS / BNG & Manajemen Pelanggan PPPoE (`/api/v1/ppp/*`)
+* **Live Session Telemetry**: Monitoring seluruh subscriber PPPoE aktif, IP address, uptime, dan bytes in/out secara real-time.
+* **Instant Disconnect / Kick**: Memutus sesi pelanggan bermasalah atau menunggak dalam 1 panggilan API (< 10ms) agar segera melakukan dial-up ulang.
+* **Profile & Secret Provisioning**: Tambah, ubah, dan hapus secret pelanggan dan profil bandwidth tanpa perlu membuka Winbox.
 
-### 2. ⚖️ 1-Klik Multi-WAN PCC Load Balancing Wizard (`/api/v1/load-balance/*`)
+### 2. 🎫 Carrier Hotspot & Voucher Security (`/api/v1/hotspot/*`, `/api/v1/security/*`)
+* **Voucher Lifecycle**: Pantau user aktif, durasi waktu tersisa, dan volume kuota.
+* **Anti-Tethering & Anti-WiFi Sharing**: Injeksi otomatis aturan Mangle `action=change-ttl new-ttl=set:1` dan `shared-users=1` untuk memblokir tethering via QR Code, Bluetooth, atau USB.
+* **1-Klik Hotspot Wizard**: Membangun topologi hotspot lengkap dalam < 50ms (IP Pool, DHCP Server, Hotspot Profile, Walled Garden, dan NAT Masquerade).
+
+### 3. 🔍 QoS, Queue Tree & Bandwidth Traffic Engineering (`/api/v1/queues/*`, `/api/v1/traffic/*`)
+* **Deep Queue Inspection**: Inspeksi limit max (`5M/10M`), kecepatan live upload & download, rasio utilisasi antrean, dan deteksi paket drop.
+* **Throttling Alert**: Otomatis mendeteksi status pelanggan: `THROTTLED (Merah di Winbox)`, `ACTIVE`, atau `IDLE`.
+* **Hierarchical PCQ & Queue Tree**: Skema pembagian bandwidth adil berbasis Per-Connection Queuing (PCQ) untuk mencegah keluhan pelanggan akibat pemakaian rakus.
+* **Pisah Trafik Game vs Sosmed**: Paket game (Mobile Legends, PUBG, Valorant) diprioritaskan di Queue prioritas 1, sementara video streaming dialihkan ke antrean reguler.
+
+### 4. ⚖️ 1-Klik Multi-WAN PCC Load Balancing Wizard (`/api/v1/load-balance/*`)
 * Mengotomatisasi konfigurasi rumit **Per Connection Classifier (PCC)** Multi-WAN dalam 1 panggilan API (< 30ms).
-* Mendukung rasio bobot tidak seimbang (misal ISP1 50M vs ISP2 100M dengan bobot `1:2`), otomatis failover ping `check-gateway`, dan NAT Masquerade.
-* Endpoint pemantau live balance ratio (`/api/v1/load-balance/status`) dan tombol reset aman (`/api/v1/load-balance/remove`).
+* Mendukung rasio bobot tidak seimbang (misal ISP 1 50M vs ISP 2 100M dengan bobot `1:2`), otomatis failover ping `check-gateway`, dan NAT Masquerade rapi berlabel `[PCC-LoadBalance]`.
 
-### 3. 🔍 Inspeksi Mendalam Queue & Kecepatan User (`/api/v1/queues/*`)
-* Mengetahui limit max (`5M/10M`), kecepatan real-time upload & download saat ini, persentase utilisasi antrean, kuota total transfer, dan packet drops.
-* Menampilkan status antrean langsung: `THROTTLED (Merah di Winbox)`, `ACTIVE`, atau `IDLE`.
-* Rekapitulasi eksekutif NOC untuk seluruh router: Total bandwidth dialokasikan vs konsumsi real-time dan **Top 5 Downloaders Terberat**.
+### 5. 🌐 Korelasi Topologi L2/L3 & Relasi Perangkat Terkoneksi (`/topology`, `/api/v1/network/connected-devices`)
+* **Unified Cross-Layer Device Map**: Menggabungkan data dari **DHCP Leases, Hotspot Hosts, ARP Table, dan Wireless Registration** dalam satu skema terpadu.
+* **Korelasi Access Point (AP)**: Mendeteksi perangkat AP (misal Access Point di port `ether5` dengan IP `192.168.100.3`) dan membedakan client yang terhubung di baliknya.
+* **Interactive Canvas**: Visualisasi graf berbasis canvas interaktif yang **dapat di-drag/geser, di-zoom, dan diklik**.
+* **Live ICMP Ping dari Router**: Diagnostik instan dengan mengeksekusi ping dari router langsung ke IP target untuk mengukur latensi dan packet loss real-time.
 
-### 4. 🚫 1-Klik App & Content Blocker (`/api/v1/security/app-block`)
+### 6. 🚫 1-Klik App & Content Blocker (`/api/v1/security/app-block`)
 * Blokir instan untuk aplikasi dan konten: **WhatsApp, TikTok, YouTube, Judi Online, Torrent/P2P, atau Domain Custom**.
 
-### 5. 🧙‍♂️ 1-Klik Complete Hotspot Template Wizard (`/api/v1/hotspot/wizard/setup`)
-* Membangun infrastruktur Hotspot lengkap dari nol dalam < 50ms: IP Address, Pool, DHCP Server, DHCP Network, Profil Hotspot, User Admin, Profil Anti-Tethering, dan Masquerade.
-
-### 6. 🔀 Dst-NAT Port Forwarding Wizard (`/api/v1/firewall/port-forward`)
-* Sekali klik membuat aturan Dst-NAT port forwarding (CCTV, Web Server, Billing) sekaligus membuka firewall filter forward accept dengan komentar `[Dst-NAT]`.
-
 ### 7. 🚀 FastTrack CPU Accelerator & Profiler (`/api/v1/system/*`)
-* Memangkas beban CPU hingga 80% pada router kecil (hAP lite/mini/RB750Gr3) dengan membypass connection tracking untuk paket established/related.
+* Memangkas beban CPU hingga 80% pada router entry-level (hAP lite/mini/RB750Gr3) dengan membypass connection tracking untuk paket established/related.
 
-### 8. 📡 Access Point & Infrastructure Detector (`/api/v1/network/infrastructure/scan`)
-* Mendeteksi AP (Ubiquiti, TP-Link, Ruijie, Tenda), Switch, dan kamera di balik bridge/Hotspot serta fitur **Auto-Bypass AP** ke IP-Binding agar admin bisa remote AP tanpa login voucher.
+---
 
-### 9. ✈️ Telegram Bot & Automated Netwatch (`/api/v1/telegram/*`)
-* Monitoring status UP/DOWN link ISP dan AP lokal, notifikasi otomatis terkirim ke bot Telegram via `/tool/fetch`.
+## ⚡ Fleksibilitas Pemanggilan: Dual Transport (GET & POST)
 
-### 10. 🎮 Pisah Trafik Game vs Sosmed (`/api/v1/traffic/preset/game-social-separation`)
-* Paket Game Online (Mobile Legends, PUBG, Free Fire, Valorant) diprioritaskan di Jalur 1, sementara streaming dan medsos dialihkan ke Prioritas 8.
+Setiap endpoint pada gateway dapat diakses menggunakan **HTTP POST** (standar enterprise) maupun **HTTP GET** (praktis untuk NOC dan browser), dengan fleksibilitas penentuan kredensial:
 
-### 11. 🌐 Visualizer Topologi Interaktif + Embeddable SDK (`/topology` & `/sdk/mikrotik-widget.js`)
-* Dashboard visual graf relasi topologi real-time bergaya Obsidian Dark Mode. Dilengkapi fitur **Live ICMP Ping** langsung dari router ke target IP. Dapat di-embed ke Laravel/Vue dengan 1 baris JavaScript.
+### Opsi A: Headers (Direkomendasikan untuk Microservice & Mobile)
+```http
+POST /api/v1/overview HTTP/1.1
+Host: 127.0.0.1:8080
+Authorization: Bearer <GATEWAY_TOKEN>
+X-Router-Host: 192.168.88.1
+X-Router-Port: 8728
+X-Router-User: admin
+X-Router-Pass: secret123
+Content-Type: application/json
+
+{}
+```
+
+### Opsi B: URL Query Parameter (Direkomendasikan untuk NOC Triage, cURL & Browser)
+Buka langsung di browser atau terminal tanpa perlu menyusun header kustom:
+```bash
+# cURL GET dengan parameter URL
+curl "http://127.0.0.1:8080/api/v1/overview?host=192.168.88.1&port=8728&user=admin&pass=secret123&token=change-me"
+
+# cURL POST dengan parameter URL
+curl -X POST "http://127.0.0.1:8080/api/v1/queues/inspect-user?query=192.168.88.50&host=192.168.88.1&port=8728&user=admin&pass=secret123&token=change-me"
+```
 
 ---
 
@@ -153,10 +182,11 @@ docker run -d \
   salmanmustapa/mikrotik-universal-gateway:latest
 ```
 
-Server langsung aktif di `http://localhost:8080`.
-* Buka **Live Web Playground**: `http://localhost:8080/`
-* Buka **Visualizer Topologi**: `http://localhost:8080/topology`
-* Cek **Health Check**: `http://localhost:8080/health`
+Server langsung aktif di `http://localhost:8080`:
+* 📖 **API Docs Explorer**: `http://localhost:8080/docs`
+* 🎮 **Live Management Portal**: `http://localhost:8080/`
+* 🌐 **Topology Visualizer**: `http://localhost:8080/topology`
+* 🩺 **Health Check**: `http://localhost:8080/health`
 
 ---
 
@@ -243,7 +273,7 @@ Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:
 * **[01. Arsitektur & Alur Kerja Sistem](docs/01-arsitektur-dan-alur.md)**
 * **[02. Protokol Biner RouterOS (Port 8728)](docs/02-protokol-routeros-binary.md)**
 * **[03. Spesifikasi Gateway REST, WebSocket & SSE](docs/03-gateway-api-spesifikasi.md)**
-* **[04. Referensi Lengkap Universal API (192 Endpoints)](docs/04-universal-api-reference.md)**
+* **[04. Referensi Lengkap Universal API (115+ Enterprise Endpoints)](docs/04-universal-api-reference.md)**
 * **[05. Panduan Integrasi Multi-Stack (Laravel, Vue, Express, Flutter, Go)](docs/05-integrasi-multi-stack.md)**
 * **[06. Katalog Lengkap Command MikroTik](docs/06-katalog-command-mikrotik.md)**
 
@@ -251,7 +281,7 @@ Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:
 
 ## 🧪 Koleksi Pengujian Siap Pakai
 
-* **[`collections/mikrotik-gateway.http`](collections/mikrotik-gateway.http)**: 49 skenario pengujian instan di VS Code REST Client atau JetBrains HTTP Client.
+* **[`collections/mikrotik-gateway.http`](collections/mikrotik-gateway.http)**: Skenario pengujian instan di VS Code REST Client atau JetBrains HTTP Client.
 * **[`collections/mikrotik_gateway.postman_collection.json`](collections/mikrotik_gateway.postman_collection.json)**: Siap di-import ke Postman, Insomnia, atau Bruno.
 
 ---

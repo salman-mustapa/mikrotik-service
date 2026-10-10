@@ -1,12 +1,12 @@
-# Arsitektur & Cara Kerja Core MikroTik Rust
+# Arsitektur & Cara Kerja Core MikroTik Rust (Enterprise NOC Edition)
 
-Dokumen ini menjelaskan rancangan sistem, arsitektur core Rust, serta bagaimana gateway ini menjembatani berbagai teknologi backend/frontend (Laravel, Node.js, Vue, Python, Go) dengan RouterOS MikroTik.
+Dokumen ini menjelaskan rancangan sistem, arsitektur core Rust, serta bagaimana gateway ini menjembatani berbagai teknologi backend/frontend (Laravel, Node.js, Vue, Python, Go, Flutter) dan operasi tim **Network Operations Center (NOC)** dengan RouterOS MikroTik secara stabil, cepat, dan aman.
 
 ---
 
 ## 1. Masalah pada Pendekatan Konvensional (PHP / Scripting Klien)
 
-Pada aplikasi seperti Mikhmon atau skrip PHP/Node.js tradisional:
+Pada aplikasi manajemen jaringan konvensional seperti Mikhmon atau skrip PHP/Node.js tradisional:
 
 ```mermaid
 sequenceDiagram
@@ -16,7 +16,7 @@ sequenceDiagram
     participant MT as MikroTik Router (Port 8728)
 
     User->>App: Buka Halaman / Klik Refresh
-    Note over App,MT: Tiap request buka socket baru!
+    Note over App,MT: Tiap request buka socket baru! (Socket Churn)
     App->>MT: TCP 3-Way Handshake
     App->>MT: /login (Request Token/Challenge)
     MT-->>App: !done =ret=challenge...
@@ -28,68 +28,75 @@ sequenceDiagram
     App-->>User: Render HTML / JSON
 ```
 
-### Masalah Utama:
-1. **Connection Churn & Overhead**: Setiap HTTP request dari user membuat socket TCP baru, negosiasi login berulang kali (2-3 round trips), lalu menutup socket. Ini membebani CPU MikroTik yang umumnya terbatas.
-2. **Keterbatasan Streaming Real-time**: Web server seperti PHP-FPM tidak dirancang untuk menahan koneksi streaming berjam-jam (misalnya monitoring interface traffic atau log live).
-3. **Keamanan Kredensial**: Frontend (Vue/React) tidak bisa berbicara langsung dengan binary protocol MikroTik (port 8728) karena browser hanya mendukung HTTP/WebSocket/WebRTC, bukan socket TCP raw.
+### Masalah Utama Bagi Network Operations Center (NOC):
+1. **Connection Churn & Router Freeze**: Setiap HTTP request membuat socket TCP baru, negosiasi login berulang kali (2-3 round trips), lalu menutup socket. Pada router dengan CPU terbatas (*hAP lite, hAP mini, RB750Gr3*), koneksi beruntun ini memicu lonjakan CPU 100% dan membuat router kehilangan paket atau bahkan *reboot* mendadak.
+2. **Ketiadaan Multiplexing**: Perintah dieksekusi secara sekuensial. Jika satu query lambat (misal scan log atau print ribuan rule firewall), semua request lain ikut tertahan.
+3. **Keterbatasan Streaming Real-time**: Web server seperti PHP-FPM tidak dirancang untuk menahan koneksi streaming berjam-jam (misalnya monitoring interface traffic atau live log).
+4. **Keamanan Kredensial**: Frontend (Vue/React) tidak bisa berbicara langsung dengan binary protocol MikroTik (port 8728) karena browser hanya mendukung HTTP/WebSocket/WebRTC, bukan socket TCP raw.
 
 ---
 
-## 2. Solusi: Daemon Gateway dengan Rust
+## 2. Solusi: Carrier-Grade Daemon Gateway dengan Rust
 
-Dengan Rust, kita membagi sistem menjadi 2 lapisan:
-1. **`routeros-core` (Library Crate)**: Parser protokol biner, multiplexer command dengan `.tag`, auto login v6 & v7, serta streaming asynchronous menggunakan Tokio.
-2. **`routeros-gateway` (HTTP & SSE Daemon)**: Daemon server berbasis `axum` yang menjaga koneksi persisten (*keep-alive connection pool*) ke router MikroTik.
+Dengan Rust, arsitektur sistem dibagi menjadi 2 lapisan berkinerja tinggi:
+1. **`routeros-core` (Library Crate)**: Parser protokol biner MikroTik (*raw wire format*), multiplexer command dengan `.tag`, auto login v6 & v7, serta streaming asynchronous menggunakan Tokio.
+2. **`routeros-gateway` (HTTP & WebSocket Daemon)**: Daemon server berbasis `axum` yang menjaga koneksi persisten (*keep-alive connection pool*) ke router MikroTik, menyediakan dual transport HTTP (GET & POST) dengan auto URL query parameter hydration.
 
 ```mermaid
 graph TB
-    subgraph Clients ["Aplikasi Klien (Bebas Bahasa / Framework)"]
+    subgraph Clients ["Aplikasi Klien & NOC Operations"]
         LV["Laravel / PHP (HTTP Guzzle)"]
         ND["Node.js / Bun (fetch / axios)"]
         PY["Python / FastAPI (httpx)"]
         VU["Vue / React / Flutter (WebSocket & SSE)"]
+        NOC["NOC Operator (cURL / Browser GET / Webhooks)"]
     end
 
     subgraph RustGateway ["RouterOS Rust Core Gateway (Port 8080)"]
-        AUTH["Bearer Token Auth"]
+        AUTH["Bearer Token & Query Auth Middleware"]
         WS_HANDLER["WebSocket Engine (/ws)"]
         OVERVIEW_HANDLER["Fast-Path Aggregator (/overview)"]
-        ROUTER_SLOT["Router Connection Pool (Arc-Slot Cache)"]
-        HTTP_HANDLER["Universal REST API Engine"]
+        ROUTER_SLOT["Router Connection Pool (Arc-Mutex Keep-Alive)"]
+        HTTP_HANDLER["Universal REST API Engine (Dual GET & POST)"]
+        GUARD["15s Anti-Hang Timeout Guard"]
     end
 
-    subgraph MikrotikEnv ["Router MikroTik"]
-        MT1["Router 1 (v6 / v7) - Port 8728"]
-        MT2["Router 2 (CHR / Cloud) - Port 8728"]
+    subgraph MikrotikEnv ["Armada Perangkat RouterOS (v6.x & v7.x)"]
+        MT1["Router 1: Edge Core (CCR / RB4011) - Port 8728"]
+        MT2["Router 2: Branch VPN (Port 51121)"]
+        MT3["Router 3: Cloud Hosted (CHR / AWS) - Port 8729"]
     end
 
     LV -->|"HTTP POST JSON"| AUTH
     ND -->|"HTTP POST JSON"| AUTH
     PY -->|"HTTP POST JSON"| AUTH
     VU -->|"Full-Duplex WS"| WS_HANDLER
+    NOC -->|"HTTP GET & POST + Query Params"| AUTH
 
     AUTH --> HTTP_HANDLER
     AUTH --> OVERVIEW_HANDLER
     HTTP_HANDLER --> ROUTER_SLOT
     OVERVIEW_HANDLER --> ROUTER_SLOT
     WS_HANDLER --> ROUTER_SLOT
+    ROUTER_SLOT --> GUARD
 
-    ROUTER_SLOT <-->|"Multiplexed TCP Stream"| MT1
-    ROUTER_SLOT <-->|"Multiplexed TCP Stream"| MT2
+    GUARD <-->|"Multiplexed TCP Stream (.tag)"| MT1
+    GUARD <-->|"Multiplexed TCP Stream (.tag)"| MT2
+    GUARD <-->|"Multiplexed TCP Stream (.tag)"| MT3
 ```
 
 ---
 
 ## 3. Rahasia Kecepatan: Multiplexing dengan `.tag`
 
-RouterOS API memiliki fitur native bernama `.tag`. Tag ini memungkinkan **satu koneksi TCP** mengeksekusi banyak perintah secara simultan tanpa saling tunggu dan tanpa tertukar hasilnya!
+RouterOS API memiliki fitur bawaan bernama `.tag`. Tag ini memungkinkan **satu koneksi TCP** mengeksekusi banyak perintah secara simultan tanpa saling tunggu dan tanpa tertukar hasilnya!
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant App1 as Web Request A (List IP)
     participant App2 as Web Request B (Traffic Live)
-    participant Core as Rust Core Client
+    participant Core as Rust Core Gateway
     participant MT as MikroTik (Port 8728)
 
     Note over Core,MT: Koneksi TCP sudah siap & login permanen!
@@ -123,12 +130,33 @@ sequenceDiagram
 
 ---
 
-## 4. Struktur Crate di Workspace
+## 4. Fitur Arsitektur untuk NOC & ISP Engineering
+
+Gateway ini dirancang khusus untuk memenuhi standar keandalan operasional ISP:
+
+### A. 15-Second Anti-Hang Timeout Guard
+Setiap request yang diarahkan ke socket MikroTik diproteksi oleh guard timeout asinkron Tokio (15 detik). Jika router target mengalami hang atau buffer jenuh, gateway akan langsung membatalkan request secara aman dan mengembalikan error JSON tanpa memblokir thread worker atau request router lainnya.
+
+### B. Dual Transport & Zero-Setup URL Query Hydration
+Semua 115+ endpoint dapat menerima request via:
+1. **RFC Bearer Header & `X-Router-*`**: Format bersih untuk microservice backend.
+2. **URL Query Parameters**: `?host=192.168.100.1&port=8728&user=admin&pass=secret&token=key`. Memungkinkan tim NOC melakukan pengecekan via browser address bar, cURL, Grafana / Prometheus data source, atau webhook monitoring tanpa coding middleware tambahan.
+
+### C. Cross-Layer Device Correlation & Topology Visualizer
+Gateway mengekstraksi data lintas tabel: **DHCP Leases, Hotspot Hosts, ARP Table, Wireless Registration, dan Interfaces**. Melalui endpoint `/api/v1/network/connected-devices` dan interface `/topology`, sistem mampu membedakan:
+- Interface fisik port router (misal `ether5`).
+- Perangkat Access Point (AP) perantara (misal IP `192.168.100.3`).
+- Client leaf yang terhubung di balik Access Point tersebut.
+- Eksekusi langsung live ICMP ping dari router ke host tujuan untuk mendiagnosa latensi link.
+
+---
+
+## 5. Struktur Crate di Workspace
 
 ```
 d:\MyPorto\mikrotik\
 ├── Cargo.toml                  <-- Root workspace configuration
-├── config.example.toml         <-- Konfigurasi router & port HTTP
+├── config.example.toml         <-- Konfigurasi router default & port HTTP
 ├── crates/
 │   ├── routeros-core/          <-- Library Rust murni (no HTTP)
 │   │   ├── Cargo.toml
@@ -140,19 +168,21 @@ d:\MyPorto\mikrotik\
 │   │   └── examples/
 │   │       └── poc.rs          <-- CLI sederhana untuk test direct ke router
 │   │
-│   └── routeros-gateway/       <-- Daemon HTTP REST + Server-Sent Events (SSE)
+│   └── routeros-gateway/       <-- Daemon HTTP REST + WebSocket + SSE
 │       ├── Cargo.toml
 │       └── src/
-│           └── main.rs         <-- Axum server, router connection slot, bearer auth
-├── docs/                       <-- Panduan teknis lengkap
+│           ├── main.rs         <-- Axum server, router connection slot, bearer auth
+│           └── routes/         <-- 25 modul fungsional router enterprise
+├── docs/                       <-- Dokumentasi teknis & spesifikasi API
 └── collections/                <-- HTTP client / Postman collection
 ```
 
 ---
 
-## 5. Ringkasan Keuntungan untuk Developer
+## 6. Ringkasan Keuntungan Bagi Pengembang & NOC Engineer
 
-1. **Multi-stack Ready**: Backend developer tidak perlu pusing mempelajari format binary MikroTik yang rumit. Cukup gunakan `fetch()` atau `Http::post()` standar JSON.
-2. **Koneksi Selalu Hangat (Zero Handshake Overhead)**: Latency pemanggilan data MikroTik turun drastis karena socket TCP sudah terbuka dan terotentikasi.
-3. **Aman untuk Frontend**: Frontend tidak perlu menyimpan password MikroTik. Password tersimpan di `config.toml` server Rust di jaringan internal.
-4. **Realtime Ringan**: Fitur dashboard live traffic langsung jalan lewat browser menggunakan SSE standar bawaan HTML5 (`new EventSource()`).
+1. **Zero Socket Churn**: Mengeliminasi 100% masalah CPU hang yang kerap terjadi pada implementasi library PHP/Node konvensional.
+2. **Sub-Milidetik**: Latensi agregasi sistem turun menjadi **< 1.5 milidetik** berkat koneksi TCP keep-alive dan protokol biner tingkat rendah.
+3. **Multi-Stack Universal**: Backend developer (Laravel, Go, Python, Node) tidak perlu mempelajari format binary MikroTik yang rumit. Cukup memanggil JSON REST standar.
+4. **NOC Diagnostic Friendly**: Mendukung HTTP GET & POST langsung dari terminal atau browser via query parameter untuk investigasi insiden jaringan yang cepat.
+5. **Real-time Monitoring Tanpa Beban**: Monitoring interface traffic dan session stream dialirkan via WebSocket dan SSE bawaan browser secara efisien.

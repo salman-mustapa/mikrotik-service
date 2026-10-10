@@ -6,41 +6,58 @@ Gateway daemon (`routeros-gateway`) berjalan sebagai HTTP REST, WebSocket & SSE 
 
 ## 1. Autentikasi Gateway
 
-Semua endpoint dilindungi oleh Bearer Token (kecuali `/health` dan `/` playground):
+Semua endpoint dilindungi oleh autentikasi Bearer Token atau Query Token (kecuali `/health`, `/topology`, dan portal dokumentasi `/docs` & `/`):
+
+### Cara A: Header RFC Standar
 ```http
 Authorization: Bearer <API_TOKEN_ANDA>
 ```
-Nilai token dikonfigurasi pada file `config.toml` (field `api_token`).
 
-Untuk WebSocket, autentikasi dapat dilewatkan via URL parameter `?token=<API_TOKEN_ANDA>` atau frame JSON pertama: `{"action": "auth", "token": "..."}`.
+### Cara B: URL Query Parameter
+```http
+GET /api/v1/overview?token=<API_TOKEN_ANDA>
+```
+
+Untuk WebSocket (`/ws`), autentikasi dapat dilewatkan via URL parameter `?token=<API_TOKEN_ANDA>` atau frame JSON pertama: `{"action": "auth", "token": "..."}`.
 
 ---
 
-## 2. Penentuan Router Target
+## 2. Fleksibilitas Transport & Penentuan Router Target
 
-Setiap request dapat menentukan router MikroTik target melalui salah satu cara berikut:
+Engine mendukung **Dual HTTP Transport (GET & POST)** di seluruh 115+ endpoint enterprise. Target router MikroTik dapat dispesifikasikan melalui salah satu mekanisme berikut:
 
-### Opsi 1: HTTP Headers (Paling Bersih untuk REST & Mobile)
+### Opsi 1: HTTP Headers (Format Bersih untuk Microservice & Mobile)
 ```http
-X-Router-Host: ath.vpnbersama.us
-X-Router-Port: 51121
+X-Router-Host: 192.168.88.1
+X-Router-Port: 8728
 X-Router-User: admin
 X-Router-Pass: secretpassword
 ```
 
-### Opsi 2: JSON Body
+### Opsi 2: URL Query Parameters (Direkomendasikan untuk NOC Triage, cURL & Browser)
+Sistem secara otomatis menghidrasi parameter router dari query string pada request **GET** maupun **POST**:
+```bash
+# Contoh cURL GET langsung
+curl "http://127.0.0.1:8080/api/v1/overview?host=192.168.88.1&port=8728&user=admin&pass=secretpassword&token=mytoken"
+
+# Contoh cURL POST dengan query params
+curl -X POST "http://127.0.0.1:8080/api/v1/queues/inspect-user?query=192.168.88.50&host=192.168.88.1&port=8728&user=admin&pass=secretpassword&token=mytoken"
+```
+
+### Opsi 3: JSON Body (Standar REST POST)
 ```json
 {
   "router": {
-    "host": "ath.vpnbersama.us",
-    "port": 51121,
+    "host": "192.168.88.1",
+    "port": 8728,
     "user": "admin",
     "password": "secretpassword"
   }
 }
 ```
 
-### Opsi 3: Pre-configured Router ID
+### Opsi 4: Pre-configured Router ID / Default Fallback
+Jika tidak ada kredensial yang disertakan, gateway otomatis menggunakan profil router default dari `config.toml`:
 ```json
 {
   "router_id": "main"
@@ -49,16 +66,16 @@ X-Router-Pass: secretpassword
 
 ---
 
-## 3. Fast-Path Overview Snapshot (`POST /api/v1/overview`)
+## 3. Fast-Path Overview Snapshot (`GET` / `POST` `/api/v1/overview`)
 
-Endpoint agregasi tercepat untuk dashboard monitoring, Mikhmon, dan ISP Billing.
-Mengirimkan 6 perintah MikroTik secara simultan (`tokio::join!`) melalui socket persisten yang sama, mengembalikan ringkasan lengkap dalam **1-2 milidetik**:
+Endpoint agregasi tercepat untuk dashboard NOC, monitoring Mikhmon, dan ISP Billing.
+Mengirimkan 6 perintah MikroTik secara simultan (`tokio::join!`) melalui socket persisten yang sama, mengembalikan ringkasan lengkap dalam **< 1.5 milidetik**:
 
 ### Response Format:
 ```json
 {
   "success": true,
-  "execution_time_ms": 2,
+  "execution_time_ms": 1.2,
   "data": {
     "identity": "MikroTik-Main-GW",
     "system": {
@@ -167,50 +184,9 @@ Gateway mengembalikan hasil:
 }
 ```
 
-### Action 4: Instant Fast Overview via WebSocket
-```json
-{
-  "action": "overview",
-  "router": { "host": "192.168.88.1", "port": 8728, "user": "admin", "password": "" },
-  "tag": "ov-1"
-}
-```
-
 ---
 
-## 5. Batch Hotspot Voucher Generation (`POST /api/v1/hotspot/generate-batch`)
-
-Membuat 10 hingga 1000 voucher hotspot secara bersamaan dalam satu request terpipelinisasi.
-
-### Request Body:
-```json
-{
-  "router": { "host": "192.168.88.1", "port": 8728, "user": "admin", "password": "" },
-  "qty": 50,
-  "prefix": "VIP-",
-  "length": 6,
-  "profile": "1-Jam-3k",
-  "timelimit": "1h",
-  "comment": "Batch-Oktober-01"
-}
-```
-
-### Response:
-```json
-{
-  "success": true,
-  "total_requested": 50,
-  "total_created": 50,
-  "vouchers": [
-    { "username": "VIP-a8k3n2", "password": "VIP-a8k3n2", "profile": "1-Jam-3k", "timelimit": "1h" },
-    { "username": "VIP-m9p4x1", "password": "VIP-m9p4x1", "profile": "1-Jam-3k", "timelimit": "1h" }
-  ]
-}
-```
-
----
-
-## 6. Format Error Terstandarisasi
+## 5. Format Error Terstandarisasi
 
 | HTTP Status | Kode Error | Keterangan | Contoh Body |
 |---|---|---|---|
@@ -220,3 +196,4 @@ Membuat 10 hingga 1000 voucher hotspot secara bersamaan dalam satu request terpi
 | `422 Unprocessable` | `ROUTER_TRAP` | MikroTik menolak perintah (`!trap`) | `{"success": false, "error": "already have such item", "code": "ROUTER_TRAP"}` |
 | `502 Bad Gateway` | `AUTH_FAILED` | Login ke router gagal (User/Pass salah) | `{"success": false, "error": "router authentication failed: invalid username", "code": "AUTH_FAILED"}` |
 | `502 Bad Gateway` | `CONNECTION_LOST` | Socket ke MikroTik putus/unreachable | `{"success": false, "error": "router connection dropped", "code": "CONNECTION_LOST"}` |
+| `504 Gateway Timeout` | `TIMEOUT_GUARD` | Router hang / tidak merespons dalam 15s | `{"success": false, "error": "command execution timed out after 15s anti-hang guard"}` |

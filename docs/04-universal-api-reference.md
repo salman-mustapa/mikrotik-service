@@ -1,36 +1,42 @@
-# Referensi Lengkap Universal API Gateway (Semua Fitur MikroTik)
+# Referensi Lengkap Universal API Gateway (115+ Enterprise Endpoints)
 
-Gateway MikroTik Rust mengekspos endpoint REST dan SSE universal. Semua request dapat dijalankan oleh stack bahasa apa pun (Web, Mobile, Backend) dengan format JSON standar.
+Gateway MikroTik Rust mengekspos endpoint REST dan SSE universal berkinerja tinggi. Seluruh 115+ endpoint enterprise mendukung **Dual HTTP Transport (GET & POST)** dan dapat dijalankan oleh stack bahasa apa pun (Web, Mobile, Backend) maupun tool diagnostik NOC (cURL, browser) dengan format JSON standar.
 
 ---
 
 ## 1. Mekanisme Kredensial Router Target
 
-Setiap request ke endpoint `/api/v1/*` dapat menentukan router target melalui **salah satu dari 3 cara**:
+Setiap request ke endpoint `/api/v1/*` dapat menentukan router target melalui **salah satu dari 4 cara**:
 
 ### Opsi A: Melalui HTTP Headers (Direkomendasikan untuk REST & Mobile)
 ```http
 Authorization: Bearer <API_TOKEN>
-X-Router-Host: ath.vpnbersama.us
-X-Router-Port: 51121
+X-Router-Host: 192.168.88.1
+X-Router-Port: 8728
 X-Router-User: admin
 X-Router-Pass: password123
 Content-Type: application/json
 ```
 
-### Opsi B: Melalui JSON Body
+### Opsi B: Melalui URL Query Parameters (Direkomendasikan untuk NOC Triage, cURL & Browser)
+Dapat dipanggil via **GET** maupun **POST** secara langsung:
+```bash
+curl "http://127.0.0.1:8080/api/v1/overview?host=192.168.88.1&port=8728&user=admin&pass=password123&token=mytoken"
+```
+
+### Opsi C: Melalui JSON Body
 ```json
 {
   "router": {
-    "host": "ath.vpnbersama.us",
-    "port": 51121,
+    "host": "192.168.88.1",
+    "port": 8728,
     "user": "admin",
     "password": "password123"
   }
 }
 ```
 
-### Opsi C: Melalui Router ID (Yang sudah terdaftar di `config.toml`)
+### Opsi D: Melalui Router ID (Yang sudah terdaftar di `config.toml`)
 ```json
 {
   "router_id": "main"
@@ -41,11 +47,14 @@ Content-Type: application/json
 
 ## 2. Katalog Lengkap Seluruh Modul Endpoint
 
+> [!NOTE]
+> Seluruh endpoint di bawah ini mendukung metode **`GET`** dan **`POST`**. Pada metode `GET`, parameter query string seperti `?host=..&token=..` akan otomatis dihidrasi oleh gateway engine.
+
 ### ⚡ 0. Fast-Path Overview Snapshot (Sub-Millisecond Aggregation)
 Endpoint ini menggabungkan 6 query router terpisah menjadi 1 eksekusi simultan (`tokio::join!`) di single persistent socket:
-| Method | Endpoint | Kegunaan | Payload |
+| Method | Endpoint | Kegunaan | Payload / Query |
 |---|---|---|---|
-| `POST` | `/api/v1/overview` | Aggregated Snapshot: Identity, System Resource, RouterBOARD, Hotspot Active, PPP Active, Interface states | `{}` |
+| `GET` / `POST` | `/api/v1/overview` | Aggregated Snapshot: Identity, System Resource, RouterBOARD, Hotspot Active, PPP Active, Interface states | `{}` atau query params |
 
 ---
 
