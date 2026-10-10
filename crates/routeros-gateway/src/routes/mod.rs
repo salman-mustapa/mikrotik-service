@@ -5,6 +5,7 @@ pub mod batch;
 pub mod bridge;
 pub mod dhcp;
 pub mod dns;
+pub mod docs;
 pub mod dude;
 pub mod expert;
 pub mod firewall;
@@ -67,6 +68,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- System Management & Hardening ---
         .route("/api/v1/system/resource", post(system::resource))
+        .route("/api/v1/system/resources", post(system::resource))
         .route("/api/v1/system/routerboard", post(system::routerboard))
         .route("/api/v1/system/identity", post(system::identity))
         .route("/api/v1/system/identity/set", post(system::set_identity))
@@ -91,6 +93,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ip/pool/add", post(ip::add_pool))
         .route("/api/v1/ip/pool/remove", post(ip::remove_pool))
         .route("/api/v1/ip/arp", post(ip::arp))
+        .route("/api/v1/ip/arp/list", post(ip::arp))
         .route("/api/v1/ip/arp/add", post(ip::add_arp))
         .route("/api/v1/ip/arp/remove", post(ip::remove_arp))
 
@@ -114,15 +117,18 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/network/add", post(dhcp::add_network))
         .route("/api/v1/dhcp/network/remove", post(dhcp::remove_network))
         .route("/api/v1/dhcp/leases", post(dhcp::leases))
+        .route("/api/v1/dhcp/leases/list", post(dhcp::leases))
         .route("/api/v1/dhcp/lease/make-static", post(dhcp::make_static))
         .route("/api/v1/dhcp/lease/remove", post(dhcp::remove_lease))
 
         // --- Hotspot, Vouchers & Hosts ---
         .route("/api/v1/hotspot/users", post(hotspot::users))
+        .route("/api/v1/hotspot/users/list", post(hotspot::users))
         .route("/api/v1/hotspot/user/create", post(hotspot::create_user))
         .route("/api/v1/hotspot/generate-batch", post(hotspot::generate_batch))
         .route("/api/v1/hotspot/user/remove", post(hotspot::remove_user))
         .route("/api/v1/hotspot/active", post(hotspot::active))
+        .route("/api/v1/hotspot/active/list", post(hotspot::active))
         .route("/api/v1/hotspot/kick", post(hotspot::kick))
         .route("/api/v1/hotspot/hosts", post(hotspot::hosts))
         .route("/api/v1/hotspot/host/remove", post(hotspot::remove_host))
@@ -152,6 +158,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- PPP & PPPoE ISP Management ---
         .route("/api/v1/ppp/secrets", post(ppp::secrets))
+        .route("/api/v1/ppp/secrets/list", post(ppp::secrets))
         .route("/api/v1/ppp/secret/create", post(ppp::create_secret))
         .route("/api/v1/ppp/secret/set", post(ppp::set_secret))
         .route("/api/v1/ppp/secret/remove", post(ppp::remove_secret))
@@ -205,6 +212,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- Interfaces & Realtime Traffic ---
         .route("/api/v1/interfaces/all", post(interfaces::all))
+        .route("/api/v1/interfaces", post(interfaces::all))
+        .route("/api/v1/interface/list", post(interfaces::all))
         .route("/api/v1/interfaces/sample-traffic", post(interfaces::sample_traffic))
         .route("/api/v1/interfaces/stream", get(interfaces::stream_traffic))
 

@@ -274,6 +274,8 @@ pub async fn visualizer_page() -> Html<&'static str> {
       <button class="filter-btn" onclick="setFilter('pppoe', this)">🌐 PPPoE</button>
       <button class="filter-btn" onclick="setFilter('dhcp', this)">💻 DHCP</button>
       <button class="filter-btn" onclick="setFilter('wifi', this)">📶 WiFi</button>
+      <a href="/docs" target="_blank" style="background: rgba(79, 70, 229, 0.45); border: 1px solid rgba(124, 58, 237, 0.4); color: #c4b5fd; text-decoration: none; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">📖 API Docs</a>
+      <a href="/" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main); text-decoration: none; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">🎮 Playground</a>
     </div>
   </header>
 

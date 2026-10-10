@@ -18,15 +18,39 @@ fn ct_eq(a: &str, b: &str) -> bool {
 }
 
 async fn auth(State(st): State<Arc<AppState>>, req: Request, next: Next) -> Response {
-    let ok = req
+    let header_ok = req
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .is_some_and(|t| ct_eq(t, &st.token));
 
-    if ok {
-        next.run(req).await
+    let query_ok = if !header_ok {
+        req.uri().query().and_then(|q| {
+            q.split('&').find_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                if parts.next()? == "token" {
+                    parts.next()
+                } else {
+                    None
+                }
+            })
+        }).is_some_and(|t| ct_eq(t, &st.token))
+    } else {
+        false
+    };
+
+    if header_ok || query_ok {
+        let mut resp = next.run(req).await;
+        resp.headers_mut().insert(
+            header::HeaderName::from_static("x-content-type-options"),
+            header::HeaderValue::from_static("nosniff"),
+        );
+        resp.headers_mut().insert(
+            header::HeaderName::from_static("x-frame-options"),
+            header::HeaderValue::from_static("SAMEORIGIN"),
+        );
+        resp
     } else {
         (
             StatusCode::UNAUTHORIZED,
@@ -97,7 +121,10 @@ async fn playground() -> Html<&'static str> {
           High-performance sub-millisecond gateway connecting any web, mobile, or backend stack to RouterOS.
         </p>
       </div>
-      <div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="/docs" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);">
+          📖 Dokumentasi API & Explorer &rarr;
+        </a>
         <button onclick="openVisualizer()" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);">
           🌐 Buka Visualizer Relasi Topologi &rarr;
         </button>
@@ -217,6 +244,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', saveCreds);
   });
+  const urlParams = new URLSearchParams(window.location.search);
+  const autoExec = urlParams.get('exec');
+  if (autoExec) {
+    execApi(autoExec, {});
+  }
 });
 
 function openVisualizer() {
@@ -310,6 +342,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(playground))
         .route("/health", get(health))
+        .route("/docs", get(routes::docs::docs_page))
+        .route("/documentation", get(routes::docs::docs_page))
+        .route("/api/docs", get(routes::docs::docs_page))
+        .route("/api/v1/spec", get(routes::docs::api_spec_json))
         .route("/topology", get(routes::visualizer::visualizer_page))
         .route("/visualizer", get(routes::visualizer::visualizer_page))
         .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
