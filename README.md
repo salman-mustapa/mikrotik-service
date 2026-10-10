@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-140%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-155%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -173,6 +173,19 @@ graph TB
 
 ### 19. 🌐 Third-Party AP Web GUI Tunnel (`/api/v1/network/infrastructure/ap-tunnel`)
 * Membuka tunnel port forwarding NAT sementara agar administrator jaringan dapat mengakses dan mengubah konfigurasi Web Admin Access Point pihak ketiga (`192.168.100.3:80`) dari luar jaringan lokal (remote access).
+
+### 20. 💬 Integrasi Notifikasi & Chatbot Multi-Platform (Telegram & WhatsApp Gowa) + Netwatch Fleet (`/api/v1/integrations/*`)
+* **Telegram & WhatsApp Gowa Dispatcher**: Kirim pesan alert seketika via RouterOS `/tool fetch` atau layanan WhatsApp API lokal (`gowa`) dengan format teks profesional dan level urgensi (*INFO, WARNING, CRITICAL*).
+* **Netwatch AP Fleet Automation**: Otomatisasi pendaftaran pemantauan armada Access Point (misal `FAUJIA HOTSPOT 1..4` pada `172.16.10.2..5`) lengkap dengan *Up-script* dan *Down-script* otomatis yang mengirim peringatan ke Telegram/WhatsApp begitu link down tanpa butuh server tambahan.
+* **Scheduled NOC Daily Reports**: Script & Scheduler RouterOS otomatis untuk mengirim rekap harian active users hotspot, PPPoE online, penggunaan CPU/RAM, dan traffic ISP ke grup Telegram teknisi.
+* **Hotspot Live Chat Widget Embed**: Generator snippet HTML/JS siap pasang (Intergram Telegram Live Chat + Tombol WhatsApp CS) untuk halaman `login.html` dan `status.html` hotspot MikroTik.
+
+### 21. 🎟️ Next-Gen Hotspot Voucher Engine 2.0 / Mikhmon Killer (`/api/v1/hotspot/vouchers/*`)
+* **Ultra-Fast Parallel Batch Generator**: Menghasilkan 1 hingga 1.000 voucher dalam hitungan milidetik secara paralel multi-threaded dengan kompatibilitas penuh RouterOS v6 dan v7 (tanpa masalah bug penanggalan NTP reboot yang sering dialami Mikhmon v3/v4).
+* **Anti-Desync Real-time Quota & Lifecycle Tracking**: Korelasi cerdas database user dengan active sessions untuk memantau status secara presisi (*available, online, used, expired*) lengkap dengan sisa countdown detik dan sisa kuota bytes akurat.
+* **ESC/POS Thermal Receipt Engine**: Generator format cetak struk kasir standar thermal paper 58mm & 80mm siap kirim ke printer Bluetooth/USB.
+* **POS Kasir WhatsApp Checkout**: Tandai voucher terjual dan kirim struk beserta tautan auto-login instan ke nomor WhatsApp pembeli melalui Gowa WhatsApp API.
+* **Safe Expired Voucher Cleaner**: Pembersihan berkala otomatis untuk voucher usang/kedaluwarsa tanpa merusak voucher yang belum digunakan.
 
 ---
 

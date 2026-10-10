@@ -14,6 +14,7 @@ pub mod firewall;
 pub mod hotspot;
 pub mod hotspot_wizard;
 pub mod infrastructure;
+pub mod integrations;
 pub mod interfaces;
 pub mod ip;
 pub mod ipv6;
@@ -42,6 +43,7 @@ pub mod user_manager;
 pub mod users;
 pub mod visualizer;
 pub mod voucher_template;
+pub mod vouchers;
 pub mod vpn;
 pub mod wireguard;
 pub mod wireless;
@@ -364,6 +366,26 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- Heuristic Network Doctor Diagnostic Assistant ---
         .route("/api/v1/doctor/diagnose", get(doctor::doctor_diagnose).post(doctor::doctor_diagnose))
+
+        // --- Multi-Platform Messaging, Telegram, WhatsApp (Gowa) & Netwatch Pro ---
+        .route("/api/v1/integrations/telegram/send", post(integrations::telegram_send))
+        .route("/api/v1/integrations/whatsapp/send", post(integrations::whatsapp_send))
+        .route("/api/v1/integrations/notify", post(integrations::multi_notify))
+        .route("/api/v1/integrations/netwatch/setup", post(integrations::netwatch_setup))
+        .route("/api/v1/integrations/netwatch/batch-setup", post(integrations::netwatch_batch_setup))
+        .route("/api/v1/integrations/netwatch/monitors", get(integrations::netwatch_list).post(integrations::netwatch_list))
+        .route("/api/v1/integrations/netwatch/toggle", post(integrations::netwatch_toggle))
+        .route("/api/v1/integrations/netwatch/remove", post(integrations::netwatch_remove))
+        .route("/api/v1/integrations/reports/setup-scheduler", post(integrations::setup_report_scheduler))
+        .route("/api/v1/integrations/hotspot-chat/snippet", get(integrations::hotspot_chat_snippet))
+
+        // --- Enterprise Mikhmon-Killer: Hotspot Voucher Engine 2.0 ---
+        .route("/api/v1/hotspot/vouchers/generate", post(vouchers::generate_vouchers))
+        .route("/api/v1/hotspot/vouchers/tracking", get(vouchers::voucher_tracking).post(vouchers::voucher_tracking))
+        .route("/api/v1/hotspot/vouchers/thermal-print", post(vouchers::thermal_print))
+        .route("/api/v1/hotspot/vouchers/sell-and-send", post(vouchers::sell_and_send))
+        .route("/api/v1/hotspot/vouchers/clean-expired", post(vouchers::clean_expired))
+        .route("/api/v1/hotspot/voucher-template/render", post(voucher_template::render_template))
 
         .with_state(state)
 }

@@ -490,7 +490,7 @@ pub async fn console_page() -> Html<&'static str> {
     </a>
 
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="badge-endpoints">115+ Enterprise Endpoints</span>
+      <span class="badge-endpoints">155+ Enterprise Endpoints</span>
       <span class="badge-engine"><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
     </div>
 
@@ -573,14 +573,16 @@ pub async fn console_page() -> Html<&'static str> {
 
         <!-- Category Filter Pills -->
         <div class="category-pills">
-          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (115+)</button>
-          <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path Snapshot</button>
-          <button class="cat-btn" onclick="filterCategory('net', this)">🌐 Relasi Topologi</button>
-          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ Sistem &amp; Board</button>
-          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP Leases</button>
-          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🎟️ Hotspot &amp; Host</button>
-          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE ISP</button>
-          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP &amp; Routing</button>
+          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (155+)</button>
+          <button class="cat-btn" onclick="filterCategory('notify', this)">💬 Bot &amp; Netwatch</button>
+          <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher 2.0</button>
+          <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path</button>
+          <button class="cat-btn" onclick="filterCategory('net', this)">🌐 Topologi</button>
+          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ Sistem</button>
+          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP</button>
+          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🔥 Hotspot</button>
+          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE</button>
+          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP</button>
           <button class="cat-btn" onclick="filterCategory('firewall', this)">🛡️ Firewall</button>
           <button class="cat-btn" onclick="filterCategory('tools', this)">🛠️ NOC Tools</button>
         </div>
@@ -680,7 +682,25 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "backup_restore", path: "/api/v1/backup/restore", method: "POST", cat: "system", desc: "Pulihkan sistem router dari file binary (.backup) dan reboot otomatis.", defaultPayload: '{\n  "name": "backup-auto.backup"\n}' },
       { id: "backup_import", path: "/api/v1/backup/import", method: "POST", cat: "system", desc: "Impor dan jalankan skrip konfigurasi RouterOS (.rsc) ke router.", defaultPayload: '{\n  "file": "config.rsc"\n}' },
       { id: "infra_poe_cycle", path: "/api/v1/network/infrastructure/poe-cycle", method: "POST", cat: "net", desc: "Reboot paksa Access Point yang hang lewat pemutusan daya PoE port sementara.", defaultPayload: '{\n  "interface": "ether5",\n  "off_seconds": 3\n}' },
-      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' }
+      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' },
+
+      // Integrasi Telegram, WhatsApp Gowa & Netwatch Pro
+      { id: "integ_tg_send", path: "/api/v1/integrations/telegram/send", method: "POST", cat: "notify", desc: "Kirim pesan/alert instan ke Telegram Bot via socket fetch RouterOS.", defaultPayload: '{\n  "bot_token": "YOUR_BOT_TOKEN",\n  "chat_id": "123456789",\n  "text": "🚨 *ALERT NOC*: Link Internet Utama DOWN!"\n}' },
+      { id: "integ_wa_send", path: "/api/v1/integrations/whatsapp/send", method: "POST", cat: "notify", desc: "Kirim notifikasi pesan WhatsApp langsung via Gowa API service.", defaultPayload: '{\n  "phone": "081234567890",\n  "message": "Halo, voucher internet hotspot Anda: *HOT-9812* berlaku 24 Jam.",\n  "gowa_url": "http://127.0.0.1:3000"\n}' },
+      { id: "integ_multi_notify", path: "/api/v1/integrations/notify", method: "POST", cat: "notify", desc: "Multi-platform notification dispatcher (Telegram + WhatsApp) dengan severity level.", defaultPayload: '{\n  "channel": "all",\n  "severity": "WARNING",\n  "title": "Koneksi AP Terganggu",\n  "message": "AP Ruang Meeting down sejak 2 menit yang lalu.",\n  "telegram_bot_token": "",\n  "telegram_chat_id": "",\n  "whatsapp_phone": ""\n}' },
+      { id: "integ_netwatch_setup", path: "/api/v1/integrations/netwatch/setup", method: "POST", cat: "notify", desc: "Setup probe Netwatch RouterOS otomatis dengan skrip alert instan ke Telegram & WhatsApp.", defaultPayload: '{\n  "host": "172.16.10.2",\n  "comment": "FAUJIA HOTSPOT 1",\n  "interval": "00:00:10",\n  "timeout": "1000ms",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_batch", path: "/api/v1/integrations/netwatch/batch-setup", method: "POST", cat: "notify", desc: "Otomatisasi pengawasan Netwatch armada seluruh Access Point (AP Fleet) sekaligus.", defaultPayload: '{\n  "items": [\n    { "host": "172.16.10.2", "comment": "FAUJIA HOTSPOT 1" },\n    { "host": "172.16.10.3", "comment": "FAUJIA HOTSPOT 2" },\n    { "host": "172.16.10.4", "comment": "FAUJIA HOTSPOT 3" },\n    { "host": "172.16.10.5", "comment": "FAUJIA HOTSPOT 4" }\n  ],\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_list", path: "/api/v1/integrations/netwatch/list", method: "GET", cat: "notify", desc: "Daftar seluruh probe Netwatch, status up/down/since, dan skrip alert terpasang.", defaultPayload: "{}" },
+      { id: "integ_netwatch_toggle", path: "/api/v1/integrations/netwatch/toggle", method: "POST", cat: "notify", desc: "Enable atau Disable probe Netwatch target pada router.", defaultPayload: '{\n  "id": "*1",\n  "disabled": false\n}' },
+      { id: "integ_reports_sched", path: "/api/v1/integrations/reports/scheduler", method: "POST", cat: "notify", desc: "Pasang skrip & scheduler otomatis RouterOS untuk rekap laporan harian NOC ke Telegram.", defaultPayload: '{\n  "name": "noc-daily-report",\n  "start_time": "07:00:00",\n  "interval": "1d",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_chat_snippet", path: "/api/v1/integrations/hotspot-chat/snippet", method: "GET", cat: "notify", desc: "Dapatkan snippet embed live chat widget (Intergram Telegram & WhatsApp) untuk login.html & status.html hotspot.", defaultPayload: "{}" },
+
+      // Hotspot Voucher Engine 2.0 (Mikhmon Killer)
+      { id: "vouchers_gen", path: "/api/v1/hotspot/vouchers/generate", method: "POST", cat: "voucher", desc: "Ultra-fast parallel batch voucher generator (1-1000 voucher, ROS v6/v7 safe, custom prefix, time/quota limit).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "count": 5,\n  "prefix": "HOT-",\n  "user_mode": "same",\n  "charset": "alphanumeric_lower",\n  "length": 6,\n  "timelimit": "1h",\n  "datalimit": "500M",\n  "price": 3000,\n  "selling_price": 3000\n}' },
+      { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
+      { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "MANYTANET HOTSPOT",\n  "dns_name": "inetmanyta.net",\n  "paper_width": "58mm"\n}' },
+      { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "MANYTANET",\n  "login_url": "http://inetmanyta.net/login"\n}' },
+      { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' }
     ];
 
     let currentEndpoint = ENDPOINTS[0];
@@ -1207,7 +1227,7 @@ pub async fn docs_page() -> Html<&'static str> {
     <a href="/" class="brand-group">
       <span style="font-size: 1.35rem;">🦀</span>
       <div class="brand-title">MikroTik Gateway API Reference</div>
-      <span class="badge-endpoints">115+ Endpoints Terdaftar &amp; Aktif</span>
+      <span class="badge-endpoints">155+ Endpoints Terdaftar &amp; Aktif</span>
     </a>
 
     <div class="nav-links">
@@ -1224,6 +1244,8 @@ pub async fn docs_page() -> Html<&'static str> {
 
       <div>
         <div class="cat-menu-title">Kategori Endpoint</div>
+        <a href="#sec-notify" class="cat-link"><span>💬 Bot &amp; Netwatch Pro</span><span class="cat-count">9</span></a>
+        <a href="#sec-vouchers" class="cat-link"><span>🎟️ Hotspot Voucher 2.0</span><span class="cat-count">5</span></a>
         <a href="#sec-fast" class="cat-link"><span>🚀 Fast-Path Snapshot</span><span class="cat-count">3</span></a>
         <a href="#sec-net" class="cat-link"><span>🌐 Relasi Topologi</span><span class="cat-count">3</span></a>
         <a href="#sec-sys" class="cat-link"><span>⚙️ Sistem &amp; Board</span><span class="cat-count">13</span></a>
@@ -1255,6 +1277,139 @@ pub async fn docs_page() -> Html<&'static str> {
         <strong>💡 Dukungan Fleksibel: HTTP GET dan POST</strong><br>
         Seluruh endpoint pengambilan data (Read-Only) dapat dipanggil menggunakan <strong>HTTP GET</strong> (mudah digunakan langsung dari browser atau cURL dengan query parameters) maupun <strong>HTTP POST</strong> (dengan JSON payload untuk menjaga keamanan kredensial).
       </div>
+
+      <!-- Section: Telegram, WhatsApp Gowa & Netwatch Pro -->
+      <section class="doc-section" id="sec-notify">
+        <div class="section-header">💬 Integrasi Multi-Platform Telegram, WhatsApp (Gowa) &amp; Netwatch Pro</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/telegram/send</div>
+            <a href="/?endpoint=integ_tg_send" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Kirim notifikasi atau broadcast alert langsung ke Bot Telegram via RouterOS socket fetch atau gateway dispatcher.</div>
+          <div class="code-preview">POST /api/v1/integrations/telegram/send
+{ "bot_token": "BOT_TOKEN", "chat_id": "CHAT_ID", "text": "🚨 *ALERT NOC*: Link Internet DOWN!" }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/whatsapp/send</div>
+            <a href="/?endpoint=integ_wa_send" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Kirim pesan WhatsApp otomatis ke pelanggan atau tim NOC menggunakan service Gowa WhatsApp API. Mendukung format Markdown WhatsApp (*tebal*, _miring_).</div>
+          <div class="code-preview">POST /api/v1/integrations/whatsapp/send
+{ "phone": "081234567890", "message": "Voucher: *HOT-8812* Uptime: 1 Hari", "gowa_url": "http://127.0.0.1:3000" }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/notify</div>
+            <a href="/?endpoint=integ_multi_notify" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Multi-channel dispatcher: kirim alert ke Telegram dan WhatsApp sekaligus dengan tingkatan severity level (INFO, WARNING, CRITICAL).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/netwatch/setup</div>
+            <a href="/?endpoint=integ_netwatch_setup" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Setup otomatis probe Netwatch di MikroTik dengan skrip Up/Down yang mengeksekusi alert instan ke Telegram dan WhatsApp secara mandiri dari router.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/netwatch/batch-setup</div>
+            <a href="/?endpoint=integ_netwatch_batch" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Otomatisasi pengawasan Netwatch armada Access Point (AP Fleet) sekaligus (misal FAUJIA HOTSPOT 1..4 pada IP 172.16.10.2..5) hanya dalam satu panggilan API.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/netwatch/list</div>
+            <a href="/?endpoint=integ_netwatch_list" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Inspeksi daftar probe Netwatch terpasang di router, status UP / DOWN, durasi uptime, interval, dan skrip alert.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/reports/scheduler</div>
+            <a href="/?endpoint=integ_reports_sched" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Pasang skrip &amp; scheduler otomatis RouterOS untuk rekap laporan harian NOC (Active Users Hotspot, PPPoE, CPU/RAM, Uptime) terkirim otomatis ke Telegram.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/integrations/hotspot-chat/snippet</div>
+            <a href="/?endpoint=integ_chat_snippet" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Generator widget floating Live Chat (Intergram Telegram &amp; WhatsApp CS) siap pakai untuk disisipkan langsung ke halaman login.html &amp; status.html hotspot MikroTik.</div>
+        </div>
+      </section>
+
+      <!-- Section: Hotspot Voucher Engine 2.0 -->
+      <section class="doc-section" id="sec-vouchers">
+        <div class="section-header">🎟️ Next-Gen Hotspot Voucher Engine 2.0 (Mikhmon Killer)</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/generate</div>
+            <a href="/?endpoint=vouchers_gen" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Batch generator multi-threaded berkecepatan tinggi: buat 1 hingga 1.000 voucher dalam &lt;1 detik. Kompatibel penuh dengan RouterOS v6 dan v7 tanpa bug NTP/reboot desync. Dilengkapi structured metadata comment untuk tracking status &amp; harga jual.</div>
+          <div class="code-preview">POST /api/v1/hotspot/vouchers/generate
+{ "profile": "1JAM-3RB", "count": 20, "prefix": "HOT-", "user_mode": "same", "timelimit": "1h", "price": 3000 }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/tracking</div>
+            <a href="/?endpoint=vouchers_track" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Sistem tracking presisi real-time: cross-korelasi database user hotspot dengan session login aktif. Klasifikasi status akurat: available (belum dipakai), online (sedang login), used (pernah dipakai), atau expired (kedaluwarsa), lengkap dengan sisa detik dan sisa kuota bytes.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/thermal-print</div>
+            <a href="/?endpoint=vouchers_thermal" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Formatter struk thermal printer ESC/POS (standar 58mm dan 80mm) siap dikirim langsung ke printer kasir Bluetooth atau USB POS.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/sell-and-send</div>
+            <a href="/?endpoint=vouchers_sell_send" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Point of Sale (POS) Kasir: tandai voucher terjual dan kirim bukti struk login otomatis beserta link quick-login ke nomor WhatsApp pelanggan via Gowa.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/clean-expired</div>
+            <a href="/?endpoint=vouchers_clean" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Pembersihan aman voucher kedaluwarsa secara berkala tanpa menyentuh voucher aktif atau voucher yang belum laku terjual.</div>
+        </div>
+      </section>
 
       <!-- Section: Fast Path -->
       <section class="doc-section" id="sec-fast">
@@ -1630,8 +1785,8 @@ pub async fn api_spec_json() -> Json<Value> {
         "openapi": "3.0.3",
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
-            "version": "0.2.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 140+ endpoints"
+            "version": "0.3.0",
+            "description": "High-performance sub-millisecond MikroTik management gateway with 155+ endpoints"
         },
         "servers": [
             { "url": "https://ros-gateway.samrifa.com" },
