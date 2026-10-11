@@ -243,13 +243,16 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     let id_fut = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>()));
                     let hs_fut = client.run(build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>()));
                     let ppp_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
+                    let dhcp_fut = client.run(build_command("/ip/dhcp-server/lease/print", std::iter::empty::<(&str, &str)>()));
 
-                    let (res, id, hs, ppp) = tokio::join!(res_fut, id_fut, hs_fut, ppp_fut);
+                    let (res, id, hs, ppp, dhcp) = tokio::join!(res_fut, id_fut, hs_fut, ppp_fut, dhcp_fut);
 
                     let res_attrs = res.ok().and_then(|r| r.into_iter().next()).map(|r| r.attrs).unwrap_or_default();
                     let id_name = id.ok().and_then(|r| r.into_iter().next()).and_then(|r| r.get("name").map(str::to_owned)).unwrap_or_else(|| "MikroTik".into());
                     let hs_cnt = hs.map(|r| r.len()).unwrap_or(0);
                     let ppp_cnt = ppp.map(|r| r.len()).unwrap_or(0);
+                    let dhcp_cnt = dhcp.map(|r| r.len()).unwrap_or(0);
+                    let total_cnt = hs_cnt + ppp_cnt + dhcp_cnt;
 
                     let _ = out_tx_clone.send(json!({
                         "event": "overview_result",
@@ -257,11 +260,17 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         "data": {
                             "identity": id_name,
                             "cpu_load": res_attrs.get("cpu-load").unwrap_or(&"0".into()),
+                            "cpu_frequency_mhz": res_attrs.get("cpu-frequency").unwrap_or(&"0".into()),
+                            "cpu_count": res_attrs.get("cpu-count").unwrap_or(&"1".into()),
                             "free_memory": res_attrs.get("free-memory").unwrap_or(&"0".into()),
+                            "total_memory": res_attrs.get("total-memory").unwrap_or(&"0".into()),
                             "uptime": res_attrs.get("uptime").unwrap_or(&"".into()),
                             "version": res_attrs.get("version").unwrap_or(&"".into()),
+                            "board_name": res_attrs.get("board-name").unwrap_or(&"".into()),
                             "hotspot_active_count": hs_cnt,
-                            "ppp_active_count": ppp_cnt
+                            "ppp_active_count": ppp_cnt,
+                            "dhcp_lease_count": dhcp_cnt,
+                            "total_clients_count": total_cnt
                         }
                     }).to_string());
                 });

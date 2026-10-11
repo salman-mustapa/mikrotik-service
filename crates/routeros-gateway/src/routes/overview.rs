@@ -30,17 +30,18 @@ pub async fn get_overview(
     let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    // Prepare 6 concurrent futures across the single persistent socket
+    // Prepare 7 concurrent futures across the single persistent socket
     let res_fut = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>()));
     let id_fut = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>()));
     let rb_fut = client.run(build_command("/system/routerboard/print", std::iter::empty::<(&str, &str)>()));
     let hs_fut = client.run(build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>()));
     let ppp_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
     let if_fut = client.run(build_command("/interface/print", std::iter::empty::<(&str, &str)>()));
+    let dhcp_fut = client.run(build_command("/ip/dhcp-server/lease/print", std::iter::empty::<(&str, &str)>()));
 
     // Execute concurrently with .tag multiplexing
-    let (res_res, id_res, rb_res, hs_res, ppp_res, if_res) =
-        tokio::join!(res_fut, id_fut, rb_fut, hs_fut, ppp_fut, if_fut);
+    let (res_res, id_res, rb_res, hs_res, ppp_res, if_res, dhcp_res) =
+        tokio::join!(res_fut, id_fut, rb_fut, hs_fut, ppp_fut, if_fut, dhcp_fut);
 
     let res_attrs = res_res
         .ok()
@@ -67,6 +68,9 @@ pub async fn get_overview(
     let ppp_rows = ppp_res.ok().unwrap_or_default();
     let ppp_count = ppp_rows.len();
     let ppp_sessions: Vec<_> = ppp_rows.into_iter().take(10).map(|r| r.attrs).collect();
+
+    let dhcp_rows = dhcp_res.ok().unwrap_or_default();
+    let dhcp_count = dhcp_rows.len();
 
     let if_rows = if_res.ok().unwrap_or_default();
     let if_total = if_rows.len();
@@ -144,10 +148,23 @@ pub async fn get_overview(
                 "active_total": hs_count,
                 "active_recent": hs_users,
             },
+            "dhcp": {
+                "lease_total": dhcp_count,
+            },
             "ppp": {
                 "active_total": ppp_count,
                 "active_recent": ppp_sessions,
             },
+            "clients": {
+                "total": hs_count + ppp_count + dhcp_count,
+                "dhcp": dhcp_count,
+                "hotspot": hs_count,
+                "pppoe": ppp_count,
+            },
+            "dhcp_lease_count": dhcp_count,
+            "hotspot_active_count": hs_count,
+            "ppp_active_count": ppp_count,
+            "total_clients_count": hs_count + ppp_count + dhcp_count,
             "interfaces": {
                 "total": if_total,
                 "running": if_running_count,

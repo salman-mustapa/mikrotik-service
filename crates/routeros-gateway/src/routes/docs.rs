@@ -552,7 +552,7 @@ pub async fn console_page() -> Html<&'static str> {
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Klien &amp; Relasi Jaringan <span style="color: var(--text-muted);">● Menunggu Data</span></div>
+        <div class="kpi-title">Klien &amp; Relasi Jaringan <span id="kpi-clients-status" style="color: var(--text-muted);">● Menunggu Data</span></div>
         <div class="kpi-val" id="kpi-clients">0 Perangkat</div>
         <div class="kpi-sub" id="kpi-clients-sub">DHCP: 0 | Hotspot: 0 | PPPoE: 0</div>
       </div>
@@ -872,11 +872,86 @@ pub async fn console_page() -> Html<&'static str> {
 
         const json = await res.json();
         viewer.textContent = JSON.stringify(json, null, 2);
+        if (json && json.success && json.data) {
+          updateDashboardKPIs(json.data);
+        }
       } catch (err) {
         statusBadge.textContent = 'Error';
         statusBadge.style.background = '#fef2f2';
         statusBadge.style.color = '#dc2626';
         viewer.textContent = `Gagal mengirim request: ${err.message}`;
+      }
+    }
+
+    function updateDashboardKPIs(d) {
+      if (!d) return;
+
+      // Identitas & Tipe Board Router
+      if (d.identity) {
+        const idEl = document.getElementById('kpi-identity');
+        if (idEl) idEl.textContent = d.identity;
+      }
+      const board = d.routerboard?.model || d.system?.board_name;
+      if (board) {
+        const bEl = document.getElementById('kpi-board');
+        if (bEl) bEl.textContent = board;
+      }
+      if (d.system && (d.system.version || d.system.uptime)) {
+        const rosEl = document.getElementById('kpi-ros');
+        if (rosEl) rosEl.textContent = `RouterOS ${d.system.version || ''} | Uptime: ${d.system.uptime || ''}`;
+      }
+
+      // CPU Load & Frekuensi
+      if (d.system) {
+        if (d.system.cpu_load_percent !== undefined) {
+          const cpuEl = document.getElementById('kpi-cpu');
+          if (cpuEl) cpuEl.textContent = `${d.system.cpu_load_percent}%`;
+          const barEl = document.getElementById('kpi-cpu-bar');
+          if (barEl) barEl.style.width = `${Math.min(100, Math.max(0, d.system.cpu_load_percent))}%`;
+        }
+        if (d.system.cpu_frequency_mhz) {
+          const freqEl = document.getElementById('kpi-freq');
+          const cores = d.system.cpu_count ? ` (${d.system.cpu_count} Core)` : '';
+          if (freqEl) freqEl.textContent = `${d.system.cpu_frequency_mhz} MHz${cores}`;
+        }
+
+        // RAM Free, Total, dan Persentase Terpakai
+        if (d.system.free_memory_mb !== undefined) {
+          const freeEl = document.getElementById('kpi-free-ram');
+          if (freeEl) freeEl.textContent = `${d.system.free_memory_mb} MB`;
+        }
+        if (d.system.total_memory_mb !== undefined) {
+          const totEl = document.getElementById('kpi-total-ram');
+          if (totEl) totEl.textContent = `${d.system.total_memory_mb} MB`;
+        }
+        const memPercentEl = document.getElementById('kpi-mem-percent');
+        if (memPercentEl) {
+          if (d.system.memory_used_percent) {
+            memPercentEl.textContent = `Penggunaan RAM: ${d.system.memory_used_percent}`;
+          } else if (d.system.total_memory_mb && d.system.free_memory_mb !== undefined) {
+            const usedPct = (((d.system.total_memory_mb - d.system.free_memory_mb) / d.system.total_memory_mb) * 100).toFixed(1);
+            memPercentEl.textContent = `Penggunaan RAM: ${usedPct}%`;
+          }
+        }
+      }
+
+      // Klien & Relasi Jaringan (DHCP, Hotspot, PPPoE)
+      const hs = d.hotspot_active_count ?? d.hotspot?.active_total ?? 0;
+      const dhcp = d.dhcp_lease_count ?? d.dhcp?.lease_total ?? 0;
+      const ppp = d.ppp_active_count ?? d.ppp?.active_total ?? 0;
+      const total = d.total_clients_count ?? d.clients?.total ?? (hs + dhcp + ppp);
+
+      if (d.clients || d.hotspot || d.dhcp || d.ppp || d.hotspot_active_count !== undefined || d.dhcp_lease_count !== undefined || d.ppp_active_count !== undefined) {
+        const clientsEl = document.getElementById('kpi-clients');
+        if (clientsEl) clientsEl.textContent = `${total} Perangkat`;
+        const clientsSubEl = document.getElementById('kpi-clients-sub');
+        if (clientsSubEl) clientsSubEl.textContent = `DHCP: ${dhcp} | Hotspot: ${hs} | PPPoE: ${ppp}`;
+        const statusEl = document.getElementById('kpi-clients-status');
+        if (statusEl) {
+          statusEl.textContent = '● Terkoneksi';
+          statusEl.style.color = 'var(--accent-emerald)';
+          statusEl.style.fontWeight = '600';
+        }
       }
     }
 
@@ -907,23 +982,7 @@ pub async fn console_page() -> Html<&'static str> {
         });
         const json = await res.json();
         if (json.success && json.data) {
-          const d = json.data;
-          if (d.identity) document.getElementById('kpi-identity').textContent = d.identity;
-          if (d.system) {
-            document.getElementById('kpi-cpu').textContent = (d.system.cpu_load_percent || 0) + '%';
-            document.getElementById('kpi-cpu-bar').style.width = (d.system.cpu_load_percent || 0) + '%';
-            document.getElementById('kpi-free-ram').textContent = (d.system.free_memory_mb || 0) + ' MB';
-            document.getElementById('kpi-total-ram').textContent = (d.system.total_memory_mb || 128) + ' MB';
-            document.getElementById('kpi-board').textContent = d.system.board_name || 'RB951Ui-2HnD';
-            document.getElementById('kpi-ros').textContent = `RouterOS ${d.system.version || ''} | Uptime: ${d.system.uptime || ''}`;
-          }
-          if (d.hotspot_active_count !== undefined || d.dhcp_lease_count !== undefined) {
-            const hs = d.hotspot_active_count || 0;
-            const dhcp = d.dhcp_lease_count || 0;
-            const ppp = d.ppp_active_count || 0;
-            document.getElementById('kpi-clients').textContent = `${hs + dhcp + ppp} Perangkat`;
-            document.getElementById('kpi-clients-sub').textContent = `DHCP: ${dhcp} | Hotspot: ${hs} | PPPoE: ${ppp}`;
-          }
+          updateDashboardKPIs(json.data);
         }
       } catch (e) {
         console.warn('Overview snapshot failed:', e);
