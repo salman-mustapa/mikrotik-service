@@ -490,7 +490,7 @@ pub async fn console_page() -> Html<&'static str> {
     </a>
 
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="badge-endpoints">185+ Enterprise Endpoints</span>
+      <span class="badge-endpoints">280+ Enterprise Endpoints</span>
       <span class="badge-engine"><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
     </div>
 
@@ -501,28 +501,35 @@ pub async fn console_page() -> Html<&'static str> {
     </div>
   </header>
 
-  <!-- Router Credentials Sync Bar -->
+  <!-- Router Credentials & Profile Switcher Bar -->
   <div class="creds-container">
     <div class="creds-inputs">
       <div class="cred-group">
+        <span class="cred-label">Profil:</span>
+        <select id="profile-select" class="cred-field" style="width: 135px; font-weight: 600; cursor: pointer;" onchange="onProfileChange()">
+          <option value="custom">-- Custom Host --</option>
+        </select>
+        <button class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem; cursor: pointer;" onclick="saveCurrentProfile()" title="Simpan router ini ke daftar profil">+ Simpan</button>
+      </div>
+      <div class="cred-group">
         <span class="cred-label">Router Host:</span>
-        <input type="text" id="target-host" class="cred-field" style="width: 140px;" value="" placeholder="192.168.88.1">
+        <input type="text" id="target-host" class="cred-field" style="width: 130px;" value="" placeholder="192.168.88.1">
       </div>
       <div class="cred-group">
         <span class="cred-label">API Port:</span>
-        <input type="number" id="target-port" class="cred-field" style="width: 60px;" value="" placeholder="8728">
+        <input type="number" id="target-port" class="cred-field" style="width: 55px;" value="" placeholder="8728">
       </div>
       <div class="cred-group">
         <span class="cred-label">User:</span>
-        <input type="text" id="target-user" class="cred-field" style="width: 80px;" value="" placeholder="admin">
+        <input type="text" id="target-user" class="cred-field" style="width: 75px;" value="" placeholder="admin">
       </div>
       <div class="cred-group">
         <span class="cred-label">Password:</span>
-        <input type="password" id="target-pass" class="cred-field" style="width: 90px;" placeholder="••••••">
+        <input type="password" id="target-pass" class="cred-field" style="width: 85px;" placeholder="••••••">
       </div>
       <div class="cred-group">
         <span class="cred-label">Bearer Token:</span>
-        <input type="text" id="gw-token" class="cred-field" style="width: 150px;" value="change-me-to-a-long-random-string">
+        <input type="text" id="gw-token" class="cred-field" style="width: 135px;" value="change-me-to-a-long-random-string">
       </div>
     </div>
     <button class="btn-sync" onclick="testConnectionAndSnapshot()">⚡ Sinkronisasi &amp; Snapshot</button>
@@ -573,18 +580,22 @@ pub async fn console_page() -> Html<&'static str> {
 
         <!-- Category Filter Pills -->
         <div class="category-pills">
-          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (170+)</button>
-          <button class="cat-btn" onclick="filterCategory('notify', this)">💬 Bot &amp; Netwatch</button>
+          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (110+)</button>
+          <button class="cat-btn" onclick="filterCategory('security', this)">🛡️ Keamanan &amp; Dokter</button>
           <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher 2.0</button>
+          <button class="cat-btn" onclick="filterCategory('notify', this)">💬 Bot &amp; Netwatch</button>
+          <button class="cat-btn" onclick="filterCategory('loadbalance', this)">🔀 Load Balance &amp; NAT</button>
+          <button class="cat-btn" onclick="filterCategory('vpn', this)">🔐 VPN &amp; WireGuard</button>
+          <button class="cat-btn" onclick="filterCategory('queues', this)">📊 QoS &amp; Queues</button>
+          <button class="cat-btn" onclick="filterCategory('tools', this)">🛠️ NOC Tools</button>
+          <button class="cat-btn" onclick="filterCategory('maintenance', this)">💾 Backup &amp; Files</button>
+          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🔥 Hotspot</button>
+          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP</button>
+          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE</button>
+          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP &amp; Routing</button>
+          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ Sistem</button>
           <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path</button>
           <button class="cat-btn" onclick="filterCategory('net', this)">🌐 Topologi</button>
-          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ Sistem</button>
-          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP</button>
-          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🔥 Hotspot</button>
-          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE</button>
-          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP</button>
-          <button class="cat-btn" onclick="filterCategory('firewall', this)">🛡️ Firewall</button>
-          <button class="cat-btn" onclick="filterCategory('tools', this)">🛠️ NOC Tools</button>
         </div>
 
         <!-- Endpoint Select Dropdown & Method Badge -->
@@ -716,7 +727,72 @@ pub async fn console_page() -> Html<&'static str> {
       // User Manager (RADIUS Internal MikroTik v6 & v7)
       { id: "userman_profiles", path: "/api/v1/user-manager/profiles", method: "GET", cat: "hotspot", desc: "Daftar billing profile User Manager (RADIUS internal MikroTik).", defaultPayload: "{}" },
       { id: "userman_limitations", path: "/api/v1/user-manager/limitations", method: "GET", cat: "hotspot", desc: "Daftar limitations kecepatan & kuota paket User Manager.", defaultPayload: "{}" },
-      { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' }
+      { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' },
+
+      // --- Keamanan, Dokter Heuristik & App Blocker (cat: security) ---
+      { id: "doctor_diagnose", path: "/api/v1/doctor/diagnose", method: "POST", cat: "security", desc: "AI Heuristic Network Doctor: Audit 6 pilar vital (CPU, RAM, WAN Ping, Throttled Queues, FastTrack, AP/LAN) & rekomendasi perbaikan.", defaultPayload: "{}" },
+      { id: "sec_vuln_audit", path: "/api/v1/security/vulnerability-audit", method: "GET", cat: "security", desc: "Audit kerentanan CVE RouterOS, open service sniffing (Telnet, FTP, API), & Open DNS Resolver.", defaultPayload: "{}" },
+      { id: "sec_antibruteforce", path: "/api/v1/security/deploy-antibruteforce", method: "POST", cat: "security", desc: "1-Klik pasang firewall filter anti brute-force attack bertingkat untuk WinBox, SSH, & API.", defaultPayload: '{\n  "protect_winbox": true,\n  "protect_ssh": true,\n  "protect_api": true,\n  "blacklist_timeout": "7d"\n}' },
+      { id: "app_block", path: "/api/v1/security/app-block", method: "POST", cat: "security", desc: "1-Klik blokir Layer 7 / TLS host untuk TikTok, YouTube, WhatsApp, Judi Online, atau Torrent P2P.", defaultPayload: '{\n  "app_type": "judi_online",\n  "comment": "Blokir Judol"\n}' },
+      { id: "app_unblock", path: "/api/v1/security/app-unblock", method: "POST", cat: "security", desc: "Buka kembali blokir aplikasi / domain di firewall.", defaultPayload: '{\n  "app_type": "judi_online"\n}' },
+      { id: "app_blocked_list", path: "/api/v1/security/blocked-apps", method: "GET", cat: "security", desc: "Daftar seluruh rule pemblokiran aplikasi dan domain aktif di firewall.", defaultPayload: "{}" },
+      { id: "anti_tethering_enable", path: "/api/v1/security/anti-tethering/enable", method: "POST", cat: "security", desc: "Proteksi anti-tethering hotspot: Paksa TTL=1 di Mangle agar klien tidak bisa berbagi hotspot via HP.", defaultPayload: '{\n  "comment": "Lock TTL to prevent tethering"\n}' },
+      { id: "anti_tethering_status", path: "/api/v1/security/anti-tethering/status", method: "GET", cat: "security", desc: "Status proteksi anti-tethering hotspot (aktif / tidak).", defaultPayload: "{}" },
+      { id: "anti_tethering_disable", path: "/api/v1/security/anti-tethering/disable", method: "POST", cat: "security", desc: "Nonaktifkan proteksi anti-tethering hotspot.", defaultPayload: "{}" },
+      { id: "expert_diag", path: "/api/v1/expert/quick-diagnose", method: "POST", cat: "security", desc: "Expert deep diagnostic analyzer untuk performa dan latency router.", defaultPayload: "{}" },
+      { id: "expert_traffic", path: "/api/v1/expert/traffic-matrix", method: "POST", cat: "security", desc: "Matriks persebaran trafik komprehensif antar interface.", defaultPayload: "{}" },
+
+      // --- Load Balancing Multi-WAN & NAT Wizards (cat: loadbalance) ---
+      { id: "lb_pcc_setup", path: "/api/v1/load-balance/pcc/setup", method: "POST", cat: "loadbalance", desc: "Automated Dual-WAN PCC Wizard: Buat otomatis rule Mangle PCC, routing marks, & failover 2-4 ISP.", defaultPayload: '{\n  "wan_interfaces": ["ether1", "ether2"],\n  "gateways": ["192.168.1.1", "192.168.2.1"],\n  "lan_interface": "bridge-lan"\n}' },
+      { id: "lb_status", path: "/api/v1/load-balance/status", method: "GET", cat: "loadbalance", desc: "Status konfigurasi Multi-WAN PCC Load Balancer aktif di router.", defaultPayload: "{}" },
+      { id: "lb_remove", path: "/api/v1/load-balance/remove", method: "POST", cat: "loadbalance", desc: "Hapus seluruh rule Load Balancing PCC dan bersihkan firewall Mangle.", defaultPayload: "{}" },
+      { id: "nat_port_forward", path: "/api/v1/firewall/port-forward", method: "POST", cat: "loadbalance", desc: "Port Forwarding Wizard (dst-nat) lengkap dengan opsi Hairpin NAT untuk akses Web/CCTV dari luar LAN.", defaultPayload: '{\n  "protocol": "tcp",\n  "dst_port": "8080",\n  "to_addresses": "192.168.88.50",\n  "to_ports": "80",\n  "in_interface": "ether1",\n  "enable_hairpin": true,\n  "comment": "Web Server Forward"\n}' },
+      { id: "nat_port_forward_list", path: "/api/v1/firewall/port-forward/list", method: "GET", cat: "loadbalance", desc: "Daftar seluruh rule port forwarding (dst-nat) aktif di router.", defaultPayload: "{}" },
+      { id: "nat_masquerade", path: "/api/v1/firewall/srcnat/masquerade", method: "POST", cat: "loadbalance", desc: "Buat rule Masquerade WAN standar agar LAN dapat terhubung ke internet.", defaultPayload: '{\n  "out_interface": "ether1",\n  "comment": "Default Internet NAT"\n}' },
+
+      // --- VPN Modern & Remote Access (cat: vpn) ---
+      { id: "wg_interfaces", path: "/api/v1/wireguard/interfaces", method: "GET", cat: "vpn", desc: "Daftar interface WireGuard VPN di router (RouterOS v7).", defaultPayload: "{}" },
+      { id: "wg_peers", path: "/api/v1/wireguard/peers", method: "GET", cat: "vpn", desc: "Daftar peer WireGuard (klien & site-to-site) aktif di router.", defaultPayload: "{}" },
+      { id: "wg_peer_add", path: "/api/v1/wireguard/peer/add", method: "POST", cat: "vpn", desc: "Tambah peer WireGuard baru dengan public key & allowed-address.", defaultPayload: '{\n  "interface": "wireguard1",\n  "public_key": "YOUR_PEER_PUBLIC_KEY=",\n  "allowed_address": "10.0.0.2/32"\n}' },
+      { id: "vpn_l2tp", path: "/api/v1/vpn/l2tp", method: "GET", cat: "vpn", desc: "Konfigurasi server L2TP VPN dan status IPsec encryption.", defaultPayload: "{}" },
+      { id: "vpn_sstp", path: "/api/v1/vpn/sstp", method: "GET", cat: "vpn", desc: "Konfigurasi server SSTP VPN (Port 443 SSL).", defaultPayload: "{}" },
+      { id: "vpn_ovpn", path: "/api/v1/vpn/ovpn", method: "GET", cat: "vpn", desc: "Konfigurasi server OpenVPN (TCP/UDP) di router.", defaultPayload: "{}" },
+      { id: "vpn_eoip", path: "/api/v1/vpn/eoip", method: "GET", cat: "vpn", desc: "Daftar tunnel EoIP (Ethernet over IP) untuk bridging L2 antar cabang.", defaultPayload: "{}" },
+
+      // --- QoS, Bandwidth & Queues (cat: queues) ---
+      { id: "queues_simple", path: "/api/v1/queues/simple", method: "GET", cat: "queues", desc: "Daftar seluruh Simple Queues, target IP, max-limit (upload/download), & bytes terpakai.", defaultPayload: "{}" },
+      { id: "queues_summary", path: "/api/v1/queues/overview-summary", method: "GET", cat: "queues", desc: "Ringkasan total kuota, agregasi kecepatan, dan status throttling seluruh antrean.", defaultPayload: "{}" },
+      { id: "queues_simple_add", path: "/api/v1/queues/simple/add", method: "POST", cat: "queues", desc: "Tambah antrean Simple Queue baru dengan limit bandwidth target.", defaultPayload: '{\n  "name": "User-Kantor-1",\n  "target": "192.168.88.20/32",\n  "max_limit": "5M/10M",\n  "comment": "Staff Kantor"\n}' },
+      { id: "queues_set_limit", path: "/api/v1/queues/simple/set-limit", method: "POST", cat: "queues", desc: "Ubah batas bandwidth Simple Queue target secara langsung.", defaultPayload: '{\n  "name": "User-Kantor-1",\n  "max_limit": "10M/20M"\n}' },
+      { id: "queues_inspect", path: "/api/v1/queues/inspect-user", method: "POST", cat: "queues", desc: "Inspeksi utilisasi antrean bandwidth per user atau IP spesifik.", defaultPayload: '{\n  "target": "192.168.88.20"\n}' },
+      { id: "traffic_preset_game", path: "/api/v1/traffic/preset/game-social-separation", method: "POST", cat: "queues", desc: "1-Klik Smart Traffic Shaper: Pisahkan trafik Game Online (prioritas tinggi) dari Sosmed/Download via Mangle & Queue Tree.", defaultPayload: '{\n  "wan_interface": "ether1",\n  "lan_interface": "bridge-lan"\n}' },
+      { id: "traffic_queue_tree", path: "/api/v1/traffic/queue-tree", method: "GET", cat: "queues", desc: "Daftar Queue Tree hierarkis (Parent & Child queues) di router.", defaultPayload: "{}" },
+      { id: "traffic_mangle_rules", path: "/api/v1/traffic/mangle/rules", method: "GET", cat: "queues", desc: "Daftar rule Firewall Mangle untuk penandaan paket (packet marks & routing marks).", defaultPayload: "{}" },
+
+      // --- NOC Tools & Diagnostics (cat: tools) ---
+      { id: "noc_torch", path: "/api/v1/tools/torch", method: "POST", cat: "tools", desc: "Torch live real-time bandwidth monitor per-IP, protocol, & port pada interface target.", defaultPayload: '{\n  "interface": "ether1",\n  "duration_seconds": 3\n}' },
+      { id: "noc_btest", path: "/api/v1/tools/bandwidth-test", method: "POST", cat: "tools", desc: "MikroTik Bandwidth Test internal ke router tujuan (TCP/UDP speed test).", defaultPayload: '{\n  "address": "192.168.88.2",\n  "direction": "both",\n  "duration": 5\n}' },
+      { id: "noc_traceroute", path: "/api/v1/tools/traceroute", method: "POST", cat: "tools", desc: "Jalankan Traceroute ICMP/UDP dari router untuk melacak hop rute ke internet.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 3\n}' },
+      { id: "noc_ip_scan", path: "/api/v1/tools/ip-scan", method: "POST", cat: "tools", desc: "IP Scan: Deteksi seluruh perangkat aktif dan MAC address pada subnet interface.", defaultPayload: '{\n  "interface": "bridge-lan"\n}' },
+      { id: "noc_profile", path: "/api/v1/tools/profile", method: "POST", cat: "tools", desc: "CPU Profile Detective (/tool profile): Profil mikro beban CPU per-proses (firewall, networking, console, queuing).", defaultPayload: '{\n  "duration": 3\n}' },
+      { id: "noc_romon_discover", path: "/api/v1/tools/romon/discover", method: "GET", cat: "tools", desc: "Temukan router MikroTik tetangga di jaringan RoMON (Router Management Overlay Network).", defaultPayload: "{}" },
+      { id: "noc_watchdog", path: "/api/v1/system/watchdog", method: "GET", cat: "tools", desc: "Status hardware Watchdog router (auto reboot saat kernel freeze).", defaultPayload: "{}" },
+      { id: "noc_ntp_config", path: "/api/v1/system/ntp/config", method: "GET", cat: "tools", desc: "Konfigurasi NTP Client (Network Time Protocol) sinkronisasi jam router.", defaultPayload: "{}" },
+      { id: "noc_terminal_exec", path: "/api/v1/scripts/terminal-exec", method: "POST", cat: "tools", desc: "Eksekusi baris perintah skrip RouterOS langsung dan ambil keluarannya.", defaultPayload: '{\n  "script": ":put [/system resource get cpu-load]"\n}' },
+
+      // --- Backup & Maintenance (cat: maintenance) ---
+      { id: "backup_create", path: "/api/v1/backup/create", method: "POST", cat: "maintenance", desc: "Buat file binary backup sistem router (.backup) di storage internal.", defaultPayload: '{\n  "name": "backup-gateway-manual"\n}' },
+      { id: "backup_export", path: "/api/v1/backup/export", method: "POST", cat: "maintenance", desc: "Ekspor konfigurasi teks skrip RouterOS (.rsc) dengan hide-sensitive.", defaultPayload: '{\n  "file": "export-gateway.rsc",\n  "hide_sensitive": true\n}' },
+      { id: "backup_files", path: "/api/v1/files/all", method: "GET", cat: "maintenance", desc: "Daftar seluruh file di storage router (backup, skin hotspot, cert, log).", defaultPayload: "{}" },
+      { id: "maint_reboot", path: "/api/v1/system/reboot", method: "POST", cat: "maintenance", desc: "Reboot sistem router MikroTik secara graceful.", defaultPayload: "{}" },
+      { id: "maint_check_update", path: "/api/v1/system/check-update", method: "GET", cat: "maintenance", desc: "Periksa ketersediaan pembaruan RouterOS versi terbaru dari server MikroTik.", defaultPayload: "{}" },
+      { id: "maint_health", path: "/api/v1/system/health", method: "GET", cat: "maintenance", desc: "Sensor voltase, suhu CPU, dan temperatur board router (RouterBOARD).", defaultPayload: "{}" },
+      { id: "maint_pre_upgrade", path: "/api/v1/maintenance/pre-upgrade-snapshot", method: "POST", cat: "maintenance", desc: "Snapshot pra-upgrade: Simpan backup konfigurasi dan riwayat package sebelum OS di-upgrade.", defaultPayload: "{}" },
+
+      // --- Hotspot Wizard & Visual Templates (cat: hotspot & voucher) ---
+      { id: "hs_wizard_setup", path: "/api/v1/hotspot/wizard/setup", method: "POST", cat: "hotspot", desc: "1-Klik Hotspot Wizard: Konfigurasi lengkap interface, IP pool, DNS, profile & login page otomatis.", defaultPayload: '{\n  "interface": "wlan1",\n  "dns_name": "hotspot.net",\n  "network": "192.168.10.0/24",\n  "gateway": "192.168.10.1"\n}' },
+      { id: "voucher_template_render", path: "/api/v1/hotspot/voucher-template/render", method: "POST", cat: "voucher", desc: "Render lembaran cetak voucher visual berformat HTML (58mm, 80mm, atau A4 Grid) dengan QR Code.", defaultPayload: '{\n  "theme": "modern",\n  "paper_width": "80mm",\n  "hotspot_name": "WAROENG HOTSPOT",\n  "vouchers": [\n    { "username": "HOT-9012", "password": "pass-9012", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ]\n}' },
+      { id: "raw_command", path: "/api/v1/command", method: "POST", cat: "system", desc: "Universal Raw Command Executor: Kirim perintah sembarang ke RouterOS API secara langsung.", defaultPayload: '{\n  "command": "/system/resource/print"\n}' }
     ];
 
     let currentEndpoint = ENDPOINTS[0];
@@ -751,6 +827,97 @@ pub async fn console_page() -> Html<&'static str> {
       });
     }
 
+    function initSavedProfiles() {
+      const sel = document.getElementById('profile-select');
+      if (!sel) return;
+      sel.innerHTML = '<option value="custom">-- Custom Host --</option>';
+      let profiles = [];
+      try {
+        profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+      } catch (e) { profiles = []; }
+
+      profiles.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx.toString();
+        opt.textContent = `📍 ${p.name || p.host}`;
+        sel.appendChild(opt);
+      });
+
+      const activeIdx = localStorage.getItem('ros_active_profile_idx');
+      if (activeIdx !== null && profiles[parseInt(activeIdx)]) {
+        sel.value = activeIdx;
+      }
+    }
+
+    function onProfileChange() {
+      const sel = document.getElementById('profile-select');
+      if (!sel) return;
+      if (sel.value === 'custom') return;
+      const idx = parseInt(sel.value);
+      try {
+        const profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+        const p = profiles[idx];
+        if (p) {
+          document.getElementById('target-host').value = p.host || '';
+          document.getElementById('target-port').value = p.port || '';
+          document.getElementById('target-user').value = p.user || '';
+          document.getElementById('target-pass').value = p.pass || '';
+          document.getElementById('gw-token').value = p.token || 'change-me-to-a-long-random-string';
+
+          localStorage.setItem('ros_host', p.host || '');
+          localStorage.setItem('ros_port', p.port || '');
+          localStorage.setItem('ros_user', p.user || '');
+          localStorage.setItem('ros_pass', p.pass || '');
+          localStorage.setItem('ros_token', p.token || '');
+          localStorage.setItem('ros_active_profile_idx', idx.toString());
+
+          updateSnippet();
+          testConnectionAndSnapshot();
+        }
+      } catch (e) {
+        console.error('Failed to load profile:', e);
+      }
+    }
+
+    function saveCurrentProfile() {
+      const host = document.getElementById('target-host').value.trim();
+      const port = document.getElementById('target-port').value.trim();
+      const user = document.getElementById('target-user').value.trim();
+      const pass = document.getElementById('target-pass').value;
+      const token = document.getElementById('gw-token').value.trim();
+
+      if (!host) {
+        alert("Harap masukkan Router Host sebelum menyimpan profil.");
+        return;
+      }
+
+      const defaultName = `${user || 'admin'}@${host}`;
+      const name = prompt("Nama Profil Router:", defaultName);
+      if (!name) return;
+
+      try {
+        let profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+        const newProf = { name, host, port, user, pass, token };
+        const existingIdx = profiles.findIndex(p => p.name === name);
+        if (existingIdx >= 0) {
+          profiles[existingIdx] = newProf;
+        } else {
+          profiles.push(newProf);
+        }
+        localStorage.setItem('ros_saved_profiles', JSON.stringify(profiles));
+        initSavedProfiles();
+        const sel = document.getElementById('profile-select');
+        const foundIdx = profiles.findIndex(p => p.name === name);
+        if (foundIdx >= 0 && sel) {
+          sel.value = foundIdx.toString();
+          localStorage.setItem('ros_active_profile_idx', foundIdx.toString());
+        }
+        alert(`Profil '${name}' berhasil disimpan!`);
+      } catch (e) {
+        alert("Gagal menyimpan profil: " + e.message);
+      }
+    }
+
     function populateDropdown(filterCat = 'all') {
       const sel = document.getElementById('ep-select');
       sel.innerHTML = '';
@@ -780,7 +947,11 @@ pub async fn console_page() -> Html<&'static str> {
         currentEndpoint = found;
         currentMethod = found.method;
         updateMethodBadge();
-        document.getElementById('ep-desc').textContent = found.desc;
+        let desc = found.desc;
+        if (found.desc.includes('RouterOS v7') && window.currentRouterOSVersion && window.currentRouterOSVersion.startsWith('6.')) {
+          desc += ' ⚠️ [Perhatian: Router Anda saat ini terdeteksi v' + window.currentRouterOSVersion + ', fitur ini dirancang untuk RouterOS v7+]';
+        }
+        document.getElementById('ep-desc').textContent = desc;
         document.getElementById('req-payload').value = found.defaultPayload || "{}";
         updateSnippet();
       }
@@ -897,6 +1068,7 @@ pub async fn console_page() -> Html<&'static str> {
         if (bEl) bEl.textContent = board;
       }
       if (d.system && (d.system.version || d.system.uptime)) {
+        window.currentRouterOSVersion = d.system.version || '';
         const rosEl = document.getElementById('kpi-ros');
         if (rosEl) rosEl.textContent = `RouterOS ${d.system.version || ''} | Uptime: ${d.system.uptime || ''}`;
       }
@@ -998,6 +1170,7 @@ pub async fn console_page() -> Html<&'static str> {
 
     window.addEventListener('DOMContentLoaded', () => {
       initCreds();
+      initSavedProfiles();
       populateDropdown('all');
       const host = document.getElementById('target-host').value.trim();
       if (host) {
