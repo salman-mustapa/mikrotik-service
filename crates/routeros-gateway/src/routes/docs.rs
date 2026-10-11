@@ -2166,8 +2166,8 @@ pub async fn api_spec_json() -> Json<Value> {
         "openapi": "3.0.3",
         "info": {
             "title": "MikroTik Universal Rust Gateway API",
-            "version": "0.3.0",
-            "description": "High-performance sub-millisecond MikroTik management gateway with 185+ endpoints"
+            "version": "1.0.0",
+            "description": "High-performance sub-millisecond MikroTik management gateway with 280+ enterprise endpoints"
         },
         "servers": [
             { "url": "http://127.0.0.1:8080" },
