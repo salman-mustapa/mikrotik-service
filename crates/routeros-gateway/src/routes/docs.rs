@@ -1139,6 +1139,11 @@ pub async fn console_page() -> Html<&'static str> {
         return;
       }
 
+      if (currentEndpoint.path === '/api/v1/overview') {
+        executeCurrentEndpoint();
+        return;
+      }
+
       executeCurrentEndpoint();
 
       try {
