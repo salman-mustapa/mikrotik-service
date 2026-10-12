@@ -912,7 +912,161 @@ Pengelolaan lease DHCP statis dan identifikasi perangkat:
 | `POST` | `/api/v1/dhcp/lease/make-static` | **Ubah Lease Menjadi Statis**: Mengonversi lease dinamis aktif menjadi statis permanen | `{"id": "*1"}` |
 | `POST` | `/api/v1/dhcp/lease/remove` | **Hapus Lease**: Menghapus alokasi lease DHCP | `{"id": "*1"}` |
 
+---
 
+### LLL. ☁️ IP Cloud DDNS Controller (`/api/v1/cloud/*`)
+Integrasi DDNS resmi MikroTik RouterOS (*.sn.mynetname.net) untuk ISP IP dinamis (Indihome, Biznet, dll):
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/cloud/status` | **Status IP Cloud DDNS**: Menampilkan nama DNS resmi MikroTik, IP publik terdeteksi, dan status koneksi | `{}` |
+| `POST` | `/api/v1/cloud/set` | **Atur IP Cloud**: Mengaktifkan/menonaktifkan DDNS dan sinkronisasi waktu clock | `{"ddns_enabled": true, "update_time": true, "ddns_update_interval": "5m"}` |
+| `POST` | `/api/v1/cloud/force-update` | **Paksa Update DDNS**: Memaksa router memvalidasi dan memperbarui IP publik ke server MikroTik | `{}` |
 
+---
 
+### MMM. 🔄 1-Klik Recursive Gateway Multi-WAN Failover Wizard (`/api/v1/routing/failover/*`)
+Standar emas kurikulum MTCRE dan praktik terbaik YouTube: Failover multi-WAN tanpa script eksternal berbasis recursive ping DNS publik:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/routing/failover/setup` | **Setup Recursive Failover**: Membuat rute rekursif ganda dengan scope=10, target-scope=11, check-gateway=ping | `{"primary_gateway": "192.168.1.1", "backup_gateway": "192.168.2.1", "primary_check_host": "8.8.8.8", "backup_check_host": "1.1.1.1"}` |
+| `GET` / `POST` | `/api/v1/routing/failover/status` | **Cek Status Failover**: Memeriksa status keaktifan rute utama vs cadangan | `{}` |
+| `POST` | `/api/v1/routing/failover/remove` | **Hapus Aturan Failover**: Menghapus seluruh rute rekursif bertag `[Recursive-Failover]` | `{}` |
+
+---
+
+### NNN. 🚫 WISP & RT-RW Net Isolir Web Redirect & Overdue Manager (`/api/v1/wisp/isolir/*`)
+Sistem isolir pelanggan menunggak dengan pengalihan port 80 ke server halaman tagihan dan pemblokiran internet:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/wisp/isolir/setup` | **Setup Infrastruktur Isolir**: Mengonfigurasi aturan NAT Redirect dan Firewall Filter drop | `{"isolir_server_ip": "192.168.88.254", "isolir_server_port": 80}` |
+| `POST` | `/api/v1/wisp/isolir/isolate` | **Isolir Pelanggan Menunggak**: Memasukkan IP pelanggan ke address-list `ISOLIR_LIST` dengan catatan jatuh tempo | `{"client_ip": "192.168.88.105", "customer_name": "Budi", "due_date": "10 Oktober"}` |
+| `POST` | `/api/v1/wisp/isolir/restore` | **Pulihkan Akses Pelanggan**: Menghapus IP dari address-list `ISOLIR_LIST` setelah pembayaran lunas | `{"client_ip": "192.168.88.105"}` |
+| `GET` / `POST` | `/api/v1/wisp/isolir/list` | **Daftar Klien Terisolir**: Menampilkan semua pelanggan yang sedang dibatasi | `{}` |
+| `POST` | `/api/v1/wisp/isolir/teardown` | **Bersihkan Firewall Isolir**: Menghapus seluruh aturan firewall isolir | `{}` |
+
+---
+
+### OOO. 🦈 Packet Sniffer & Wireshark Streamer (`/api/v1/tools/sniffer/*`)
+Alat diagnostik NOC untuk merekam paket data internal router atau streaming langsung via TZSP ke Wireshark PC:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/tools/sniffer/status` | **Status Sniffer**: Melihat status perekaman aktif, limit memori, dan buffer | `{}` |
+| `POST` | `/api/v1/tools/sniffer/start` | **Mulai Packet Capture**: Merekam paket ke `.pcap` atau streaming ke server Wireshark | `{"interface": "all", "file_name": "capture.pcap", "filter_port": "80,443"}` |
+| `POST` | `/api/v1/tools/sniffer/stop` | **Hentikan Sniffer**: Menghentikan proses capture | `{}` |
+| `POST` | `/api/v1/tools/sniffer/reset` | **Bersihkan Buffer**: Menghapus riwayat packet sniffer dari memori | `{}` |
+
+---
+
+### PPP. 📊 RouterOS Built-in Web Graphing MRTG (`/api/v1/tools/graphing/*`)
+Grafik statistik historis bawaan RouterOS untuk interface, antrean bandwidth, dan resource CPU tanpa server eksternal:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/tools/graphing/status` | **Status Graphing**: Menampilkan komponen grafik yang sedang aktif di `/graphs` | `{}` |
+| `POST` | `/api/v1/tools/graphing/enable` | **Aktifkan MRTG Web Graphs**: Mengaktifkan grafik interface, simple queues, dan CPU | `{"enable_interfaces": true, "enable_queues": true, "enable_resource": true}` |
+| `POST` | `/api/v1/tools/graphing/disable` | **Nonaktifkan Graphing**: Menghapus seluruh aturan grafik bawaan | `{}` |
+
+---
+
+### QQQ. 🛡️ 3-Step Stealth Port Knocking Wizard (`/api/v1/security/port-knocking/*`)
+Keamanan tingkat lanjut sertifikasi MTCSE: Menutup port manajemen (Winbox 8291, SSH 22) secara total dari internet publik hingga teknisi melakukan urutan ketukan rahasia:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/security/port-knocking/setup` | **Setup 3-Step Knocking**: Konfigurasi rantai filter firewall ketukan 3 tahap | `{"knock_port_1": 7000, "knock_port_2": 8000, "knock_port_3": 9000, "target_ports": "8291,22", "access_duration": "1h"}` |
+| `GET` / `POST` | `/api/v1/security/port-knocking/status` | **Status Port Knocking**: Melihat daftar IP admin yang saat ini memiliki otorisasi akses | `{}` |
+| `POST` | `/api/v1/security/port-knocking/remove` | **Hapus Port Knocking**: Mengembalikan port ke konfigurasi normal | `{}` |
+
+---
+
+### RRR. 🔒 Enterprise Security Hardening Suite & Auto-Reboot Subuh (`/api/v1/security/hardening/*`)
+Paket perlindungan komprehensif MTCSE, MTCTCE, dan penjadwalan pemeliharaan rutin RT-RW Net:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/security/hardening/deploy-bogon-filter` | **Filter Bogon & Martian IP**: Drop paket masuk dari WAN yang memiliki IP privat (RFC 1918, CGNAT, Loopback) | `{"wan_interface": "ether1"}` |
+| `POST` | `/api/v1/security/hardening/deploy-dns-guard` | **Blokir DNS Open Resolver**: Menutup port UDP & TCP 53 di WAN agar router tidak disalahgunakan untuk DNS Amplification DDoS | `{"wan_interface": "ether1"}` |
+| `POST` | `/api/v1/security/hardening/deploy-raw-antiddos` | **Raw Firewall Pre-Conntrack**: Membuang paket SYN flood dan paket invalid sebelum masuk connection tracking | `{"wan_interface": "ether1"}` |
+| `POST` | `/api/v1/security/hardening/setup-auto-reboot` | **Auto-Reboot 04:00 Subuh**: Penjadwalan reboot harian otomatis untuk membersihkan memori dan me-refresh session ISP | `{"reboot_time": "04:00:00"}` |
+| `POST` | `/api/v1/security/hardening/deploy-full-hardening` | **1-Klik Full Hardening**: Menerapkan semua perlindungan di atas dalam satu eksekusi | `{"wan_interface": "ether1", "enable_auto_reboot": true}` |
+| `GET` / `POST` | `/api/v1/security/hardening/audit-status` | **Audit Hardening**: Menampilkan status kelengkapan filter proteksi pada router | `{}` |
+
+---
+
+### SSS. 🎫 Mikhmon v4 Advanced Hotspot Suite (`/api/v1/hotspot/mikhmon-v4/*`)
+Fitur unggulan ekosistem Mikhmon v4 untuk manajemen voucher dan akun gratisan:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/hotspot/mikhmon-v4/lock-mac/enable` | **Lock User to MAC**: Mengikat MAC address perangkat secara otomatis saat login pertama agar voucher tidak bisa dipindahtangankan | `{"profile_name": "default"}` |
+| `POST` | `/api/v1/hotspot/mikhmon-v4/lock-mac/bind-now` | **Manual MAC Binding**: Mengunci user tertentu ke MAC address spesifik | `{"username": "v-1234", "mac_address": "AA:BB:CC:DD:EE:FF"}` |
+| `POST` | `/api/v1/hotspot/mikhmon-v4/expiry-mode/setup` | **3-Mode Expiry Setup**: Injeksi skrip validasi mode `remove`, `notice` (isolir web peringatan), atau `remove_and_record` | `{"profile_name": "default", "expiry_mode": "notice", "validity": "1d", "notice_profile": "EXPIRED_NOTICE"}` |
+| `GET` / `POST` | `/api/v1/hotspot/mikhmon-v4/trial/status` | **Status Trial Hotspot**: Menampilkan konfigurasi login gratisan pada server profile | `{}` |
+| `POST` | `/api/v1/hotspot/mikhmon-v4/trial/setup` | **Setup Trial Pengguna**: Mengatur durasi waktu gratisan (misal 15 menit) dan interval reset uji coba | `{"enable_trial": true, "trial_uptime_limit": "15m", "trial_uptime_reset": "1d"}` |
+| `POST` | `/api/v1/hotspot/mikhmon-v4/trial/reset-cookies` | **Reset Trial Cookies**: Menghapus riwayat MAC trial agar pengunjung dapat mencoba login kembali | `{}` |
+
+---
+
+### TTT. 📡 DHCP Server CRUD & DHCP Relay Suite (`/api/v1/dhcp/*`)
+Pengelolaan siklus hidup DHCP Server dan penerusan DHCP Relay lintas cabang:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/dhcp/server/add` | **Tambah DHCP Server**: Menjalankan DHCP server pada interface LAN/Bridge/VLAN | `{"name": "dhcp1", "interface": "bridge", "address_pool": "dhcp_pool1", "lease_time": "1d"}` |
+| `POST` | `/api/v1/dhcp/server/set` | **Ubah DHCP Server**: Memodifikasi parameter server yang telah ada | `{"id": "*1", "lease_time": "12h"}` |
+| `POST` | `/api/v1/dhcp/server/remove` | **Hapus DHCP Server**: Menghapus instans DHCP server | `{"id": "*1"}` |
+| `GET` / `POST` | `/api/v1/dhcp/relays` | **Daftar DHCP Relay**: Melihat daftar agen relay DHCP yang aktif | `{}` |
+| `POST` | `/api/v1/dhcp/relay/add` | **Tambah DHCP Relay**: Meneruskan request DHCP lokal ke server DHCP pusat di datacenter | `{"name": "relay1", "interface": "ether2", "dhcp_server": "10.0.0.1", "local_address": "192.168.88.1"}` |
+| `POST` | `/api/v1/dhcp/relay/set` | **Ubah DHCP Relay**: Mengubah IP DHCP server tujuan atau interface | `{"id": "*1", "dhcp_server": "10.0.0.2"}` |
+| `POST` | `/api/v1/dhcp/relay/remove` | **Hapus DHCP Relay**: Menghapus agen relay dari router | `{"id": "*1"}` |
+
+---
+
+### UUU. 🌐 Enterprise IPv6 Complete Suite (`/api/v1/ipv6/*`)
+Manajemen IPv6 modern: Prefix Delegation ISP, Pool, DHCPv6, dan Routing:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/ipv6/route/add` | **Tambah IPv6 Route**: Membuat rute static IPv6 default gateway atau spesifik | `{"dst_address": "::/0", "gateway": "fe80::1%ether1", "distance": "1"}` |
+| `POST` | `/api/v1/ipv6/route/remove` | **Hapus IPv6 Route**: Menghapus rute IPv6 | `{"id": "*1"}` |
+| `POST` | `/api/v1/ipv6/pool/add` | **Tambah IPv6 Pool**: Alokasi pool prefix IPv6 lokal | `{"name": "ipv6-lan-pool", "prefix": "2001:db8:1::/48", "prefix_length": "64"}` |
+| `POST` | `/api/v1/ipv6/pool/remove` | **Hapus IPv6 Pool**: Menghapus pool prefix | `{"id": "*1"}` |
+| `GET` / `POST` | `/api/v1/ipv6/dhcp-client` | **Daftar DHCPv6 Client**: Menampilkan client peminta prefix delegation | `{}` |
+| `POST` | `/api/v1/ipv6/dhcp-client/add` | **Tambah DHCPv6 Client**: Mengambil prefix otomatis dari ISP ke pool | `{"interface": "ether1", "pool_name": "isp-pool", "pool_prefix_length": "64", "add_default_route": true}` |
+| `POST` | `/api/v1/ipv6/dhcp-client/remove` | **Hapus DHCPv6 Client**: Menghapus client IPv6 WAN | `{"id": "*1"}` |
+| `GET` / `POST` | `/api/v1/ipv6/dhcp-server` | **Daftar DHCPv6 Server**: Menampilkan DHCPv6 server yang aktif di LAN | `{}` |
+| `POST` | `/api/v1/ipv6/dhcp-server/add` | **Tambah DHCPv6 Server**: Mengaktifkan DHCPv6 server pada interface LAN | `{"name": "dhcp6-lan", "interface": "bridge", "address_pool": "isp-pool"}` |
+| `POST` | `/api/v1/ipv6/dhcp-server/remove` | **Hapus DHCPv6 Server**: Menghapus server DHCPv6 LAN | `{"id": "*1"}` |
+
+---
+
+### VVV. 🚇 Site-to-Site Tunneling: GRE & IPIP Tunnels (`/api/v1/vpn/*`)
+Interkoneksi antar kantor cabang dengan protokol standar industri GRE dan IPIP:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `GET` / `POST` | `/api/v1/vpn/gre` | **Daftar GRE Tunnels**: Menampilkan interface Generic Routing Encapsulation | `{}` |
+| `POST` | `/api/v1/vpn/gre/add` | **Tambah GRE Tunnel**: Membuat interface GRE baru dengan proteksi IPsec | `{"name": "gre-kantor-pusat", "remote_address": "203.0.113.10", "ipsec_secret": "RahasiaGRE123"}` |
+| `POST` | `/api/v1/vpn/gre/remove` | **Hapus GRE Tunnel**: Menghapus interface GRE tunnel | `{"id": "*1"}` |
+| `GET` / `POST` | `/api/v1/vpn/ipip` | **Daftar IPIP Tunnels**: Menampilkan interface IP-in-IP beroverhead minimal | `{}` |
+| `POST` | `/api/v1/vpn/ipip/add` | **Tambah IPIP Tunnel**: Membuat interface IPIP tunnel baru | `{"name": "ipip-cabang", "remote_address": "203.0.113.20", "ipsec_secret": "RahasiaIPIP123"}` |
+| `POST` | `/api/v1/vpn/ipip/remove` | **Hapus IPIP Tunnel**: Menghapus interface IPIP tunnel | `{"id": "*1"}` |
+
+---
+
+| `POST` | `/api/v1/firewall/hairpin-nat` | **Aturan Mandiri Hairpin NAT**: Mengizinkan device LAN membuka domain DDNS / IP Publik router tanpa timeout | `{"lan_subnet": "192.168.88.0/24", "server_address": "192.168.88.50", "dst_port": "80", "protocol": "tcp"}` |
+
+---
+
+### XXX. 🧠 IPv6 Analyzer, Explainer & 1-Klik Setup Wizard (`/api/v1/ipv6/*`)
+Solusi komprehensif agar developer mudah memahami, membaca format heksadesimal, dan men-deploy IPv6 di MikroTik dalam hitungan detik:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/ipv6/explain` | **IPv6 Analyzer & Explainer**: Menerjemahkan sembarang string IPv6 ke dalam bahasa manusia (tipe GUA/LLA/ULA/Multicast, lingkup scope, kemampuan routing internet, kapasitas subnet /64, serta contoh perintah RouterOS) | `{"address": "2001:db8:85a3::1/64"}` |
+| `POST` | `/api/v1/ipv6/wizard/quick-setup` | **1-Klik Setup Lengkap IPv6 ISP ke LAN**: Cukup masukkan WAN & LAN interface! Otomatis memasang DHCPv6 Client prefix delegation, IPv6 address LAN dari pool, Neighbor Discovery (ND) SLAAC, dan baseline firewall hardening | `{"wan_interface": "ether1", "lan_interface": "bridge", "pool_name": "isp-ipv6-pool", "enable_firewall": true}` |
+
+---
+
+### YYY. 🗺️ Advanced BGP Peering, FIB Routing Tables & Policy Rules (`/api/v1/routing/*`)
+Manajemen routing skala operator dan Multi-WAN Policy Based Routing (PBR) efisien tanpa beban CPU Mangle:
+| Method | Endpoint | Kegunaan | Payload Tambahan |
+|---|---|---|---|
+| `POST` | `/api/v1/routing/bgp/peer/add` | **Tambah Sesi BGP Carrier Peering**: Otomatis mendeteksi RouterOS v7 (`/routing/bgp/connection`) atau fallback v6 (`/routing/bgp/peer`) | `{"name": "BGP-UPLINK-ISP1", "remote_address": "203.0.113.1", "remote_as": "64512", "local_as": "65000"}` |
+| `GET` / `POST` | `/api/v1/routing/tables` | **Daftar Tabel Routing FIB**: Melihat daftar tabel routing independen (wajib v7) | `{}` |
+| `POST` | `/api/v1/routing/table/add` | **Tambah Tabel Routing FIB**: Mendaftarkan tabel baru untuk PBR Multi-WAN | `{"name": "to-WAN2", "fib": true}` |
+| `GET` / `POST` | `/api/v1/routing/rules` | **Daftar Routing Rules**: Melihat daftar aturan kebijakan lookup routing | `{}` |
+| `POST` | `/api/v1/routing/rule/add` | **Tambah Policy Routing Rule**: Mengarahkan trafik IP tertentu langsung ke tabel routing tanpa Mangle | `{"src_address": "192.168.88.100/32", "table": "to-WAN2", "action": "lookup-only-in-table"}` |
 

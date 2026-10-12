@@ -6,7 +6,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Language-Rust%202021-f97316?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready%20%3C25MB-0284c7?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="https://mikrotik.com/"><img src="https://img.shields.io/badge/RouterOS-v6.49%20%2B%20v7.x-3b82f6?style=for-the-badge&logo=mikrotik&logoColor=white" alt="RouterOS" /></a>
-  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-180%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
+  <a href="docs/04-universal-api-reference.md"><img src="https://img.shields.io/badge/API%20Endpoints-240%2B%20Enterprise-10b981?style=for-the-badge&logo=fastapi&logoColor=white" alt="Endpoints" /></a>
   <a href="#-arsitektur-dan-alur-kerja"><img src="https://img.shields.io/badge/Latency-Sub--ms%20%3C1.5ms-8b5cf6?style=for-the-badge&logo=speedtest&logoColor=white" alt="Sub-Millisecond" /></a>
 </p>
 
@@ -43,7 +43,7 @@ Sebagai tim NOC atau operator ISP/WISP, masalah terbesar pada integrasi API Rout
 | **Koneksi Soket**: Buka-tutup soket TCP baru setiap request (*high socket churn*). | **Persistent Multiplexed Pool**: Soket TCP tetap hangat (*warm*), query berjalan simultan lewat penanda atomik `.tag`. |
 | **Beban CPU Router**: CPU RouterOS sering melonjak 100% dan hang saat banyak query. | **Zero CPU Freeze**: Dilengkapi pelindung **15-Second Anti-Hang Guard** dan FastTrack connection bypass. |
 | **Kecepatan Respons**: 200 ms – 1.5 detik per request. | **Sub-Milidetik**: Rata-rata respons **< 1.5 milidetik** berkat protokol biner tingkat rendah (*raw wire format*). |
-| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 140+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
+| **Metode HTTP**: Terikat pada library spesifik atau POST dengan JSON kaku. | **Dual HTTP GET & POST**: Semua 210+ endpoint mendukung query parameter langsung (`?host=..&token=..`), cURL one-liner, dan browser direct call. |
 | **Ketergantungan Stack**: Terikat library bahasa tertentu. | **Universal REST & WebSocket**: Semua stack cukup memanggil REST JSON atau WebSocket `/ws`. |
 | **Kerapian Aturan Winbox**: Script otomatis sering mengotori firewall tanpa jejak. | **Standar Komentar Otomatis**: Semua aturan otomatis ditandai rapi (misal `[PCC-LoadBalance]`, `[App-Blocker]`, `[Anti-Tethering]`). |
 
@@ -260,6 +260,39 @@ graph TB
   * `POST /api/v1/dhcp/lease/make-static`: Mengubah lease dinamis menjadi statis permanen dengan 1 klik.
   * `POST /api/v1/dhcp/lease/remove`: Menghapus lease.
 
+### 34. 📡 DHCP Server CRUD & DHCP Relay Agent (`/api/v1/dhcp/*`)
+* **CRUD Mandiri DHCP Server**: Pembuatan dan modifikasi DHCP server langsung pada interface LAN/Bridge/VLAN lengkap dengan alokasi `address-pool` dan `lease-time`.
+* **DHCP Relay Multi-Cabang**: Meneruskan paket permintaan DHCP dari kantor cabang ke DHCP server pusat di datacenter (`POST /api/v1/dhcp/relay/add`).
+* **Rogue DHCP Server Detection**: Pasang alarm deteksi otomatis untuk menemukan router WiFi liar di jaringan kantor (`POST /api/v1/dhcp/alert/add`).
+
+### 35. 🧠 IPv6 Assistant, Explainer & 1-Klik Setup Wizard (`/api/v1/ipv6/*`)
+* **Penerjemah & Kalkulator IPv6 Ramah Developer (`/api/v1/ipv6/explain`)**: Menghilangkan kebingungan format heksadesimal 128-bit. Menganalisis string IPv6 apa pun dan mengembalikan tipe alamat (Global Unicast, Link-Local, ULA, Multicast), lingkup scope, kemampuan routing internet, kapasitas subnet /64, serta contoh perintah RouterOS CLI.
+* **1-Klik Setup Lengkap IPv6 ISP to LAN (`/api/v1/ipv6/wizard/quick-setup`)**: Cukup masukkan nama interface WAN & LAN! Sistem otomatis memasang DHCPv6 Client Prefix Delegation, membuat IPv6 Address LAN dari pool, mengaktifkan Neighbor Discovery (ND) SLAAC, serta memasang firewall filter hardening baseline IPv6.
+
+### 36. 🚇 Enterprise Site-to-Site & Remote Tunneling (`/api/v1/vpn/*`, `/api/v1/wireguard/*`)
+* **WireGuard v7**: Tunnel modern ultra-cepat hemat CPU (`/api/v1/wireguard/peer/add`).
+* **GRE & IPIP Tunnels**: Interkoneksi kantor cabang standar industri Cisco/MikroTik dengan enkripsi IPsec secret (`POST /api/v1/vpn/gre/add` & `POST /api/v1/vpn/ipip/add`).
+* **EoIP Bridging**: Tunnel Layer 2 untuk menyatukan broadcast domain kantor pusat dan cabang dalam 1 subnet lokal yang sama (`/api/v1/vpn/eoip/add`).
+* **SSTP, L2TP/IPsec, OpenVPN Server**: Remote access karyawan WFH yang lolos firewall ketat (`/api/v1/vpn/sstp`, `/l2tp`, `/ovpn`).
+
+### 37. 🪃 Port Forwarding Wizard & Hairpin NAT Loopback (`/api/v1/firewall/*`)
+* **Dst-NAT Otomatis + Hairpin NAT (`/api/v1/firewall/port-forward`)**: Forward port web server atau CCTV ke IP lokal dengan opsi toggle `"enable_hairpin": true`.
+* **Solusi Anti-Timeout Akses LAN (`/api/v1/firewall/hairpin-nat`)**: Menghilangkan kendala klasik di mana staf dalam LAN tidak bisa membuka domain DDNS / IP Publik router sendiri.
+
+### 38. 🗺️ Advanced BGP Peering, FIB Routing Tables & Policy Rules (`/api/v1/routing/*`)
+* **Dual-Stack BGP Peering (`/api/v1/routing/bgp/peer/add`)**: Kompatibel penuh dengan RouterOS v7 (`/routing/bgp/connection`) dan v6 (`/routing/bgp/peer`).
+* **FIB Routing Tables v7 (`/api/v1/routing/table/add`)**: Pendaftaran tabel routing independen untuk Multi-WAN PBR.
+* **Policy Routing Rules (`/api/v1/routing/rule/add`)**: Arahkan trafik IP tertentu langsung ke tabel routing alternatif tanpa membebani CPU dengan Mangle conntrack.
+
+### 39. 🛡️ MTCSE 3-Step Port Knocking & Full Hardening Suite (`/api/v1/security/*`)
+* **3-Step Stealth Port Knocking (`/api/v1/security/port-knocking/setup`)**: Amankan port Winbox 8291 dan SSH 22 dari internet hingga teknisi melakukan urutan ketukan rahasia (contoh: 7000 -> 8000 -> 9000).
+* **1-Klik Full Hardening (`/api/v1/security/hardening/deploy-full-hardening`)**: Filter Bogon WAN, proteksi DNS Open-Resolver UDP/53, Raw pre-conntrack anti-DDoS, dan auto-reboot harian jam 04:00 subuh.
+
+### 40. 🎫 Mikhmon v4 Advanced Hotspot Suite (`/api/v1/hotspot/mikhmon-v4/*`)
+* **Auto-Lock MAC to Voucher**: Mengikat MAC address perangkat secara otomatis saat login pertama agar voucher tidak bisa dipindahtangankan.
+* **3-Mode Expiry Setup**: Injeksi mode *Remove* (hapus voucher), *Notice* (alihkan ke web peringatan habis), atau *Record* (catat transaksi kasir).
+* **Hotspot Trial Users Controller**: Pengaturan durasi uji coba internet gratisan (misal 15 menit per hari) dan reset cookie perangkat.
+
 ---
 
 ## ⚡ Fleksibilitas Pemanggilan: Dual Transport (GET & POST)
@@ -396,6 +429,29 @@ Future<void> fetchRouterOverview() async {
 }
 ```
 
+### 4. Real-time Full-Duplex WebSocket (`/ws`)
+Untuk dashboard reaktif tanpa overhead polling HTTP (Vue, React, Flutter):
+```javascript
+const ws = new WebSocket("ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string");
+
+ws.onopen = () => {
+  // Subscribe live overview telemetri setiap 2 detik
+  ws.send(JSON.stringify({
+    action: "subscribe_overview",
+    interval_ms: 2000,
+    tag: "dashboard-1"
+  }));
+};
+
+ws.onmessage = (e) => {
+  const frame = JSON.parse(e.data);
+  if (frame.event === "overview_frame") {
+    console.log("CPU Load:", frame.data.cpu_load + "%");
+    console.log("Total Klien Online:", frame.data.total_clients_count);
+  }
+};
+```
+
 ---
 
 ## 📑 Dokumentasi Teknis Lengkap
@@ -404,8 +460,8 @@ Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:
 * **[01. Arsitektur & Alur Kerja Sistem](docs/01-arsitektur-dan-alur.md)**
 * **[02. Protokol Biner RouterOS (Port 8728)](docs/02-protokol-routeros-binary.md)**
 * **[03. Spesifikasi Gateway REST, WebSocket & SSE](docs/03-gateway-api-spesifikasi.md)**
-* **[04. Referensi Lengkap Universal API (115+ Enterprise Endpoints)](docs/04-universal-api-reference.md)**
-* **[05. Panduan Integrasi Multi-Stack (Laravel, Vue, Express, Flutter, Go)](docs/05-integrasi-multi-stack.md)**
+* **[04. Referensi Lengkap Universal API (240+ Enterprise Endpoints)](docs/04-universal-api-reference.md)**
+* **[05. Panduan Arsitektur & Relasi Antar Entitas Jaringan (Entity Relationship Guide)](docs/05-network-entity-relationships-guide.md)**
 * **[06. Katalog Lengkap Command MikroTik](docs/06-katalog-command-mikrotik.md)**
 
 ---

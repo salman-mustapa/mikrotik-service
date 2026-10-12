@@ -276,6 +276,298 @@
           ]
         }
       }
+    },
+    {
+      "name": "Cloud - IP Cloud DDNS Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/v1/cloud/status", "host": ["{{base_url}}"], "path": ["api", "v1", "cloud", "status"] }
+      }
+    },
+    {
+      "name": "Routing - MTCRE Recursive Failover Setup",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"primary_gateway\": \"192.168.1.1\",\n  \"backup_gateway\": \"192.168.2.1\",\n  \"primary_check_host\": \"8.8.8.8\",\n  \"backup_check_host\": \"1.1.1.1\",\n  \"primary_distance\": 1,\n  \"backup_distance\": 2\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/routing/failover/setup", "host": ["{{base_url}}"], "path": ["api", "v1", "routing", "failover", "setup"] }
+      }
+    },
+    {
+      "name": "WISP - Isolir Web Redirect Setup",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"isolir_server_ip\": \"192.168.88.254\",\n  \"isolir_server_port\": 80\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/wisp/isolir/setup", "host": ["{{base_url}}"], "path": ["api", "v1", "wisp", "isolir", "setup"] }
+      }
+    },
+    {
+      "name": "Security - MTCSE 3-Step Port Knocking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"knock_port_1\": 7000,\n  \"knock_port_2\": 8000,\n  \"knock_port_3\": 9000,\n  \"target_ports\": \"8291,22\",\n  \"access_duration\": \"1h\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/security/port-knocking/setup", "host": ["{{base_url}}"], "path": ["api", "v1", "security", "port-knocking", "setup"] }
+      }
+    },
+    {
+      "name": "Security - Full Hardening & Auto-Reboot",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wan_interface\": \"ether1\",\n  \"enable_bogon_filter\": true,\n  \"enable_dns_guard\": true,\n  \"enable_raw_antiddos\": true,\n  \"enable_auto_reboot\": true,\n  \"reboot_time\": \"04:00:00\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/security/hardening/deploy-full-hardening", "host": ["{{base_url}}"], "path": ["api", "v1", "security", "hardening", "deploy-full-hardening"] }
+      }
+    },
+    {
+      "name": "Hotspot - Mikhmon v4 Lock MAC",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profile_name\": \"default\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/hotspot/mikhmon-v4/lock-mac/enable", "host": ["{{base_url}}"], "path": ["api", "v1", "hotspot", "mikhmon-v4", "lock-mac", "enable"] }
+      }
+    },
+    {
+      "name": "DHCP - Add DHCP Relay Agent",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"relay-lan\",\n  \"interface\": \"bridge\",\n  \"dhcp_server\": \"10.0.0.1\",\n  \"local_address\": \"192.168.88.1\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/dhcp/relay/add", "host": ["{{base_url}}"], "path": ["api", "v1", "dhcp", "relay", "add"] }
+      }
+    },
+    {
+      "name": "IPv6 - Explainer & Subnet Calculator",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"address\": \"2001:db8:85a3::1/64\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/ipv6/explain", "host": ["{{base_url}}"], "path": ["api", "v1", "ipv6", "explain"] }
+      }
+    },
+    {
+      "name": "IPv6 - 1-Click ISP to LAN Setup Wizard",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"wan_interface\": \"ether1\",\n  \"lan_interface\": \"bridge\",\n  \"pool_name\": \"isp-ipv6-pool\",\n  \"enable_firewall\": true\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/ipv6/wizard/quick-setup", "host": ["{{base_url}}"], "path": ["api", "v1", "ipv6", "wizard", "quick-setup"] }
+      }
+    },
+    {
+      "name": "VPN - Add GRE Tunnel",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"gre-cabang\",\n  \"remote_address\": \"203.0.113.10\",\n  \"ipsec_secret\": \"RahasiaGRE2026\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/vpn/gre/add", "host": ["{{base_url}}"], "path": ["api", "v1", "vpn", "gre", "add"] }
+      }
+    },
+    {
+      "name": "VPN - Add IPIP Tunnel",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"ipip-cabang\",\n  \"remote_address\": \"203.0.113.10\",\n  \"ipsec_secret\": \"RahasiaIPIP2026\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/vpn/ipip/add", "host": ["{{base_url}}"], "path": ["api", "v1", "vpn", "ipip", "add"] }
+      }
+    },
+    {
+      "name": "Firewall - Dst-NAT with Hairpin Loopback",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"protocol\": \"tcp\",\n  \"dst_port\": \"8080\",\n  \"to_addresses\": \"192.168.88.50\",\n  \"to_ports\": \"80\",\n  \"enable_hairpin\": true,\n  \"lan_subnet\": \"192.168.88.0/24\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/firewall/port-forward", "host": ["{{base_url}}"], "path": ["api", "v1", "firewall", "port-forward"] }
+      }
+    },
+    {
+      "name": "Routing - Add BGP Carrier Peering",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"BGP-UPLINK-ISP1\",\n  \"remote_address\": \"203.0.113.1\",\n  \"remote_as\": \"64512\",\n  \"local_as\": \"65000\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/routing/bgp/peer/add", "host": ["{{base_url}}"], "path": ["api", "v1", "routing", "bgp", "peer", "add"] }
+      }
+    },
+    {
+      "name": "Routing - Add Routing Table FIB (v7)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"to-WAN2\",\n  \"fib\": true\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/routing/table/add", "host": ["{{base_url}}"], "path": ["api", "v1", "routing", "table", "add"] }
+      }
+    },
+    {
+      "name": "Routing - Add Policy Routing Rule",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"src_address\": \"192.168.88.100/32\",\n  \"table\": \"to-WAN2\",\n  \"action\": \"lookup-only-in-table\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/routing/rule/add", "host": ["{{base_url}}"], "path": ["api", "v1", "routing", "rule", "add"] }
+      }
+    },
+    {
+      "name": "Cloud - IP Cloud DDNS Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/v1/cloud/status", "host": ["{{base_url}}"], "path": ["api", "v1", "cloud", "status"] }
+      }
+    },
+    {
+      "name": "Routing - Recursive Failover Setup",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Router-Host", "value": "{{router_host}}" },
+          { "key": "X-Router-Port", "value": "{{router_port}}" },
+          { "key": "X-Router-User", "value": "{{router_user}}" },
+          { "key": "X-Router-Pass", "value": "{{router_pass}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"primary_gateway\": \"192.168.1.1\",\n  \"secondary_gateway\": \"192.168.2.1\",\n  \"primary_check_ip\": \"8.8.8.8\",\n  \"secondary_check_ip\": \"1.1.1.1\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/v1/routing/failover/setup", "host": ["{{base_url}}"], "path": ["api", "v1", "routing", "failover", "setup"] }
+      }
     }
   ]
 }

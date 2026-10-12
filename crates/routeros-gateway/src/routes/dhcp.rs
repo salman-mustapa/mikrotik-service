@@ -38,6 +38,106 @@ pub async fn servers(
     Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct AddDhcpServerReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub interface: String,
+    pub address_pool: Option<String>,
+    pub lease_time: Option<String>,
+    pub disabled: Option<bool>,
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetDhcpServerReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+    pub name: Option<String>,
+    pub interface: Option<String>,
+    pub address_pool: Option<String>,
+    pub lease_time: Option<String>,
+    pub disabled: Option<bool>,
+    pub comment: Option<String>,
+}
+
+/// POST /api/v1/dhcp/server/add - Tambah DHCP Server baru pada interface
+pub async fn add_server(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddDhcpServerReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("interface", req.interface.as_str()),
+    ];
+    if let Some(pool) = req.address_pool.as_deref() {
+        args.push(("address-pool", pool));
+    }
+    if let Some(lt) = req.lease_time.as_deref() {
+        args.push(("lease-time", lt));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    if let Some(c) = req.comment.as_deref() {
+        args.push(("comment", c));
+    }
+    client.run(build_command("/ip/dhcp-server/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP server created successfully" })))
+}
+
+/// POST /api/v1/dhcp/server/set - Ubah parameter DHCP Server
+pub async fn set_server(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetDhcpServerReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![(".id", req.id.as_str())];
+    if let Some(ref n) = req.name {
+        args.push(("name", n.as_str()));
+    }
+    if let Some(ref i) = req.interface {
+        args.push(("interface", i.as_str()));
+    }
+    if let Some(ref p) = req.address_pool {
+        args.push(("address-pool", p.as_str()));
+    }
+    if let Some(ref lt) = req.lease_time {
+        args.push(("lease-time", lt.as_str()));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/ip/dhcp-server/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP server updated successfully" })))
+}
+
+/// POST /api/v1/dhcp/server/remove - Hapus DHCP Server
+pub async fn remove_server(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-server/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP server removed successfully" })))
+}
+
 pub async fn leases(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -255,4 +355,113 @@ pub async fn remove_alert(
     client.run(build_command("/ip/dhcp-server/alert/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "DHCP alert watcher removed" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddDhcpRelayReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub interface: String,
+    pub dhcp_server: String,
+    pub local_address: Option<String>,
+    pub delay_threshold: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetDhcpRelayReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+    pub name: Option<String>,
+    pub interface: Option<String>,
+    pub dhcp_server: Option<String>,
+    pub local_address: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+/// GET or POST /api/v1/dhcp/relays - Daftar DHCP Relay agent (/ip/dhcp-relay/print)
+pub async fn relays(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/dhcp-relay/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/dhcp/relay/add - Tambah DHCP Relay agent baru (/ip/dhcp-relay/add)
+pub async fn add_relay(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddDhcpRelayReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("interface", req.interface.as_str()),
+        ("dhcp-server", req.dhcp_server.as_str()),
+    ];
+    if let Some(ref la) = req.local_address {
+        args.push(("local-address", la.as_str()));
+    }
+    if let Some(ref dt) = req.delay_threshold {
+        args.push(("delay-threshold", dt.as_str()));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    client.run(build_command("/ip/dhcp-relay/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Relay agent added successfully" })))
+}
+
+/// POST /api/v1/dhcp/relay/set - Ubah konfigurasi DHCP Relay agent (/ip/dhcp-relay/set)
+pub async fn set_relay(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetDhcpRelayReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![(".id", req.id.as_str())];
+    if let Some(ref n) = req.name {
+        args.push(("name", n.as_str()));
+    }
+    if let Some(ref i) = req.interface {
+        args.push(("interface", i.as_str()));
+    }
+    if let Some(ref ds) = req.dhcp_server {
+        args.push(("dhcp-server", ds.as_str()));
+    }
+    if let Some(ref la) = req.local_address {
+        args.push(("local-address", la.as_str()));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    client.run(build_command("/ip/dhcp-relay/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Relay updated successfully" })))
+}
+
+/// POST /api/v1/dhcp/relay/remove - Hapus DHCP Relay agent (/ip/dhcp-relay/remove)
+pub async fn remove_relay(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-relay/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Relay agent removed successfully" })))
+}
+
 

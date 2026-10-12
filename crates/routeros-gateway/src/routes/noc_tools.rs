@@ -322,6 +322,21 @@ pub async fn add_dhcp_client(
     })))
 }
 
+/// POST /api/v1/ip/dhcp-client/remove - Hapus DHCP Client berdasarkan ID
+pub async fn remove_dhcp_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-client/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({
+        "success": true,
+        "message": "DHCP Client berhasil dihapus"
+    })))
+}
+
 /// POST /api/v1/scripts/terminal-exec - Executes multi-line RouterOS CLI script batch
 /// (Supports copy-pasting raw terminal configuration commands directly)
 pub async fn terminal_exec(

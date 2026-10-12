@@ -792,8 +792,52 @@ pub async fn console_page() -> Html<&'static str> {
       // --- Hotspot Wizard & Visual Templates (cat: hotspot & voucher) ---
       { id: "hs_wizard_setup", path: "/api/v1/hotspot/wizard/setup", method: "POST", cat: "hotspot", desc: "1-Klik Hotspot Wizard: Konfigurasi lengkap interface, IP pool, DNS, profile & login page otomatis.", defaultPayload: '{\n  "interface": "wlan1",\n  "dns_name": "hotspot.net",\n  "network": "192.168.10.0/24",\n  "gateway": "192.168.10.1"\n}' },
       { id: "voucher_template_render", path: "/api/v1/hotspot/voucher-template/render", method: "POST", cat: "voucher", desc: "Render lembaran cetak voucher visual berformat HTML (58mm, 80mm, atau A4 Grid) dengan QR Code.", defaultPayload: '{\n  "theme": "modern",\n  "paper_width": "80mm",\n  "hotspot_name": "WAROENG HOTSPOT",\n  "vouchers": [\n    { "username": "HOT-9012", "password": "pass-9012", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ]\n}' },
-      { id: "raw_command", path: "/api/v1/command", method: "POST", cat: "system", desc: "Universal Raw Command Executor: Kirim perintah sembarang ke RouterOS API secara langsung.", defaultPayload: '{\n  "command": "/system/resource/print"\n}' }
+      { id: "raw_command", path: "/api/v1/command", method: "POST", cat: "system", desc: "Universal Raw Command Executor: Kirim perintah sembarang ke RouterOS API secara langsung.", defaultPayload: '{\n  "command": "/system/resource/print"\n}' },
+
+      // --- IP Cloud DDNS (Winbox & Indihome/Biznet Dynamic IP) ---
+      { id: "cloud_status", path: "/api/v1/cloud/status", method: "GET", cat: "system", desc: "Status IP Cloud DDNS MikroTik (*.sn.mynetname.net) dan deteksi IP publik aktif.", defaultPayload: "{}" },
+      { id: "cloud_set", path: "/api/v1/cloud/set", method: "POST", cat: "system", desc: "Aktifkan atau atur interval IP Cloud DDNS dan sinkronisasi jam RouterOS.", defaultPayload: '{\n  "ddns_enabled": true,\n  "update_time": true\n}' },
+      { id: "cloud_force_update", path: "/api/v1/cloud/force-update", method: "POST", cat: "system", desc: "Paksa update rekaman DDNS publik ke server MikroTik mynetname.net.", defaultPayload: "{}" },
+
+      // --- Recursive Gateway Multi-WAN Failover (MTCRE & YouTube Standar) ---
+      { id: "failover_setup", path: "/api/v1/routing/failover/setup", method: "POST", cat: "loadbalance", desc: "1-Klik setup Recursive Gateway Failover via DNS ping 8.8.8.8 & 1.1.1.1 (MTCRE).", defaultPayload: '{\n  "primary_gateway": "192.168.1.1",\n  "backup_gateway": "192.168.2.1",\n  "primary_check_host": "8.8.8.8",\n  "backup_check_host": "1.1.1.1"\n}' },
+      { id: "failover_status", path: "/api/v1/routing/failover/status", method: "GET", cat: "loadbalance", desc: "Cek status rute failover rekursif aktif vs rute cadangan.", defaultPayload: "{}" },
+      { id: "failover_remove", path: "/api/v1/routing/failover/remove", method: "POST", cat: "loadbalance", desc: "Hapus seluruh rute failover rekursif bertag [Recursive-Failover].", defaultPayload: "{}" },
+
+      // --- WISP & RT-RW Net Isolir Web Redirect & Overdue Manager ---
+      { id: "isolir_setup", path: "/api/v1/wisp/isolir/setup", method: "POST", cat: "pppoe", desc: "Setup NAT Redirect port 80 dan firewall drop isolir untuk pelanggan jatuh tempo.", defaultPayload: '{\n  "isolir_server_ip": "192.168.88.254",\n  "isolir_server_port": 80\n}' },
+      { id: "isolir_isolate", path: "/api/v1/wisp/isolir/isolate", method: "POST", cat: "pppoe", desc: "Isolir pelanggan menunggak ke address-list ISOLIR_LIST.", defaultPayload: '{\n  "client_ip": "192.168.88.105",\n  "customer_name": "Budi Santoso",\n  "due_date": "10 Oktober 2026"\n}' },
+      { id: "isolir_restore", path: "/api/v1/wisp/isolir/restore", method: "POST", cat: "pppoe", desc: "Pulihkan akses internet pelanggan setelah lunas.", defaultPayload: '{\n  "client_ip": "192.168.88.105"\n}' },
+      { id: "isolir_list", path: "/api/v1/wisp/isolir/list", method: "GET", cat: "pppoe", desc: "Daftar seluruh pelanggan yang sedang diisolir saat ini.", defaultPayload: "{}" },
+
+      // --- Packet Sniffer & Wireshark Streamer ---
+      { id: "tools_sniffer_status", path: "/api/v1/tools/sniffer/status", method: "GET", cat: "tools", desc: "Status Packet Sniffer RouterOS (running, buffer, limit).", defaultPayload: "{}" },
+      { id: "tools_sniffer_start", path: "/api/v1/tools/sniffer/start", method: "POST", cat: "tools", desc: "Mulai packet capture ke file .pcap atau streaming TZSP ke PC Wireshark.", defaultPayload: '{\n  "interface": "all",\n  "file_name": "capture.pcap",\n  "file_limit": "2000KiB"\n}' },
+      { id: "tools_sniffer_stop", path: "/api/v1/tools/sniffer/stop", method: "POST", cat: "tools", desc: "Hentikan packet sniffer.", defaultPayload: "{}" },
+
+      // --- RouterOS Built-in Web Graphing MRTG (/graphs) ---
+      { id: "tools_graphing_status", path: "/api/v1/tools/graphing/status", method: "GET", cat: "tools", desc: "Status konfigurasi grafik historis web RouterOS (/graphs).", defaultPayload: "{}" },
+      { id: "tools_graphing_enable", path: "/api/v1/tools/graphing/enable", method: "POST", cat: "tools", desc: "Aktifkan grafik web MRTG untuk interface, queue bandwidth, dan CPU.", defaultPayload: '{\n  "enable_interfaces": true,\n  "interface": "all",\n  "enable_queues": true,\n  "enable_resource": true\n}' },
+
+      // --- 3-Step Stealth Port Knocking Wizard (MTCSE Security) ---
+      { id: "sec_port_knocking_setup", path: "/api/v1/security/port-knocking/setup", method: "POST", cat: "security", desc: "1-Klik setup 3-Step Port Knocking (amankan port Winbox 8291 & SSH 22).", defaultPayload: '{\n  "knock_port_1": 7000,\n  "knock_port_2": 8000,\n  "knock_port_3": 9000,\n  "target_ports": "8291,22",\n  "access_duration": "1h"\n}' },
+      { id: "sec_port_knocking_status", path: "/api/v1/security/port-knocking/status", method: "GET", cat: "security", desc: "Status port knocking dan daftar IP admin yang sedang memiliki akses aktif.", defaultPayload: "{}" },
+
+      // --- Enterprise Security Hardening & Auto-Reboot 04:00 ---
+      { id: "sec_bogon_filter", path: "/api/v1/security/hardening/deploy-bogon-filter", method: "POST", cat: "security", desc: "Deploy filter drop paket IP Bogon & Martian di interface WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_dns_guard", path: "/api/v1/security/hardening/deploy-dns-guard", method: "POST", cat: "security", desc: "Blokir celah DNS Open Resolver port 53 dari internet WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_raw_antiddos", path: "/api/v1/security/hardening/deploy-raw-antiddos", method: "POST", cat: "security", desc: "Raw Firewall Anti-DDoS sebelum Connection Tracking (MTCTCE).", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_auto_reboot", path: "/api/v1/security/hardening/setup-auto-reboot", method: "POST", cat: "security", desc: "Jadwalkan auto-reboot router harian jam 04:00 subuh.", defaultPayload: '{\n  "reboot_time": "04:00:00"\n}' },
+      { id: "sec_full_hardening", path: "/api/v1/security/hardening/deploy-full-hardening", method: "POST", cat: "security", desc: "1-Klik deploy seluruh paket hardening & auto-reboot sekaligus.", defaultPayload: '{\n  "wan_interface": "ether1",\n  "enable_auto_reboot": true\n}' },
+
+      // --- Mikhmon v4 Suite: Lock MAC, Expiry Modes & Trial ---
+      { id: "mikhmon_lock_mac", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/enable", method: "POST", cat: "voucher", desc: "Auto-Lock MAC Address pada Hotspot profile (Anti tukar/bagi-bagi voucher).", defaultPayload: '{\n  "profile_name": "default"\n}' },
+      { id: "mikhmon_expiry_setup", path: "/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", method: "POST", cat: "voucher", desc: "Setup 3-Mode Expiry Voucher: Remove, Notice (isolir web peringatan), atau Record.", defaultPayload: '{\n  "profile_name": "default",\n  "expiry_mode": "notice",\n  "validity": "1d",\n  "notice_profile": "EXPIRED_NOTICE"\n}' },
+      { id: "mikhmon_trial_status", path: "/api/v1/hotspot/mikhmon-v4/trial/status", method: "GET", cat: "voucher", desc: "Status konfigurasi login gratisan (Trial) di Hotspot Server Profile.", defaultPayload: "{}" },
+      { id: "mikhmon_trial_setup", path: "/api/v1/hotspot/mikhmon-v4/trial/setup", method: "POST", cat: "voucher", desc: "Setup batasan durasi trial gratisan dan waktu reset per MAC.", defaultPayload: '{\n  "enable_trial": true,\n  "trial_uptime_limit": "15m",\n  "trial_uptime_reset": "1d"\n}' },
+      { id: "mikhmon_trial_reset", path: "/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", method: "POST", cat: "voucher", desc: "Reset seluruh cookies MAC trial agar pengunjung dapat mencoba login kembali.", defaultPayload: "{}" }
     ];
+
 
     let currentEndpoint = ENDPOINTS[0];
     let currentMethod = "GET";
@@ -2146,6 +2190,411 @@ pub async fn docs_page() -> Html<&'static str> {
             <div class="ep-path">/api/v1/dhcp/lease/add</div>
           </div>
           <div class="ep-desc">Daftarkan static DHCP lease baru permanen dengan IP, MAC address, dan comment identitas perangkat.</div>
+        </div>
+      </section>
+
+      <!-- Section: Cloud DDNS, Failover & WISP Isolir -->
+      <section class="doc-section" id="sec-wisp-routing">
+        <div class="section-header">☁️ IP Cloud DDNS, Recursive Failover &amp; WISP Isolir Web Redirect</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/cloud/status</div>
+          </div>
+          <div class="ep-desc">Status IP Cloud DDNS resmi MikroTik (*.sn.mynetname.net): IP publik terdeteksi dan status koneksi untuk dynamic IP ISP (Indihome, Biznet).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/cloud/set</div>
+          </div>
+          <div class="ep-desc">Aktifkan/nonaktifkan DDNS bawaan RouterOS dan sinkronisasi update-time.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/failover/setup</div>
+          </div>
+          <div class="ep-desc">1-Klik MTCRE Recursive Gateway Failover: setup rute ganda berbasis ping DNS 8.8.8.8 &amp; 1.1.1.1 (scope=10, target-scope=11, check-gateway=ping) tanpa script eksternal.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/setup</div>
+          </div>
+          <div class="ep-desc">Infrastruktur Isolir Web Redirect: NAT dst-nat port 80 ke server halaman invoice/peringatan jatuh tempo dan filter drop HTTPS 443.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/isolate</div>
+          </div>
+          <div class="ep-desc">Isolir pelanggan menunggak: masukkan IP pelanggan ke address-list ISOLIR_LIST dengan catatan nama dan jatuh tempo.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/restore</div>
+          </div>
+          <div class="ep-desc">Pulihkan akses internet pelanggan seketika setelah pembayaran tagihan lunas.</div>
+        </div>
+      </section>
+
+      <!-- Section: MTCSE Security Suite & Packet Sniffer -->
+      <section class="doc-section" id="sec-mtcse-security">
+        <div class="section-header">🛡️ MTCSE 3-Step Port Knocking, Hardening &amp; Packet Sniffer</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/security/port-knocking/setup</div>
+          </div>
+          <div class="ep-desc">3-Step Stealth Port Knocking Wizard: Amankan port Winbox 8291 dan SSH 22. Port tertutup total dari internet publik sampai teknisi melakukan ketukan port rahasia (contoh 7000->8000->9000).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/security/hardening/deploy-full-hardening</div>
+          </div>
+          <div class="ep-desc">1-Klik Full Hardening Suite: Filter Bogon/Martian IP di WAN, blokir DNS Open-Resolver UDP/53, Raw Firewall Anti-DDoS, dan Auto-Reboot jam 04:00 subuh.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/tools/sniffer/start</div>
+          </div>
+          <div class="ep-desc">Winbox Packet Sniffer: Rekam paket data ke internal storage router (.pcap) atau streaming TZSP langsung ke software Wireshark di PC.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/tools/graphing/enable</div>
+          </div>
+          <div class="ep-desc">Aktifkan RouterOS Built-in Web Graphing MRTG (/graphs) untuk memantau grafik historis interface, simple queue, dan CPU tanpa server eksternal.</div>
+        </div>
+      </section>
+
+      <!-- Section: Mikhmon v4 Hotspot Suite -->
+      <section class="doc-section" id="sec-mikhmon-v4">
+        <div class="section-header">🎫 Mikhmon v4 Advanced Suite: Lock MAC, 3-Mode Expiry &amp; Trial Controller</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/lock-mac/enable</div>
+          </div>
+          <div class="ep-desc">Lock User to MAC: Injeksi script on-login otomatis mengunci MAC address perangkat pada login pertama agar voucher tidak bisa dipindahtangankan ke HP lain.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/expiry-mode/setup</div>
+          </div>
+          <div class="ep-desc">3-Mode Expiry Voucher: Konfigurasi validitas mode Remove (hapus akun), Notice (alihkan ke web peringatan habis), atau Record (catat transaksi kasir ke log).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/trial/setup</div>
+          </div>
+          <div class="ep-desc">Hotspot Trial Controller: Atur durasi internet gratisan (misal 15 menit per 1 hari) dan batasan profil pengguna uji coba.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/trial/reset-cookies</div>
+          </div>
+          <div class="ep-desc">Reset MAC trial cookies: Hapus riwayat perangkat gratisan agar pengunjung dapat mencoba koneksi kembali jika diizinkan.</div>
+        </div>
+      </section>
+
+      <!-- Section: Advanced IP, DHCP Relay & Server CRUD -->
+      <section class="doc-section" id="sec-dhcp-relay-suite">
+        <div class="section-header">📡 DHCP Server CRUD, DHCP Relay &amp; Lease Reservation</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/server/add</div>
+          </div>
+          <div class="ep-desc">Tambah DHCP Server baru pada interface (LAN/Bridge/VLAN) dengan address-pool dan lease-time tertentu.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/server/set</div>
+          </div>
+          <div class="ep-desc">Update parameter DHCP Server (ubah nama, interface, address-pool, lease-time, status disabled).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/server/remove</div>
+          </div>
+          <div class="ep-desc">Hapus instans DHCP Server berdasarkan ID (.id).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/relays</div>
+          </div>
+          <div class="ep-desc">Daftar DHCP Relay agent (/ip/dhcp-relay/print) untuk meneruskan request DHCP lokal ke DHCP Server pusat/datacenter.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/relay/add</div>
+          </div>
+          <div class="ep-desc">Tambah DHCP Relay agent baru (/ip/dhcp-relay/add) dengan parameter interface, target dhcp-server IP, dan local-address.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/relay/set</div>
+          </div>
+          <div class="ep-desc">Update pengaturan DHCP Relay agent (ubah IP DHCP server pusat, delay threshold, atau interface).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/dhcp/relay/remove</div>
+          </div>
+          <div class="ep-desc">Hapus DHCP Relay agent dari router.</div>
+        </div>
+      </section>
+
+      <!-- Section: Enterprise IPv6 Suite -->
+      <section class="doc-section" id="sec-ipv6-enterprise">
+        <div class="section-header">🌐 Enterprise IPv6 Management &amp; Prefix Delegation</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/route/add</div>
+          </div>
+          <div class="ep-desc">Tambah IPv6 Static Route (/ipv6/route/add) dengan tujuan dst-address (misal ::/0) dan IPv6 gateway ISP.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/route/remove</div>
+          </div>
+          <div class="ep-desc">Hapus IPv6 Route berdasarkan ID.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/pool/add</div>
+          </div>
+          <div class="ep-desc">Tambah IPv6 Address Pool (/ipv6/pool/add) dengan alokasi prefix dan prefix-length (contoh 2001:db8::/48 prefix-length=64).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/pool/remove</div>
+          </div>
+          <div class="ep-desc">Hapus IPv6 Pool dari router.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-client</div>
+          </div>
+          <div class="ep-desc">Daftar DHCPv6 Client (/ipv6/dhcp-client/print) peminta Prefix Delegation dari uplink provider.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-client/add</div>
+          </div>
+          <div class="ep-desc">Tambah DHCPv6 Client pada interface WAN untuk menarik IPv6 Prefix Delegation otomatis dari ISP ke pool lokal.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-client/remove</div>
+          </div>
+          <div class="ep-desc">Hapus DHCPv6 Client dari interface WAN.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-server</div>
+          </div>
+          <div class="ep-desc">Daftar DHCPv6 Server (/ipv6/dhcp-server/print) yang melayani alokasi prefix/address ke klien LAN.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-server/add</div>
+          </div>
+          <div class="ep-desc">Tambah DHCPv6 Server pada interface LAN dengan rujukan address-pool IPv6.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/dhcp-server/remove</div>
+          </div>
+          <div class="ep-desc">Hapus DHCPv6 Server dari interface LAN.</div>
+        </div>
+      </section>
+
+      <!-- Section: Site-to-Site Tunneling (GRE & IPIP) -->
+      <section class="doc-section" id="sec-tunneling-suite">
+        <div class="section-header">🚇 Site-to-Site Tunneling: GRE &amp; IPIP Tunnels</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/gre</div>
+          </div>
+          <div class="ep-desc">Daftar Generic Routing Encapsulation (GRE) tunnels (/interface/gre/print) untuk interkoneksi antar kantor cabang.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/gre/add</div>
+          </div>
+          <div class="ep-desc">Buat interface GRE tunnel baru dengan target remote-address dan opsi enkripsi IPsec secret langsung.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/gre/remove</div>
+          </div>
+          <div class="ep-desc">Hapus interface GRE tunnel berdasarkan ID.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/ipip</div>
+          </div>
+          <div class="ep-desc">Daftar IP-in-IP (IPIP) tunnels (/interface/ipip/print) dengan overhead paket terendah untuk menghubungkan subnet kantor.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/ipip/add</div>
+          </div>
+          <div class="ep-desc">Buat interface IPIP tunnel baru dengan remote-address publik dan proteksi IPsec secret.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/vpn/ipip/remove</div>
+          </div>
+          <div class="ep-desc">Hapus interface IPIP tunnel berdasarkan ID.</div>
+        </div>
+      </section>
+
+      <!-- Section: Hairpin NAT Loopback -->
+      <section class="doc-section" id="sec-hairpin-nat-suite">
+        <div class="section-header">🪃 Port Forwarding &amp; Hairpin NAT Loopback</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/hairpin-nat</div>
+          </div>
+          <div class="ep-desc">Aturan Mandiri Hairpin NAT Loopback: Mengizinkan komputer/HP dalam LAN membuka Web/CCTV internal menggunakan IP Publik/Domain DDNS tanpa error timeout.</div>
+        </div>
+      </section>
+
+      <!-- Section: IPv6 Assistant & 1-Click Wizard -->
+      <section class="doc-section" id="sec-ipv6-assistant">
+        <div class="section-header">🧠 IPv6 Assistant &amp; 1-Click Quick Setup Wizard</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/explain</div>
+          </div>
+          <div class="ep-desc">IPv6 Analyzer &amp; Explainer: Masukkan string IPv6 apa saja (misal 2001:db8::1/64 atau fe80::1) dan dapatkan analisis ramah pemula (tipe alamat, lingkup scope, kemampuan routing internet, kapasitas subnet /64, serta contoh perintah RouterOS).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/ipv6/wizard/quick-setup</div>
+          </div>
+          <div class="ep-desc">1-Klik Setup IPv6 ISP to LAN: Cukup masukkan WAN &amp; LAN interface! Otomatis memasang DHCPv6 Client prefix delegation, IPv6 address LAN, Neighbor Discovery (ND) SLAAC, dan baseline IPv6 firewall hardening tanpa pusing menghitung heksadesimal.</div>
+        </div>
+      </section>
+
+      <!-- Section: Advanced BGP & Policy Routing Tables -->
+      <section class="doc-section" id="sec-advanced-routing">
+        <div class="section-header">🗺️ BGP Peering &amp; Policy Routing Rules (PBR)</div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/bgp/peer/add</div>
+          </div>
+          <div class="ep-desc">Tambah Sesi BGP Peering: Membuat koneksi BGP Carrier Uplink yang otomatis kompatibel dengan RouterOS v7 (/routing/bgp/connection) dan v6 (/routing/bgp/peer).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/tables</div>
+          </div>
+          <div class="ep-desc">Daftar Tabel Routing FIB: Menampilkan seluruh tabel routing independen (wajib di RouterOS v7 untuk Multi-WAN PBR).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/table/add</div>
+          </div>
+          <div class="ep-desc">Tambah Tabel Routing FIB Baru: Mendaftarkan nama tabel baru (misal to-WAN2) dengan flag fib=yes.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/rules</div>
+          </div>
+          <div class="ep-desc">Daftar Routing Rules (/ip/route/rule): Menampilkan aturan kebijakan routing berdasarkan IP asal, IP tujuan, atau routing-mark.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/routing/rule/add</div>
+          </div>
+          <div class="ep-desc">Tambah Policy Routing Rule: Memetakan aliran trafik langsung ke tabel routing tertentu tanpa membebani CPU router dengan Mangle conntrack.</div>
         </div>
       </section>
     </main>

@@ -760,3 +760,423 @@ Content-Type: application/json
 
 {}
 
+### 50. ☁️ IP Cloud DDNS Status & Set (*.sn.mynetname.net)
+GET {{baseUrl}}/api/v1/cloud/status
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+
+### 50B. ☁️ Aktifkan IP Cloud DDNS
+POST {{baseUrl}}/api/v1/cloud/set
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "ddns_enabled": true,
+  "update_time": true
+}
+
+### 51. 🔄 1-Klik Wizard Recursive Gateway Failover (MTCRE & YouTube Standar)
+POST {{baseUrl}}/api/v1/routing/failover/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "primary_gateway": "192.168.1.1",
+  "backup_gateway": "192.168.2.1",
+  "primary_check_host": "8.8.8.8",
+  "backup_check_host": "1.1.1.1",
+  "primary_distance": 1,
+  "backup_distance": 2
+}
+
+### 51B. 🔄 Cek Status Rute Failover Rekursif
+GET {{baseUrl}}/api/v1/routing/failover/status
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+
+### 52. 🚫 Setup Infrastruktur Isolir Web Redirect Pelanggan Menunggak
+POST {{baseUrl}}/api/v1/wisp/isolir/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "isolir_server_ip": "192.168.88.254",
+  "isolir_server_port": 80
+}
+
+### 52B. 🚫 Isolir Pelanggan Jatuh Tempo
+POST {{baseUrl}}/api/v1/wisp/isolir/isolate
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "client_ip": "192.168.88.105",
+  "customer_name": "Budi Santoso",
+  "due_date": "10 Oktober 2026"
+}
+
+### 52C. 恢复 Pulihkan Akses Pelanggan Lunas
+POST {{baseUrl}}/api/v1/wisp/isolir/restore
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "client_ip": "192.168.88.105"
+}
+
+### 53. 🦈 Packet Sniffer & Wireshark Streamer (Status)
+GET {{baseUrl}}/api/v1/tools/sniffer/status
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+
+### 53B. 🦈 Mulai Packet Sniffer (Simpan ke capture.pcap)
+POST {{baseUrl}}/api/v1/tools/sniffer/start
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "interface": "all",
+  "file_name": "capture.pcap",
+  "file_limit": "2000KiB"
+}
+
+### 53C. 🦈 Hentikan Packet Sniffer
+POST {{baseUrl}}/api/v1/tools/sniffer/stop
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 54. 📊 Aktifkan RouterOS Built-in Web Graphing MRTG (/graphs)
+POST {{baseUrl}}/api/v1/tools/graphing/enable
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "enable_interfaces": true,
+  "interface": "all",
+  "enable_queues": true,
+  "enable_resource": true
+}
+
+### 55. 🛡️ 1-Klik Setup 3-Step Stealth Port Knocking (MTCSE Security)
+POST {{baseUrl}}/api/v1/security/port-knocking/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "knock_port_1": 7000,
+  "knock_port_2": 8000,
+  "knock_port_3": 9000,
+  "target_ports": "8291,22",
+  "access_duration": "1h"
+}
+
+### 56. 🔒 1-Klik Full Enterprise Hardening & Auto-Reboot 04:00 Subuh
+POST {{baseUrl}}/api/v1/security/hardening/deploy-full-hardening
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "wan_interface": "ether1",
+  "enable_bogon_filter": true,
+  "enable_dns_guard": true,
+  "enable_raw_antiddos": true,
+  "enable_auto_reboot": true,
+  "reboot_time": "04:00:00"
+}
+
+### 57. 🎫 Mikhmon v4 Suite: Auto-Lock MAC (Anti-Tukar HP)
+POST {{baseUrl}}/api/v1/hotspot/mikhmon-v4/lock-mac/enable
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "profile_name": "default"
+}
+
+### 57B. 🎫 Mikhmon v4 Suite: Setup 3-Mode Expiry (Notice / Remove / Record)
+POST {{baseUrl}}/api/v1/hotspot/mikhmon-v4/expiry-mode/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "profile_name": "default",
+  "expiry_mode": "notice",
+  "validity": "1d",
+  "notice_profile": "EXPIRED_NOTICE"
+}
+
+### 57C. 🆓 Hotspot Trial Controller: Aktifkan Gratisan 15 Menit / Hari
+POST {{baseUrl}}/api/v1/hotspot/mikhmon-v4/trial/setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "enable_trial": true,
+  "trial_uptime_limit": "15m",
+  "trial_uptime_reset": "1d"
+}
+
+### 58. 📡 Tambah DHCP Server & DHCP Relay Agent
+POST {{baseUrl}}/api/v1/dhcp/relay/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "relay-lan",
+  "interface": "bridge",
+  "dhcp_server": "10.0.0.1",
+  "local_address": "192.168.88.1"
+}
+
+### 58B. 📋 List Semua DHCP Relay
+POST {{baseUrl}}/api/v1/dhcp/relays
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{}
+
+### 59. 🌐 IPv6 DHCP-Client Prefix Delegation & Static Route
+POST {{baseUrl}}/api/v1/ipv6/dhcp-client/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "interface": "ether1",
+  "pool_name": "ipv6-isp-pool",
+  "pool_prefix_length": "64",
+  "add_default_route": true,
+  "comment": "IPv6 Prefix from ISP"
+}
+
+### 59B. 🌐 Tambah IPv6 Static Route
+POST {{baseUrl}}/api/v1/ipv6/route/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "dst_address": "::/0",
+  "gateway": "fe80::1%ether1",
+  "distance": "1",
+  "comment": "Default IPv6 Gateway"
+}
+
+### 60. 🚇 Site-to-Site Tunneling: Tambah GRE Tunnel & IPIP Tunnel
+POST {{baseUrl}}/api/v1/vpn/gre/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "gre-tunnel-cabang",
+  "remote_address": "203.0.113.10",
+  "ipsec_secret": "RahasiaGRE2026",
+  "comment": "Site-to-Site Kantor Cabang"
+}
+
+### 60B. 🚇 Tambah IPIP Tunnel
+POST {{baseUrl}}/api/v1/vpn/ipip/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "ipip-tunnel-cabang",
+  "remote_address": "203.0.113.10",
+  "ipsec_secret": "RahasiaIPIP2026",
+  "comment": "IPIP Low-Overhead Tunnel"
+}
+
+### 61. 🪃 Port Forwarding dengan Otomatis Hairpin NAT Loopback
+POST {{baseUrl}}/api/v1/firewall/port-forward
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "protocol": "tcp",
+  "dst_port": "8080",
+  "to_addresses": "192.168.88.50",
+  "to_ports": "80",
+  "enable_hairpin": true,
+  "lan_subnet": "192.168.88.0/24",
+  "comment": "Web Server Internal with Hairpin Loopback"
+}
+
+### 61B. 🪃 Aturan Standalone Hairpin NAT
+POST {{baseUrl}}/api/v1/firewall/hairpin-nat
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "lan_subnet": "192.168.88.0/24",
+  "server_address": "192.168.88.50",
+  "dst_port": "80",
+  "protocol": "tcp",
+  "comment": "Hairpin loopback ke CCTV Web"
+}
+
+### 62. 🧠 IPv6 Analyzer, Explainer & Subnet Calculator
+POST {{baseUrl}}/api/v1/ipv6/explain
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "address": "2001:db8:85a3::1/64"
+}
+
+### 63. 🚀 1-Klik Setup Lengkap IPv6 ISP to LAN (Zero Calculation)
+POST {{baseUrl}}/api/v1/ipv6/wizard/quick-setup
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "wan_interface": "ether1",
+  "lan_interface": "bridge",
+  "pool_name": "isp-ipv6-pool",
+  "enable_firewall": true
+}
+
+### 64. 🌐 Tambah Sesi BGP Carrier Peering (v7 Connection / v6 Peer)
+POST {{baseUrl}}/api/v1/routing/bgp/peer/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "BGP-UPLINK-ISP1",
+  "remote_address": "203.0.113.1",
+  "remote_as": "64512",
+  "local_as": "65000",
+  "comment": "Carrier Transit BGP"
+}
+
+### 65. 📋 Tambah Routing Table FIB (v7) & Policy Routing Rule
+POST {{baseUrl}}/api/v1/routing/table/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "name": "to-WAN2",
+  "fib": true,
+  "comment": "Tabel FIB Multi-WAN PBR"
+}
+
+### 65B. 🚦 Tambah Policy Routing Rule (PBR tanpa beban CPU Mangle)
+POST {{baseUrl}}/api/v1/routing/rule/add
+Authorization: Bearer {{token}}
+X-Router-Host: {{routerHost}}
+X-Router-Port: {{routerPort}}
+X-Router-User: {{routerUser}}
+X-Router-Pass: {{routerPass}}
+Content-Type: application/json
+
+{
+  "src_address": "192.168.88.100/32",
+  "table": "to-WAN2",
+  "action": "lookup-only-in-table",
+  "comment": "Arahkan IP VIP ke ISP 2"
+}
+

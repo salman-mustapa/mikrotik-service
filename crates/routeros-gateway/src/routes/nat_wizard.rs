@@ -25,6 +25,19 @@ pub struct PortForwardReq {
     pub to_ports: Option<String>,    // e.g. "80", defaults to dst_port
     pub protocol: Option<String>,    // default "tcp"
     pub in_interface: Option<String>, // e.g. "ether1" (WAN)
+    pub enable_hairpin: Option<bool>, // enable Hairpin NAT for LAN loopback access
+    pub lan_subnet: Option<String>,   // e.g. "192.168.88.0/24"
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HairpinNatReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub lan_subnet: String,          // e.g. "192.168.88.0/24"
+    pub server_address: String,      // e.g. "192.168.88.50"
+    pub dst_port: Option<String>,    // e.g. "80"
+    pub protocol: Option<String>,    // default "tcp"
     pub comment: Option<String>,
 }
 
@@ -44,7 +57,7 @@ pub struct IdReq {
 }
 
 /// POST /api/v1/firewall/port-forward - Configures Dst-NAT port forwarding (CCTV, Web Server, Games)
-/// and automatically opens the matching firewall filter forward chain
+/// and automatically opens the matching firewall filter forward chain, with optional Hairpin NAT
 pub async fn add_port_forward(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -59,6 +72,8 @@ pub async fn add_port_forward(
         format!("[Dst-NAT] Forward {} port {} -> {}:{}", proto, req.dst_port, req.to_addresses, to_port)
     });
 
+    let is_hairpin = req.enable_hairpin.unwrap_or(false);
+
     let mut nat_args = vec![
         ("chain", "dstnat"),
         ("protocol", proto),
@@ -69,7 +84,11 @@ pub async fn add_port_forward(
         ("comment", comment.as_str()),
     ];
 
-    if let Some(in_if) = req.in_interface.as_deref() {
+    if is_hairpin {
+        // When hairpin is enabled, match local destination type instead of strictly in-interface
+        // so packets originating from LAN can also trigger dstnat
+        nat_args.push(("dst-address-type", "local"));
+    } else if let Some(in_if) = req.in_interface.as_deref() {
         nat_args.push(("in-interface", in_if));
     }
 
@@ -90,13 +109,83 @@ pub async fn add_port_forward(
         ]
     )).await;
 
+    // 3. If Hairpin NAT is requested, add Src-NAT masquerade rule for LAN subnet to server
+    if is_hairpin {
+        let lan_sub = req.lan_subnet.unwrap_or_else(|| {
+            // Deduce subnet from to_addresses, e.g. 192.168.88.50 -> 192.168.88.0/24
+            if let Some((prefix, _)) = req.to_addresses.rsplit_once('.') {
+                format!("{}.0/24", prefix)
+            } else {
+                "192.168.88.0/24".to_string()
+            }
+        });
+
+        let hairpin_comment = format!("[Hairpin-NAT] Loopback masquerade {} to {}:{}", lan_sub, req.to_addresses, to_port);
+        let _ = client.run(build_command(
+            "/ip/firewall/nat/add",
+            [
+                ("chain", "srcnat"),
+                ("src-address", lan_sub.as_str()),
+                ("dst-address", req.to_addresses.as_str()),
+                ("protocol", proto),
+                ("dst-port", to_port),
+                ("action", "masquerade"),
+                ("comment", hairpin_comment.as_str()),
+            ]
+        )).await;
+    }
+
     Ok(Json(json!({
         "success": true,
         "dst_port": req.dst_port,
         "target_ip": req.to_addresses,
         "target_port": to_port,
         "protocol": proto,
-        "message": format!("Port Forwarding ke {}:{} berhasil dikonfigurasi di Dst-NAT dan Filter", req.to_addresses, to_port)
+        "hairpin_enabled": is_hairpin,
+        "message": format!(
+            "Port Forwarding ke {}:{} berhasil dikonfigurasi di Dst-NAT dan Filter{}",
+            req.to_addresses,
+            to_port,
+            if is_hairpin { " (dengan Hairpin NAT Loopback)" } else { "" }
+        )
+    })))
+}
+
+/// POST /api/v1/firewall/hairpin-nat - Konfigurasi aturan mandiri Hairpin NAT Loopback
+pub async fn add_hairpin_nat(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<HairpinNatReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let proto = req.protocol.as_deref().unwrap_or("tcp");
+    let comment = req.comment.unwrap_or_else(|| {
+        format!("[Hairpin-NAT] Loopback NAT {} -> {}", req.lan_subnet, req.server_address)
+    });
+
+    let mut args = vec![
+        ("chain", "srcnat"),
+        ("src-address", req.lan_subnet.as_str()),
+        ("dst-address", req.server_address.as_str()),
+        ("protocol", proto),
+        ("action", "masquerade"),
+        ("comment", comment.as_str()),
+    ];
+
+    if let Some(ref dp) = req.dst_port {
+        args.push(("dst-port", dp.as_str()));
+    }
+
+    client.run(build_command("/ip/firewall/nat/add", args)).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "lan_subnet": req.lan_subnet,
+        "server_address": req.server_address,
+        "protocol": proto,
+        "message": "Aturan Hairpin NAT Loopback berhasil ditambahkan ke RouterOS"
     })))
 }
 

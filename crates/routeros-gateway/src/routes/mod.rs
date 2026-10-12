@@ -49,6 +49,14 @@ pub mod vpn;
 pub mod wireguard;
 pub mod wireless;
 pub mod ws;
+pub mod cloud;
+pub mod failover_wizard;
+pub mod graphing;
+pub mod hardening;
+pub mod isolir;
+pub mod mikhmon_v4;
+pub mod packet_sniffer;
+pub mod port_knocking;
 
 use std::sync::Arc;
 use axum::routing::{get, post};
@@ -128,11 +136,26 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ipv6/address/add", post(ipv6::add_address))
         .route("/api/v1/ipv6/address/remove", post(ipv6::remove_address))
         .route("/api/v1/ipv6/routes", get(ipv6::routes).post(ipv6::routes))
+        .route("/api/v1/ipv6/route/add", post(ipv6::add_route))
+        .route("/api/v1/ipv6/route/remove", post(ipv6::remove_route))
         .route("/api/v1/ipv6/pools", get(ipv6::pools).post(ipv6::pools))
+        .route("/api/v1/ipv6/pool/add", post(ipv6::add_pool))
+        .route("/api/v1/ipv6/pool/remove", post(ipv6::remove_pool))
         .route("/api/v1/ipv6/nd", get(ipv6::nd).post(ipv6::nd))
+        .route("/api/v1/ipv6/dhcp-client", get(ipv6::dhcp6_clients).post(ipv6::dhcp6_clients))
+        .route("/api/v1/ipv6/dhcp-client/add", post(ipv6::add_dhcp6_client))
+        .route("/api/v1/ipv6/dhcp-client/remove", post(ipv6::remove_dhcp6_client))
+        .route("/api/v1/ipv6/dhcp-server", get(ipv6::dhcp6_servers).post(ipv6::dhcp6_servers))
+        .route("/api/v1/ipv6/dhcp-server/add", post(ipv6::add_dhcp6_server))
+        .route("/api/v1/ipv6/dhcp-server/remove", post(ipv6::remove_dhcp6_server))
+        .route("/api/v1/ipv6/explain", post(ipv6::explain))
+        .route("/api/v1/ipv6/wizard/quick-setup", post(ipv6::quick_setup))
 
         // --- DHCP & Rogue Detection ---
         .route("/api/v1/dhcp/servers", get(dhcp::servers).post(dhcp::servers))
+        .route("/api/v1/dhcp/server/add", post(dhcp::add_server))
+        .route("/api/v1/dhcp/server/set", post(dhcp::set_server))
+        .route("/api/v1/dhcp/server/remove", post(dhcp::remove_server))
         .route("/api/v1/dhcp/networks", get(dhcp::networks).post(dhcp::networks))
         .route("/api/v1/dhcp/network/add", post(dhcp::add_network))
         .route("/api/v1/dhcp/network/remove", post(dhcp::remove_network))
@@ -145,6 +168,10 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/alerts", get(dhcp::alerts).post(dhcp::alerts))
         .route("/api/v1/dhcp/alert/add", post(dhcp::add_alert))
         .route("/api/v1/dhcp/alert/remove", post(dhcp::remove_alert))
+        .route("/api/v1/dhcp/relays", get(dhcp::relays).post(dhcp::relays))
+        .route("/api/v1/dhcp/relay/add", post(dhcp::add_relay))
+        .route("/api/v1/dhcp/relay/set", post(dhcp::set_relay))
+        .route("/api/v1/dhcp/relay/remove", post(dhcp::remove_relay))
 
         // --- Hotspot, Vouchers & Hosts ---
         .route("/api/v1/hotspot/users", get(hotspot::users).post(hotspot::users))
@@ -219,7 +246,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/ppp/profiles", get(ppp::profiles).post(ppp::profiles))
         .route("/api/v1/ppp/profile/create", post(ppp::create_profile))
 
-        // --- VPN Servers (SSTP, L2TP, OpenVPN & EoIP) ---
+        // --- VPN Servers (SSTP, L2TP, OpenVPN, EoIP, GRE & IPIP) ---
         .route("/api/v1/vpn/sstp", get(vpn::sstp_server).post(vpn::sstp_server))
         .route("/api/v1/vpn/sstp/set", post(vpn::set_sstp_server))
         .route("/api/v1/vpn/l2tp", get(vpn::l2tp_server).post(vpn::l2tp_server))
@@ -229,6 +256,12 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/vpn/eoip", get(vpn::eoip_tunnels).post(vpn::eoip_tunnels))
         .route("/api/v1/vpn/eoip/add", post(vpn::add_eoip))
         .route("/api/v1/vpn/eoip/remove", post(vpn::remove_eoip))
+        .route("/api/v1/vpn/gre", get(vpn::gre_tunnels).post(vpn::gre_tunnels))
+        .route("/api/v1/vpn/gre/add", post(vpn::add_gre))
+        .route("/api/v1/vpn/gre/remove", post(vpn::remove_gre))
+        .route("/api/v1/vpn/ipip", get(vpn::ipip_tunnels).post(vpn::ipip_tunnels))
+        .route("/api/v1/vpn/ipip/add", post(vpn::add_ipip))
+        .route("/api/v1/vpn/ipip/remove", post(vpn::remove_ipip))
 
         // --- WireGuard (RouterOS v7) ---
         .route("/api/v1/wireguard/interfaces", get(wireguard::interfaces).post(wireguard::interfaces))
@@ -361,6 +394,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/ntp/config", get(noc_tools::ntp_config).post(noc_tools::ntp_config))
         .route("/api/v1/ip/dhcp-client/all", get(noc_tools::dhcp_clients).post(noc_tools::dhcp_clients))
         .route("/api/v1/ip/dhcp-client/add", post(noc_tools::add_dhcp_client))
+        .route("/api/v1/ip/dhcp-client/remove", post(noc_tools::remove_dhcp_client))
         .route("/api/v1/scripts/terminal-exec", post(noc_tools::terminal_exec))
 
         // --- App & Content Blocker (WhatsApp, TikTok, YouTube, Judi, Torrent) ---
@@ -377,6 +411,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/firewall/port-forward", post(nat_wizard::add_port_forward))
         .route("/api/v1/firewall/port-forward/list", get(nat_wizard::list_port_forwards).post(nat_wizard::list_port_forwards))
         .route("/api/v1/firewall/port-forward/remove", post(nat_wizard::remove_port_forward))
+        .route("/api/v1/firewall/hairpin-nat", post(nat_wizard::add_hairpin_nat))
         .route("/api/v1/firewall/srcnat/masquerade", post(nat_wizard::add_masquerade))
 
         // --- One-Click Complete Hotspot Setup Wizard ---
@@ -393,8 +428,13 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
         // --- BGP & OSPF Dynamic Routing Peering Telemetry ---
         .route("/api/v1/routing/bgp/sessions", get(routing::bgp_sessions).post(routing::bgp_sessions))
+        .route("/api/v1/routing/bgp/peer/add", post(routing::add_bgp_peer))
         .route("/api/v1/routing/ospf/neighbors", get(routing::ospf_neighbors).post(routing::ospf_neighbors))
         .route("/api/v1/routing/routes", get(routing::routing_table).post(routing::routing_table))
+        .route("/api/v1/routing/tables", get(routing::routing_tables).post(routing::routing_tables))
+        .route("/api/v1/routing/table/add", post(routing::add_routing_table))
+        .route("/api/v1/routing/rules", get(routing::routing_rules).post(routing::routing_rules))
+        .route("/api/v1/routing/rule/add", post(routing::add_routing_rule))
 
         // --- Heuristic Network Doctor Diagnostic Assistant ---
         .route("/api/v1/doctor/diagnose", get(doctor::doctor_diagnose).post(doctor::doctor_diagnose))
@@ -427,6 +467,55 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/audit/stats", get(audit::get_performance_stats).post(audit::get_performance_stats))
         .route("/api/v1/audit/performance-stats", get(audit::get_performance_stats).post(audit::get_performance_stats))
         .route("/api/v1/audit/clear", post(audit::clear_audit_logs))
+
+        // --- IP Cloud DDNS (Winbox & Dynamic IP Indihome/Biznet) ---
+        .route("/api/v1/cloud/status", get(cloud::cloud_status).post(cloud::cloud_status))
+        .route("/api/v1/cloud/set", post(cloud::cloud_set))
+        .route("/api/v1/cloud/force-update", post(cloud::cloud_force_update))
+
+        // --- Recursive Gateway Multi-WAN Failover Wizard (MTCRE & YouTube) ---
+        .route("/api/v1/routing/failover/setup", post(failover_wizard::setup_recursive_failover))
+        .route("/api/v1/routing/failover/status", get(failover_wizard::failover_status).post(failover_wizard::failover_status))
+        .route("/api/v1/routing/failover/remove", post(failover_wizard::remove_recursive_failover))
+
+        // --- WISP & RT-RW Net Isolir Web Redirect & Overdue Manager ---
+        .route("/api/v1/wisp/isolir/setup", post(isolir::setup_isolir_infra))
+        .route("/api/v1/wisp/isolir/isolate", post(isolir::isolate_user))
+        .route("/api/v1/wisp/isolir/restore", post(isolir::restore_user))
+        .route("/api/v1/wisp/isolir/list", get(isolir::list_isolated).post(isolir::list_isolated))
+        .route("/api/v1/wisp/isolir/teardown", post(isolir::teardown_isolir))
+
+        // --- Packet Sniffer & Wireshark Streamer (Winbox NOC Tool) ---
+        .route("/api/v1/tools/sniffer/status", get(packet_sniffer::sniffer_status).post(packet_sniffer::sniffer_status))
+        .route("/api/v1/tools/sniffer/start", post(packet_sniffer::sniffer_start))
+        .route("/api/v1/tools/sniffer/stop", post(packet_sniffer::sniffer_stop))
+        .route("/api/v1/tools/sniffer/reset", post(packet_sniffer::sniffer_reset))
+
+        // --- RouterOS Built-in Web Graphing MRTG (/graphs) ---
+        .route("/api/v1/tools/graphing/status", get(graphing::graphing_status).post(graphing::graphing_status))
+        .route("/api/v1/tools/graphing/enable", post(graphing::graphing_enable))
+        .route("/api/v1/tools/graphing/disable", post(graphing::graphing_disable))
+
+        // --- 3-Step Stealth Port Knocking Wizard (MTCSE Security) ---
+        .route("/api/v1/security/port-knocking/setup", post(port_knocking::setup_port_knocking))
+        .route("/api/v1/security/port-knocking/status", get(port_knocking::port_knocking_status).post(port_knocking::port_knocking_status))
+        .route("/api/v1/security/port-knocking/remove", post(port_knocking::remove_port_knocking))
+
+        // --- Enterprise Hardening Suite, Bogon Filter & Auto-Reboot 04:00 (MTCSE & MTCTCE) ---
+        .route("/api/v1/security/hardening/deploy-bogon-filter", post(hardening::deploy_bogon_filter))
+        .route("/api/v1/security/hardening/deploy-dns-guard", post(hardening::deploy_dns_guard))
+        .route("/api/v1/security/hardening/deploy-raw-antiddos", post(hardening::deploy_raw_antiddos))
+        .route("/api/v1/security/hardening/setup-auto-reboot", post(hardening::setup_auto_reboot))
+        .route("/api/v1/security/hardening/deploy-full-hardening", post(hardening::deploy_full_hardening))
+        .route("/api/v1/security/hardening/audit-status", get(hardening::audit_status).post(hardening::audit_status))
+
+        // --- Mikhmon v4 Hotspot Suite: Lock MAC, Expiry Modes & Trial Controller ---
+        .route("/api/v1/hotspot/mikhmon-v4/lock-mac/enable", post(mikhmon_v4::enable_lock_mac))
+        .route("/api/v1/hotspot/mikhmon-v4/lock-mac/bind-now", post(mikhmon_v4::bind_user_mac_now))
+        .route("/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", post(mikhmon_v4::setup_expiry_mode))
+        .route("/api/v1/hotspot/mikhmon-v4/trial/status", get(mikhmon_v4::trial_status).post(mikhmon_v4::trial_status))
+        .route("/api/v1/hotspot/mikhmon-v4/trial/setup", post(mikhmon_v4::setup_trial))
+        .route("/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", post(mikhmon_v4::reset_trial_cookies))
 
         .with_state(state)
 }

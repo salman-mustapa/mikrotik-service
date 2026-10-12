@@ -163,3 +163,191 @@ pub async fn routing_table(
         "sample_routes": sample_routes,
     })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddBgpPeerReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub remote_address: String,
+    pub remote_as: String,
+    pub local_as: Option<String>,
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AddRoutingTableReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub fib: Option<bool>,
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AddRoutingRuleReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub src_address: Option<String>,
+    pub dst_address: Option<String>,
+    pub routing_mark: Option<String>,
+    pub table: String,
+    pub action: Option<String>, // "lookup", "lookup-only-in-table", "drop", "unreachable"
+    pub comment: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct IdReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+}
+
+/// POST /api/v1/routing/bgp/peer/add - Tambah sesi peering BGP baru (Dual-stack v7 & v6)
+pub async fn add_bgp_peer(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddBgpPeerReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let comment_val = req.comment.as_deref().unwrap_or("[BGP] Carrier Peering Session");
+
+    // Coba sintaks RouterOS v7 terlebih dahulu (/routing/bgp/connection/add)
+    let v7_args = vec![
+        ("name", req.name.as_str()),
+        ("remote.address", req.remote_address.as_str()),
+        ("remote.as", req.remote_as.as_str()),
+        ("comment", comment_val),
+    ];
+    let mut v7_vec = v7_args;
+    if let Some(ref la) = req.local_as {
+        v7_vec.push(("as", la.as_str()));
+    }
+
+    match client.run(build_command("/routing/bgp/connection/add", v7_vec)).await {
+        Ok(_) => Ok(Json(json!({
+            "success": true,
+            "version_detected": "RouterOS v7",
+            "peer_name": req.name,
+            "remote_address": req.remote_address,
+            "remote_as": req.remote_as,
+            "message": "Sesi BGP Connection v7 berhasil dibuat"
+        }))),
+        Err(_) => {
+            // Fallback sintaks RouterOS v6 (/routing/bgp/peer/add)
+            let mut v6_args = vec![
+                ("name", req.name.as_str()),
+                ("remote-address", req.remote_address.as_str()),
+                ("remote-as", req.remote_as.as_str()),
+                ("comment", comment_val),
+            ];
+            if let Some(ref la) = req.local_as {
+                v6_args.push(("as", la.as_str()));
+            }
+            client.run(build_command("/routing/bgp/peer/add", v6_args)).await?;
+            Ok(Json(json!({
+                "success": true,
+                "version_detected": "RouterOS v6",
+                "peer_name": req.name,
+                "remote_address": req.remote_address,
+                "remote_as": req.remote_as,
+                "message": "Sesi BGP Peer v6 berhasil dibuat"
+            })))
+        }
+    }
+}
+
+/// GET or POST /api/v1/routing/tables - Daftar Routing Tables (FIB tables di RouterOS v7)
+pub async fn routing_tables(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req_inner = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // RouterOS v7 tabel routing print
+    let res = client.run(build_command("/routing/table/print", std::iter::empty::<(&str, &str)>())).await;
+    match res {
+        Ok(rows) => {
+            let data: Vec<std::collections::HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+            Ok(Json(json!({ "success": true, "count": data.len(), "routing_tables": data })))
+        },
+        Err(_) => {
+            // Jika v6 (tidak ada /routing/table), return daftar default
+            Ok(Json(json!({ "success": true, "count": 1, "routing_tables": [{"name": "main", "fib": "yes"}] })))
+        }
+    }
+}
+
+/// POST /api/v1/routing/table/add - Tambah Routing Table baru (Wajib di v7 untuk PBR Multi-WAN)
+pub async fn add_routing_table(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddRoutingTableReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let fib_str = if req.fib.unwrap_or(true) { "yes" } else { "no" };
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("fib", fib_str),
+    ];
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+
+    client.run(build_command("/routing/table/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": format!("Routing table '{}' berhasil ditambahkan", req.name) })))
+}
+
+/// GET or POST /api/v1/routing/rules - Daftar Policy Routing Rules (/ip/route/rule)
+pub async fn routing_rules(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req_inner = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client.run(build_command("/ip/route/rule/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<std::collections::HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "routing_rules": data })))
+}
+
+/// POST /api/v1/routing/rule/add - Tambah Routing Rule baru (PBR tanpa beban CPU Mangle)
+pub async fn add_routing_rule(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddRoutingRuleReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let action_str = req.action.as_deref().unwrap_or("lookup");
+    let mut args = vec![
+        ("table", req.table.as_str()),
+        ("action", action_str),
+    ];
+    if let Some(ref src) = req.src_address {
+        args.push(("src-address", src.as_str()));
+    }
+    if let Some(ref dst) = req.dst_address {
+        args.push(("dst-address", dst.as_str()));
+    }
+    if let Some(ref rm) = req.routing_mark {
+        args.push(("routing-mark", rm.as_str()));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+
+    client.run(build_command("/ip/route/rule/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "Policy routing rule berhasil ditambahkan" })))
+}
+

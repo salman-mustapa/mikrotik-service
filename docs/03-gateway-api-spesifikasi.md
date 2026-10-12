@@ -184,6 +184,119 @@ Gateway mengembalikan hasil:
 }
 ```
 
+### Action 4: Subscribe Live Overview Telemetry (Continuous Dashboard Stream)
+Streaming telemetri CPU, RAM, Uptime, Klien Hotspot, PPPoE, dan DHCP leases setiap interval detik (ideal untuk Dashboard React/Vue):
+```json
+{
+  "action": "subscribe_overview",
+  "interval_ms": 2000,
+  "tag": "dashboard-telemetry"
+}
+```
+Gateway streaming frame berkala:
+```json
+{
+  "event": "overview_frame",
+  "tag": "dashboard-telemetry",
+  "timestamp": 1773294800000,
+  "data": {
+    "identity": "MikroTik-Main",
+    "cpu_load": "4",
+    "cpu_frequency_mhz": "880",
+    "free_memory": "195420160",
+    "total_memory": "268435456",
+    "uptime": "3w1d04:22:10",
+    "hotspot_active_count": 28,
+    "ppp_active_count": 14,
+    "dhcp_lease_count": 52,
+    "total_clients_count": 94
+  }
+}
+```
+
+### Action 5: Subscribe Live Ping Matrix
+Streaming hasil ping real-time per detik (mirip utilitas Ping di Winbox):
+```json
+{
+  "action": "subscribe_ping",
+  "address": "8.8.8.8",
+  "interval_ms": 1000,
+  "tag": "ping-google"
+}
+```
+Gateway mengalirkan balasan ICMP:
+```json
+{
+  "event": "ping_frame",
+  "tag": "ping-google",
+  "target": "8.8.8.8",
+  "sequence": 1,
+  "rtt": "12ms",
+  "data": { "sent": "1", "received": "1", "time": "12ms", "status": "echo reply" }
+}
+```
+
+### Action 6: Listen RouterOS Logs Real-time
+Streaming log RouterOS saat kejadian berlangsung (`/log/print follow-only`):
+```json
+{
+  "action": "listen_logs",
+  "params": { "topic": "hotspot,info" },
+  "tag": "hotspot-logs"
+}
+```
+
+### 💻 Contoh Implementasi WebSocket untuk Developer (Frontend & Mobile)
+
+#### 1. JavaScript / TypeScript (Vue 3 / React / Next.js):
+```javascript
+const socket = new WebSocket("ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string");
+
+socket.onopen = () => {
+  console.log("WebSocket terhubung!");
+  // Subscribe live overview dashboard
+  socket.send(JSON.stringify({
+    action: "subscribe_overview",
+    interval_ms: 2000,
+    tag: "main-dashboard"
+  }));
+};
+
+socket.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.event === "overview_frame") {
+    console.log("CPU Load:", msg.data.cpu_load + "%");
+    console.log("Klien Aktif:", msg.data.total_clients_count);
+  }
+};
+```
+
+#### 2. Flutter / Dart (Mobile Application):
+```dart
+import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+final channel = WebSocketChannel.connect(
+  Uri.parse('ws://10.0.2.2:8080/ws?token=change-me-to-a-long-random-string'),
+);
+
+void startMonitoring() {
+  channel.sink.add(jsonEncode({
+    'action': 'subscribe_traffic',
+    'interface': 'ether1',
+    'tag': 'live-traffic',
+  }));
+
+  channel.stream.listen((message) {
+    final frame = jsonDecode(message);
+    if (frame['event'] == 'traffic_frame') {
+      print("RX: ${frame['data']['rx-bits-per-second']} bps");
+    }
+  });
+}
+```
+
+
 ---
 
 ## 5. Format Error Terstandarisasi

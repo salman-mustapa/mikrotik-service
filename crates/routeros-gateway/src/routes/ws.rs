@@ -27,6 +27,8 @@ struct WsIncoming {
     #[serde(default)]
     pub params: HashMap<String, String>,
     pub interface: Option<String>,
+    pub address: Option<String>,
+    pub interval_ms: Option<u64>,
 }
 
 pub async fn ws_handler(
@@ -274,6 +276,138 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         }
                     }).to_string());
                 });
+            }
+
+            "subscribe_overview" => {
+                let interval = req.interval_ms.unwrap_or(2000).clamp(500, 60000);
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let stream_tag = tag.clone();
+
+                if let Some(old) = active_streams.remove(&stream_tag) {
+                    old.abort();
+                }
+
+                let stream_tag_task = stream_tag.clone();
+                let handle = tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag_task, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    loop {
+                        let res_fut = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>()));
+                        let id_fut = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>()));
+                        let hs_fut = client.run(build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>()));
+                        let ppp_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
+                        let dhcp_fut = client.run(build_command("/ip/dhcp-server/lease/print", std::iter::empty::<(&str, &str)>()));
+
+                        let (res, id, hs, ppp, dhcp) = tokio::join!(res_fut, id_fut, hs_fut, ppp_fut, dhcp_fut);
+
+                        let res_attrs = res.ok().and_then(|r| r.into_iter().next()).map(|r| r.attrs).unwrap_or_default();
+                        let id_name = id.ok().and_then(|r| r.into_iter().next()).and_then(|r| r.get("name").map(str::to_owned)).unwrap_or_else(|| "MikroTik".into());
+                        let hs_cnt = hs.map(|r| r.len()).unwrap_or(0);
+                        let ppp_cnt = ppp.map(|r| r.len()).unwrap_or(0);
+                        let dhcp_cnt = dhcp.map(|r| r.len()).unwrap_or(0);
+                        let total_cnt = hs_cnt + ppp_cnt + dhcp_cnt;
+
+                        let sent = out_tx_clone.send(json!({
+                            "event": "overview_frame",
+                            "tag": stream_tag_task,
+                            "timestamp": chrono_now_ms(),
+                            "data": {
+                                "identity": id_name,
+                                "cpu_load": res_attrs.get("cpu-load").unwrap_or(&"0".into()),
+                                "cpu_frequency_mhz": res_attrs.get("cpu-frequency").unwrap_or(&"0".into()),
+                                "cpu_count": res_attrs.get("cpu-count").unwrap_or(&"1".into()),
+                                "free_memory": res_attrs.get("free-memory").unwrap_or(&"0".into()),
+                                "total_memory": res_attrs.get("total-memory").unwrap_or(&"0".into()),
+                                "uptime": res_attrs.get("uptime").unwrap_or(&"".into()),
+                                "version": res_attrs.get("version").unwrap_or(&"".into()),
+                                "board_name": res_attrs.get("board-name").unwrap_or(&"".into()),
+                                "hotspot_active_count": hs_cnt,
+                                "ppp_active_count": ppp_cnt,
+                                "dhcp_lease_count": dhcp_cnt,
+                                "total_clients_count": total_cnt
+                            }
+                        }).to_string());
+
+                        if sent.is_err() {
+                            break;
+                        }
+
+                        tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
+                    }
+                });
+
+                active_streams.insert(stream_tag, handle);
+            }
+
+            "subscribe_ping" => {
+                let target_addr = req.address.unwrap_or_else(|| "8.8.8.8".into());
+                let interval = req.interval_ms.unwrap_or(1000).clamp(500, 10000);
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let stream_tag = tag.clone();
+                let addr_clone = target_addr.clone();
+
+                if let Some(old) = active_streams.remove(&stream_tag) {
+                    old.abort();
+                }
+
+                let stream_tag_task = stream_tag.clone();
+                let handle = tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag_task, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let words = build_command("/ping", [
+                        ("address", addr_clone.as_str()),
+                        ("count", "1"),
+                    ]);
+
+                    let mut seq = 0u32;
+                    loop {
+                        seq += 1;
+                        match client.run(words.clone()).await {
+                            Ok(rows) => {
+                                let first = rows.into_iter().next().map(|r| r.attrs).unwrap_or_default();
+                                let time_val = first.get("time").or_else(|| first.get("rtt")).cloned().unwrap_or_default();
+                                let sent = out_tx_clone.send(json!({
+                                    "event": "ping_frame",
+                                    "tag": stream_tag_task,
+                                    "target": addr_clone,
+                                    "sequence": seq,
+                                    "rtt": time_val,
+                                    "data": first
+                                }).to_string());
+                                if sent.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                let _ = out_tx_clone.send(json!({
+                                    "event": "ping_error",
+                                    "tag": stream_tag_task,
+                                    "error": e.to_string()
+                                }).to_string());
+                                break;
+                            }
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
+                    }
+                });
+
+                active_streams.insert(stream_tag, handle);
             }
 
             "listen_logs" => {

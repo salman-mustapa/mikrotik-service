@@ -206,3 +206,128 @@ pub async fn remove_eoip(
     client.run(build_command("/interface/eoip/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "EoIP tunnel removed" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddGreReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub remote_address: String,
+    pub local_address: Option<String>,
+    pub ipsec_secret: Option<String>,
+    pub comment: Option<String>,
+}
+
+/// GET or POST /api/v1/vpn/gre - Daftar interface GRE tunnel (/interface/gre/print)
+pub async fn gre_tunnels(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/interface/gre/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/vpn/gre/add - Tambah interface GRE tunnel baru (/interface/gre/add)
+pub async fn add_gre(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddGreReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("remote-address", req.remote_address.as_str()),
+    ];
+    if let Some(ref la) = req.local_address {
+        args.push(("local-address", la.as_str()));
+    }
+    if let Some(ref sec) = req.ipsec_secret {
+        args.push(("ipsec-secret", sec.as_str()));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/interface/gre/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "GRE tunnel created successfully" })))
+}
+
+/// POST /api/v1/vpn/gre/remove - Hapus GRE tunnel (/interface/gre/remove)
+pub async fn remove_gre(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/interface/gre/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "GRE tunnel removed successfully" })))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AddIpipReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    pub remote_address: String,
+    pub local_address: Option<String>,
+    pub ipsec_secret: Option<String>,
+    pub comment: Option<String>,
+}
+
+/// GET or POST /api/v1/vpn/ipip - Daftar interface IPIP tunnel (/interface/ipip/print)
+pub async fn ipip_tunnels(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/interface/ipip/print", std::iter::empty::<(&str, &str)>())).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/vpn/ipip/add - Tambah interface IPIP tunnel baru (/interface/ipip/add)
+pub async fn add_ipip(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddIpipReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("remote-address", req.remote_address.as_str()),
+    ];
+    if let Some(ref la) = req.local_address {
+        args.push(("local-address", la.as_str()));
+    }
+    if let Some(ref sec) = req.ipsec_secret {
+        args.push(("ipsec-secret", sec.as_str()));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/interface/ipip/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "IPIP tunnel created successfully" })))
+}
+
+/// POST /api/v1/vpn/ipip/remove - Hapus IPIP tunnel (/interface/ipip/remove)
+pub async fn remove_ipip(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/interface/ipip/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "IPIP tunnel removed successfully" })))
+}
+
