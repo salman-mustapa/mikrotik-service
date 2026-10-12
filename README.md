@@ -454,6 +454,22 @@ ws.onmessage = (e) => {
 
 ---
 
+## 🔒 Arsitektur Keamanan & Zero-Storage Guarantee (NOC & Compliance)
+
+Bagi arsitek sistem, tim audit keamanan, dan operator jaringan yang mengutamakan kerahasiaan data:
+
+| Aspek Keamanan | Implementasi pada MikroTik Universal Rust Gateway |
+|---|---|
+| **Zero Persistent Storage** | **100% Stateless**. Tidak ada database lokal (tanpa SQLite/MySQL/PostgreSQL), tidak ada cache berkas di hard disk, dan tidak ada operasi penulisan file ke sistem penyimpanan lokal. Data murni *passthrough* antara aplikasi klien dan RouterOS. |
+| **Penyimpanan Kredensial** | Kredensial router (`X-Router-Host`, `X-Router-User`, `X-Router-Pass`) **hanya hidup sementara di memori RAM** dalam soket pool TCP aktif (`dynamic_pool`). Begitu proses gateway restart, seluruh memori bersih seketika. |
+| **Sanitasi Logging (No Password Leaks)** | Logger internal (`tracing::info`) secara ketat **hanya mencatat alamat dan username router**, sedangkan parameter password dan isi body payload disanitasi penuh sehingga tidak pernah bocor ke log konsol atau file log. |
+| **Proteksi Timing Attacks** | Autentikasi `Bearer Token` diproteksi menggunakan **Constant-Time Byte Comparison (`ct_eq`)** untuk memblokir teknik eksploitasi selisih waktu respons (*Side-Channel Timing Attacks*). |
+| **Isolasi Multi-Tenant** | Log audit in-memory (`AuditLogEntry`) dienkapsulasi menggunakan hash satu arah (`compute_tenant_hash`). Tenant A tidak memiliki akses untuk melihat riwayat atau metrik Tenant B (*Zero-Leak Boundary*). |
+| **HTTP Security Headers** | Dilengkapi header proteksi bawaan: `X-Content-Type-Options: nosniff` (anti MIME sniffing) dan `X-Frame-Options: SAMEORIGIN` (anti Clickjacking portal). |
+| **15s Anti-Hang Timeout Guard** | Melindungi server dari potensi Denial of Service (DoS) atau kebocoran resource thread saat router target lambat atau mengalami packet loss. |
+
+---
+
 ## 📑 Dokumentasi Teknis Lengkap
 
 Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:

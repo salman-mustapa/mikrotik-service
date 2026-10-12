@@ -186,3 +186,25 @@ d:\MyPorto\mikrotik\
 3. **Multi-Stack Universal**: Backend developer (Laravel, Go, Python, Node) tidak perlu mempelajari format binary MikroTik yang rumit. Cukup memanggil JSON REST standar.
 4. **NOC Diagnostic Friendly**: Mendukung HTTP GET & POST langsung dari terminal atau browser via query parameter untuk investigasi insiden jaringan yang cepat.
 5. **Real-time Monitoring Tanpa Beban**: Monitoring interface traffic dan session stream dialirkan via WebSocket dan SSE bawaan browser secara efisien.
+
+---
+
+## 7. Analisis Keamanan & Jaminan Zero-Storage (Stateless Gateway)
+
+Bagi arsitek sistem, tim audit keamanan, dan operator jaringan yang mengutamakan kerahasiaan data (compliance & zero-trust):
+
+### A. 100% Stateless & Zero Persistent Storage
+* **Tidak Ada Database**: Codebase tidak memiliki dependensi SQLite, MySQL, PostgreSQL, MongoDB, atau Redis.
+* **Tidak Ada Penyimpanan Disk**: Gateway tidak pernah menulis file ke hard disk (`std::fs::write` / `File::create`). Seluruh aliran data dari klien ke MikroTik bersifat murni *passthrough* di memori RAM.
+* **Sifat Volatile**: Begitu proses gateway dimatikan atau di-restart, seluruh jejak komputasi di RAM terhapus bersih seketika.
+
+### B. Perlindungan Kredensial & Sanitasi Logging
+* **Kredensial Dinamis di Header**: Pengembang dapat mengirimkan host, user, dan password per-request melalui header HTTP (`X-Router-Host`, `X-Router-User`, `X-Router-Pass`).
+* **Zero Log Leaks**: Logger internal Rust (`tracing::info`) secara ketat menyaring output: hanya alamat IP dan username yang dicatat untuk kebutuhan audit routing, sedangkan parameter password dan isi body payload disanitasi penuh sehingga tidak pernah bocor ke log konsol maupun file output.
+* **Audit Ring Buffer Non-Intrusif**: Audit log hanya mencatat metadata performa (`method`, `endpoint`, `duration_ms`, `status_code`, `client_ip`). Tidak ada penyimpanan kredensial atau payload sensitif di ring buffer.
+
+### C. Proteksi Timing Attacks & Multi-Tenant Boundary
+* **Constant-Time Token Verification (`ct_eq`)**: Autentikasi Bearer Token menggunakan pembandingan byte waktu-konstan untuk mencegah eksploitasi selisih waktu respons (*Side-Channel Timing Attacks*).
+* **Multi-Tenant Segregation**: Log audit dienkapsulasi menggunakan hash satu arah (`compute_tenant_hash`). Tenant A tidak memiliki akses untuk melihat riwayat atau metrik Tenant B (*Zero-Leak Boundary*).
+* **HTTP Security Headers Bawaan**: Setiap respons HTTP dilengkapi `X-Content-Type-Options: nosniff` dan `X-Frame-Options: SAMEORIGIN`.
+* **15s Anti-Hang Guard**: Timeout asinkron memutus koneksi menggantung jika router target mengalami drop paket atau freeze, melindungi server gateway dari kebocoran soket/thread.
