@@ -126,7 +126,7 @@ pub async fn setup_recursive_failover(
     client.run(build_command("/ip/route/add", def1_args)).await?;
 
     // 5. Rute Default ISP 2: Rekursif ke Check Host 2 dengan target-scope=11, distance=2, check-gateway=ping
-    let comment_def2 = format!("{} Backup Default Route (Otomatis ambil alih jika ISP1 RTO)", FAILOVER_COMMENT_TAG, req.backup_check_host);
+    let comment_def2 = format!("{} Backup Default Route via {} (Otomatis ambil alih jika ISP1 RTO)", FAILOVER_COMMENT_TAG, req.backup_check_host);
     let dist2_str = req.backup_distance.to_string();
     let mut def2_args = vec![
         ("dst-address", "0.0.0.0/0"),

@@ -256,16 +256,24 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     let dhcp_cnt = dhcp.map(|r| r.len()).unwrap_or(0);
                     let total_cnt = hs_cnt + ppp_cnt + dhcp_cnt;
 
+                    let free_mem: u64 = res_attrs.get("free-memory").and_then(|v| v.parse().ok()).unwrap_or(0);
+                    let total_mem: u64 = res_attrs.get("total-memory").and_then(|v| v.parse().ok()).unwrap_or(1);
+                    let mem_used_pct = ((total_mem.saturating_sub(free_mem)) as f64 / total_mem as f64) * 100.0;
+
                     let _ = out_tx_clone.send(json!({
                         "event": "overview_result",
                         "tag": tag_clone,
                         "data": {
                             "identity": id_name,
                             "cpu_load": res_attrs.get("cpu-load").unwrap_or(&"0".into()),
+                            "cpu_load_percent": res_attrs.get("cpu-load").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0),
                             "cpu_frequency_mhz": res_attrs.get("cpu-frequency").unwrap_or(&"0".into()),
                             "cpu_count": res_attrs.get("cpu-count").unwrap_or(&"1".into()),
                             "free_memory": res_attrs.get("free-memory").unwrap_or(&"0".into()),
                             "total_memory": res_attrs.get("total-memory").unwrap_or(&"0".into()),
+                            "free_memory_mb": free_mem / (1024 * 1024),
+                            "total_memory_mb": total_mem / (1024 * 1024),
+                            "memory_used_percent": format!("{:.1}%", mem_used_pct),
                             "uptime": res_attrs.get("uptime").unwrap_or(&"".into()),
                             "version": res_attrs.get("version").unwrap_or(&"".into()),
                             "board_name": res_attrs.get("board-name").unwrap_or(&"".into()),
@@ -315,6 +323,10 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         let dhcp_cnt = dhcp.map(|r| r.len()).unwrap_or(0);
                         let total_cnt = hs_cnt + ppp_cnt + dhcp_cnt;
 
+                        let free_mem: u64 = res_attrs.get("free-memory").and_then(|v| v.parse().ok()).unwrap_or(0);
+                        let total_mem: u64 = res_attrs.get("total-memory").and_then(|v| v.parse().ok()).unwrap_or(1);
+                        let mem_used_pct = ((total_mem.saturating_sub(free_mem)) as f64 / total_mem as f64) * 100.0;
+
                         let sent = out_tx_clone.send(json!({
                             "event": "overview_frame",
                             "tag": stream_tag_task,
@@ -322,10 +334,14 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                             "data": {
                                 "identity": id_name,
                                 "cpu_load": res_attrs.get("cpu-load").unwrap_or(&"0".into()),
+                                "cpu_load_percent": res_attrs.get("cpu-load").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0),
                                 "cpu_frequency_mhz": res_attrs.get("cpu-frequency").unwrap_or(&"0".into()),
                                 "cpu_count": res_attrs.get("cpu-count").unwrap_or(&"1".into()),
                                 "free_memory": res_attrs.get("free-memory").unwrap_or(&"0".into()),
                                 "total_memory": res_attrs.get("total-memory").unwrap_or(&"0".into()),
+                                "free_memory_mb": free_mem / (1024 * 1024),
+                                "total_memory_mb": total_mem / (1024 * 1024),
+                                "memory_used_percent": format!("{:.1}%", mem_used_pct),
                                 "uptime": res_attrs.get("uptime").unwrap_or(&"".into()),
                                 "version": res_attrs.get("version").unwrap_or(&"".into()),
                                 "board_name": res_attrs.get("board-name").unwrap_or(&"".into()),

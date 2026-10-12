@@ -539,13 +539,13 @@ pub async fn console_page() -> Html<&'static str> {
     <!-- KPI Overview Cards Grid -->
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-title">Identitas Router <span id="kpi-board" style="color: var(--accent-indigo);">-</span></div>
+        <div class="kpi-title">Identitas Router <span id="kpi-board" style="color: var(--accent-indigo); text-transform: none;">-</span></div>
         <div class="kpi-val" id="kpi-identity">Belum Terhubung</div>
         <div class="kpi-sub" id="kpi-ros">Masukkan host &amp; klik Sinkronisasi</div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">CPU Load &amp; Frekuensi <span id="kpi-freq">- MHz</span></div>
+        <div class="kpi-title">CPU Load &amp; Frekuensi <span id="kpi-freq" style="text-transform: none;">- MHz</span></div>
         <div class="kpi-val" id="kpi-cpu">0%</div>
         <div class="progress-bar-wrap">
           <div class="progress-fill" id="kpi-cpu-bar" style="width: 0%;"></div>
@@ -553,13 +553,13 @@ pub async fn console_page() -> Html<&'static str> {
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Memori RAM Bebas <span id="kpi-total-ram">- MB</span></div>
+        <div class="kpi-title">Memori RAM Bebas <span id="kpi-total-ram" style="text-transform: none;">- MB</span></div>
         <div class="kpi-val" id="kpi-free-ram">- MB</div>
         <div class="kpi-sub" id="kpi-mem-percent">Penggunaan RAM: -%</div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Klien &amp; Relasi Jaringan <span id="kpi-clients-status" style="color: var(--text-muted);">● Menunggu Data</span></div>
+        <div class="kpi-title">Klien &amp; Relasi Jaringan <span id="kpi-clients-status" style="color: var(--text-muted); text-transform: none;">● Menunggu Data</span></div>
         <div class="kpi-val" id="kpi-clients">0 Perangkat</div>
         <div class="kpi-sub" id="kpi-clients-sub">DHCP: 0 | Hotspot: 0 | PPPoE: 0</div>
       </div>
@@ -1101,51 +1101,77 @@ pub async fn console_page() -> Html<&'static str> {
     function updateDashboardKPIs(d) {
       if (!d) return;
 
+      // Mendukung response terstruktur (d.system dari /overview) maupun langsung (dari /system/resource)
+      const sys = d.system || (d['cpu-load'] !== undefined || d['free-memory'] !== undefined || d['cpu_load_percent'] !== undefined ? d : null);
+
       // Identitas & Tipe Board Router
-      if (d.identity) {
+      const idName = d.identity || (!sys ? d.name : (d.name && !d['cpu-load'] ? d.name : null));
+      if (idName) {
         const idEl = document.getElementById('kpi-identity');
-        if (idEl) idEl.textContent = d.identity;
+        if (idEl) idEl.textContent = idName;
       }
-      const board = d.routerboard?.model || d.system?.board_name;
+      const board = d.routerboard?.model || sys?.board_name || d['board-name'] || sys?.['board-name'];
       if (board) {
         const bEl = document.getElementById('kpi-board');
         if (bEl) bEl.textContent = board;
       }
-      if (d.system && (d.system.version || d.system.uptime)) {
-        window.currentRouterOSVersion = d.system.version || '';
+      const rosVer = sys?.version || d['version'] || sys?.['version'] || '';
+      const uptime = sys?.uptime || d['uptime'] || sys?.['uptime'] || '';
+      if (rosVer || uptime) {
+        window.currentRouterOSVersion = rosVer;
         const rosEl = document.getElementById('kpi-ros');
-        if (rosEl) rosEl.textContent = `RouterOS ${d.system.version || ''} | Uptime: ${d.system.uptime || ''}`;
+        if (rosEl) rosEl.textContent = `RouterOS ${rosVer} | Uptime: ${uptime}`;
       }
 
       // CPU Load & Frekuensi
-      if (d.system) {
-        if (d.system.cpu_load_percent !== undefined) {
+      if (sys) {
+        let cpuVal = sys.cpu_load_percent !== undefined ? sys.cpu_load_percent : (sys['cpu-load'] !== undefined ? parseInt(sys['cpu-load'], 10) : sys.cpu_load);
+        if (cpuVal !== undefined && !isNaN(cpuVal)) {
           const cpuEl = document.getElementById('kpi-cpu');
-          if (cpuEl) cpuEl.textContent = `${d.system.cpu_load_percent}%`;
+          if (cpuEl) cpuEl.textContent = `${cpuVal}%`;
           const barEl = document.getElementById('kpi-cpu-bar');
-          if (barEl) barEl.style.width = `${Math.min(100, Math.max(0, d.system.cpu_load_percent))}%`;
+          if (barEl) barEl.style.width = `${Math.min(100, Math.max(0, cpuVal))}%`;
         }
-        if (d.system.cpu_frequency_mhz) {
+
+        const freq = sys.cpu_frequency_mhz || sys['cpu-frequency'] || d.cpu_frequency_mhz;
+        if (freq) {
           const freqEl = document.getElementById('kpi-freq');
-          const cores = d.system.cpu_count ? ` (${d.system.cpu_count} Core)` : '';
-          if (freqEl) freqEl.textContent = `${d.system.cpu_frequency_mhz} MHz${cores}`;
+          const cpuCnt = sys.cpu_count || sys['cpu-count'] || d.cpu_count;
+          const cores = cpuCnt ? ` (${cpuCnt} Core)` : '';
+          if (freqEl) freqEl.textContent = `${freq} MHz${cores}`;
         }
 
         // RAM Free, Total, dan Persentase Terpakai
-        if (d.system.free_memory_mb !== undefined) {
+        let freeMb = sys.free_memory_mb !== undefined ? sys.free_memory_mb : (d.free_memory_mb !== undefined ? d.free_memory_mb : undefined);
+        if (freeMb === undefined && (sys['free-memory'] || sys.free_memory)) {
+          const rawFree = parseInt(sys['free-memory'] || sys.free_memory, 10);
+          if (!isNaN(rawFree)) freeMb = Math.round(rawFree / (1024 * 1024));
+        }
+        if (freeMb !== undefined && !isNaN(freeMb)) {
           const freeEl = document.getElementById('kpi-free-ram');
-          if (freeEl) freeEl.textContent = `${d.system.free_memory_mb} MB`;
+          if (freeEl) freeEl.textContent = `${freeMb} MB`;
         }
-        if (d.system.total_memory_mb !== undefined) {
+
+        let totMb = sys.total_memory_mb !== undefined ? sys.total_memory_mb : (d.total_memory_mb !== undefined ? d.total_memory_mb : undefined);
+        if (totMb === undefined && (sys['total-memory'] || sys.total_memory)) {
+          const rawTot = parseInt(sys['total-memory'] || sys.total_memory, 10);
+          if (!isNaN(rawTot)) totMb = Math.round(rawTot / (1024 * 1024));
+        }
+        if (totMb !== undefined && !isNaN(totMb)) {
           const totEl = document.getElementById('kpi-total-ram');
-          if (totEl) totEl.textContent = `${d.system.total_memory_mb} MB`;
+          if (totEl) totEl.textContent = `${totMb} MB`;
         }
+
         const memPercentEl = document.getElementById('kpi-mem-percent');
         if (memPercentEl) {
-          if (d.system.memory_used_percent) {
-            memPercentEl.textContent = `Penggunaan RAM: ${d.system.memory_used_percent}`;
-          } else if (d.system.total_memory_mb && d.system.free_memory_mb !== undefined) {
-            const usedPct = (((d.system.total_memory_mb - d.system.free_memory_mb) / d.system.total_memory_mb) * 100).toFixed(1);
+          const rawPct = sys.memory_used_percent || d.memory_used_percent;
+          if (rawPct !== undefined && rawPct !== null && rawPct !== '') {
+            const formattedPct = typeof rawPct === 'number'
+              ? `${rawPct.toFixed(1)}%`
+              : (String(rawPct).endsWith('%') ? String(rawPct) : `${rawPct}%`);
+            memPercentEl.textContent = `Penggunaan RAM: ${formattedPct}`;
+          } else if (totMb && freeMb !== undefined && totMb > 0) {
+            const usedPct = (((totMb - freeMb) / totMb) * 100).toFixed(1);
             memPercentEl.textContent = `Penggunaan RAM: ${usedPct}%`;
           }
         }

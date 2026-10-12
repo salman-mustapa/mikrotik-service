@@ -77,6 +77,13 @@ pub struct AddDhcpClientReq {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct IdReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct TerminalExecReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
