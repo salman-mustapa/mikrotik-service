@@ -477,119 +477,213 @@ pub async fn console_page() -> Html<&'static str> {
     }
     /* Live Real-Time WebSocket Terminal Modal */
     .modal-backdrop {
+      display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      display: flex;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 9999;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 20px;
+    }
+    .modal-backdrop.show {
+      display: flex !important;
     }
     .modal-card {
       background: #ffffff;
-      border-radius: 12px;
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25);
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(226, 232, 240, 0.8);
       width: 100%;
-      max-width: 860px;
+      max-width: 920px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      border: 1px solid var(--card-border);
+      animation: modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modal-pop {
+      from { transform: scale(0.96) translateY(8px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
     }
     .modal-header {
-      padding: 14px 20px;
+      padding: 16px 24px;
       background: #ffffff;
       border-bottom: 1px solid var(--card-border);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .modal-close {
-      background: transparent;
-      border: none;
-      font-size: 1.25rem;
-      cursor: pointer;
+    .btn-close-modal {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: #f8fafc;
       color: var(--text-muted);
-      padding: 4px;
+      font-size: 1.35rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .modal-close:hover { color: #dc2626; }
+    .btn-close-modal:hover {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: #dc2626;
+      transform: scale(1.05);
+    }
+    .modal-tabs {
+      display: flex;
+      background: #f1f5f9;
+      padding: 6px 20px 0;
+      border-bottom: 1px solid var(--card-border);
+      gap: 6px;
+    }
+    .modal-tab-btn {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .modal-tab-btn:hover {
+      color: var(--text-main);
+    }
+    .modal-tab-btn.active {
+      background: #ffffff;
+      color: var(--accent-indigo);
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.03);
+    }
     .ws-controls {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 12px 20px;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 24px;
       background: #f8fafc;
       border-bottom: 1px solid var(--card-border);
       flex-wrap: wrap;
     }
-    .btn-ws-start {
-      background: var(--accent-indigo);
-      color: white;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 0.76rem;
+    .ws-input {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      font-family: inherit;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .ws-input:focus {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+    .ws-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.8rem;
       font-weight: 700;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: all 0.15s ease;
+      border: none;
     }
-    .btn-ws-start:hover { background: #4338ca; }
-    .btn-ws-stop {
+    .ws-btn-start {
+      background: #4f46e5;
+      color: #ffffff;
+      box-shadow: 0 1px 3px rgba(79, 70, 229, 0.35);
+    }
+    .ws-btn-start:hover {
+      background: #4338ca;
+    }
+    .ws-btn-stop {
+      background: #ef4444 !important;
+      color: #ffffff !important;
+      box-shadow: 0 1px 3px rgba(239, 68, 68, 0.35);
+    }
+    .ws-btn-stop:hover {
       background: #dc2626 !important;
     }
-    .btn-ws-stop:hover { background: #b91c1c !important; }
-    .ws-metrics-bar {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 8px 20px;
+    .ws-btn-clear {
       background: #ffffff;
-      border-bottom: 1px solid var(--card-border);
-      font-size: 0.74rem;
-      color: var(--text-muted);
+      color: #475569;
+      border: 1px solid #cbd5e1;
+    }
+    .ws-btn-clear:hover {
+      background: #f1f5f9;
+      color: #0f172a;
     }
     .ws-terminal-screen {
-      background: #0f172a;
+      background: #090d16;
       color: #38bdf8;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.78rem;
-      padding: 16px;
+      padding: 16px 20px;
       height: 350px;
       max-height: 350px;
       overflow-y: auto;
       line-height: 1.6;
       box-sizing: border-box;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
     }
-    .term-line { margin-bottom: 3px; word-break: break-all; }
-    .term-system { color: #94a3b8; }
-    .term-ping { color: #4ade80; }
-    .term-err { color: #f87171; }
-    .term-traffic { color: #a78bfa; }
-    .ws-pill-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #f1f5f9;
+    .ws-line {
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .ws-line.comment {
       color: #64748b;
-      border: 1px solid #cbd5e1;
     }
-    .ws-pill-connected {
-      background: #ecfdf5 !important;
-      color: #047857 !important;
-      border-color: #a7f3d0 !important;
+    .ws-line.success {
+      color: #34d399;
+      font-weight: 600;
     }
-    .dot-ws-live {
-      width: 7px; height: 7px; border-radius: 50%; background: #10b981;
+    .ws-line.error {
+      color: #f87171;
+      font-weight: 600;
+    }
+    .ws-line.normal {
+      color: #38bdf8;
+    }
+    .modal-footer {
+      padding: 12px 24px;
+      background: #ffffff;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .ws-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+      display: inline-block;
+      transition: all 0.2s;
+    }
+    .ws-dot.active {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
       animation: pulse-dot 1.5s infinite ease-in-out;
     }
-    .dot-ws-idle {
-      width: 7px; height: 7px; border-radius: 50%; background: #94a3b8;
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
     }
   </style>
 </head>
@@ -769,53 +863,78 @@ pub async fn console_page() -> Html<&'static str> {
   </main>
 
   <!-- Live WebSocket Real-Time Terminal Modal -->
-  <div id="ws-modal" class="modal-backdrop">
-    <div class="modal-card">
+  <div id="ws-modal" class="modal-backdrop" onclick="onBackdropClick(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
       <div class="modal-header">
         <div>
           <h3 style="font-size: 1.05rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-            <span>⚡ Real-Time WebSocket Live Stream</span>
-            <span style="font-size: 0.68rem; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 600;">Sub-2ms Socket Engine</span>
+            <span>⚡ Real-Time WebSocket Streaming Engine</span>
+            <span style="font-size: 0.68rem; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 600;">Sub-2ms Duplex Channel</span>
           </h3>
           <p style="font-size: 0.76rem; color: #64748b; margin-top: 2px;">
-            Direct duplex connection to RouterOS via <code>/ws</code>. Menampilkan respons paket demi paket secara instan saat dikirim router, membedakannya dari batch HTTP roundtrip.
+            Direct bi-directional duplex stream to RouterOS via <code>/ws</code>. Mengalirkan respons data paket demi paket per detik secara instan tanpa polling HTTP.
           </p>
         </div>
-        <button class="btn-close-modal" onclick="closeWsModal()">&times;</button>
+        <button class="btn-close-modal" onclick="closeWsModal()" title="Tutup Modal (Esc)">&times;</button>
       </div>
 
-      <div class="ws-controls">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-          <select id="ws-stream-type" class="ws-input" onchange="onWsStreamTypeChange()">
-            <option value="ping">Live ICMP Ping Stream (RouterOS -> Target Host)</option>
-            <option value="traffic">Real-Time Interface Bandwidth (RX/TX Bps)</option>
-            <option value="overview">System Overview Live Heartbeat (CPU &amp; RAM)</option>
-            <option value="logs">Live RouterOS Syslog Stream</option>
-          </select>
-          <input id="ws-target-param" class="ws-input" type="text" placeholder="Target Host / IP (e.g. 8.8.8.8)" value="8.8.8.8" style="min-width: 180px;">
+      <!-- Navigation Tabs inside Modal -->
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" id="tab-btn-terminal" onclick="switchWsModalTab('terminal')">🖥️ Live Stream Terminal</button>
+        <button class="modal-tab-btn" id="tab-btn-docs" onclick="switchWsModalTab('docs')">💻 Developer Integration Guide &amp; SDK</button>
+      </div>
+
+      <!-- Tab Content 1: Live Terminal -->
+      <div id="ws-pane-terminal">
+        <div class="ws-controls">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <select id="ws-stream-type" class="ws-input" onchange="onWsStreamTypeChange()">
+              <option value="ping">Live ICMP Ping Stream (RouterOS -> Target Host)</option>
+              <option value="traffic">Real-Time Interface Bandwidth (RX/TX Bps)</option>
+              <option value="overview">System Overview Live Heartbeat (CPU &amp; RAM)</option>
+              <option value="logs">Live RouterOS Syslog Stream</option>
+            </select>
+            <input id="ws-target-param" class="ws-input" type="text" placeholder="Target Host / IP (e.g. 8.8.8.8)" value="8.8.8.8" style="min-width: 180px;">
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="ws-connect-btn" class="ws-btn ws-btn-start" onclick="toggleWsStream()">
+              <span>▶ Mulai Stream Real-Time</span>
+            </button>
+            <button class="ws-btn ws-btn-clear" onclick="clearWsTerminal()">Clear Terminal</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="ws-connect-btn" class="ws-btn ws-btn-start" onclick="toggleWsStream()">
-            <span>▶ Mulai Stream Real-Time</span>
-          </button>
-          <button class="ws-btn ws-btn-clear" onclick="clearWsTerminal()">Clear Terminal</button>
+
+        <div class="ws-terminal-screen" id="ws-terminal">
+          <div class="ws-line comment"># RouterOS Universal Gateway Live WebSocket Terminal</div>
+          <div class="ws-line comment"># Protocol: ws://${location.host}/ws?token=&lt;bearer_token&gt;</div>
+          <div class="ws-line comment"># Socket Engine: Async Rust Multiplexed Channel (&lt;2ms)</div>
+          <div class="ws-line comment"># Ready. Klik 'Mulai Stream Real-Time' untuk menguji koneksi live socket duplex.</div>
         </div>
       </div>
 
-      <div class="ws-terminal-screen" id="ws-terminal">
-        <div class="ws-line comment"># RouterOS Universal Gateway Live WebSocket Terminal</div>
-        <div class="ws-line comment"># Protocol: ws://${location.host}/ws?token=&lt;bearer_token&gt;</div>
-        <div class="ws-line comment"># Socket Engine: Async Rust Multiplexed Channel (&lt;2ms)</div>
-        <div class="ws-line comment"># Ready. Klik 'Mulai Stream Real-Time' untuk menguji koneksi live socket duplex.</div>
+      <!-- Tab Content 2: Developer Integration Docs -->
+      <div id="ws-pane-docs" style="display: none; padding: 20px; max-height: 400px; overflow-y: auto; background: #ffffff;">
+        <div style="font-size: 0.88rem; font-weight: 700; color: #1e293b; margin-bottom: 6px;">🔌 Panduan Integrasi WebSocket untuk Developer &amp; Proyek</div>
+        <p style="font-size: 0.78rem; color: #64748b; line-height: 1.5; margin-bottom: 14px;">
+          Koneksi WebSocket gateway (<code>/ws</code>) dirancang khusus untuk integrasi aplikasi mobile (Flutter), dashboard web (React/Vue/Next), atau backend microservice yang membutuhkan live packet streaming (ICMP ping per detik, traffic interface real-time, telemetry hardware, dan live syslog) tanpa beban HTTP polling berulang.
+        </p>
+
+        <div style="font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 8px;">Contoh Kode Klien Siap Pakai:</div>
+        <div class="tab-bar" style="margin-bottom: 8px;">
+          <button class="code-tab-btn active" id="ws-sdk-tab-flutter" onclick="switchWsSnippet('flutter', this)">Flutter (Dart / web_socket_channel)</button>
+          <button class="code-tab-btn" id="ws-sdk-tab-js" onclick="switchWsSnippet('js', this)">JavaScript (Browser / Node.js)</button>
+          <button class="code-tab-btn" id="ws-sdk-tab-python" onclick="switchWsSnippet('python', this)">Python (websockets)</button>
+        </div>
+        <pre class="code-box" id="ws-snippet-box" style="margin: 0; max-height: 220px;"></pre>
       </div>
 
       <div class="modal-footer">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="ws-dot" id="ws-status-dot"></span>
-          <span style="font-weight: 600; color: #475569;" id="ws-status-text">Disconnected</span>
+          <span style="font-weight: 600; color: #475569; font-size: 0.78rem;" id="ws-status-text">Disconnected</span>
         </div>
-        <div style="font-size: 0.72rem; color: #94a3b8;">
-          💡 ICMP Ping via HTTP mengirim seluruh paket batch sekaligus (e.g. 4 ping ~ 3.5s). Gunakan WebSocket ini untuk streaming ICMP per detik secara real-time.
+        <div style="font-size: 0.74rem; color: #64748b;">
+          💡 Endpoint: <code>ws://{location.host}/ws?token={bearer_token}</code> &bull; Tekan <kbd style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 0.7rem; color: #475569;">Esc</kbd> atau klik luar untuk menutup
         </div>
       </div>
     </div>
@@ -1519,19 +1638,154 @@ pub async fn console_page() -> Html<&'static str> {
       });
     }
 
-    // --- Live WebSocket Real-Time Terminal Controller ---
+    // --- Live WebSocket Real-Time Terminal & Developer SDK Controller ---
     let wsSocket = null;
     let wsPingInterval = null;
 
     function openWsModal() {
       const modal = document.getElementById('ws-modal');
-      if (modal) modal.classList.add('show');
+      if (modal) {
+        modal.classList.add('show');
+        switchWsModalTab('terminal');
+      }
     }
 
     function closeWsModal() {
       const modal = document.getElementById('ws-modal');
       if (modal) modal.classList.remove('show');
       stopWsStream();
+    }
+
+    function onBackdropClick(event) {
+      if (event.target.id === 'ws-modal') {
+        closeWsModal();
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeWsModal();
+      }
+    });
+
+    function switchWsModalTab(tab) {
+      const termPane = document.getElementById('ws-pane-terminal');
+      const docsPane = document.getElementById('ws-pane-docs');
+      const termBtn = document.getElementById('tab-btn-terminal');
+      const docsBtn = document.getElementById('tab-btn-docs');
+
+      if (tab === 'terminal') {
+        if (termPane) termPane.style.display = 'block';
+        if (docsPane) docsPane.style.display = 'none';
+        if (termBtn) termBtn.classList.add('active');
+        if (docsBtn) docsBtn.classList.remove('active');
+      } else {
+        if (termPane) termPane.style.display = 'none';
+        if (docsPane) docsPane.style.display = 'block';
+        if (termBtn) termBtn.classList.remove('active');
+        if (docsBtn) docsBtn.classList.add('active');
+        switchWsSnippet('flutter', document.getElementById('ws-sdk-tab-flutter'));
+      }
+    }
+
+    function switchWsSnippet(lang, btn) {
+      document.querySelectorAll('#ws-pane-docs .code-tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      const host = document.getElementById('target-host').value.trim() || '192.168.88.1';
+      const port = document.getElementById('target-port').value.trim() || '8728';
+      const user = document.getElementById('target-user').value.trim() || 'admin';
+      const pass = document.getElementById('target-pass').value || 'password';
+      const token = document.getElementById('gw-token').value.trim() || 'change-me-to-a-long-random-string';
+      const gwHost = window.location.host || '127.0.0.1:8080';
+      const wsUrl = `ws://${gwHost}/ws?token=${token}`;
+
+      const box = document.getElementById('ws-snippet-box');
+      if (!box) return;
+
+      if (lang === 'flutter') {
+        box.textContent = `// 1. Tambahkan dependency di pubspec.yaml:
+//    web_socket_channel: ^2.4.0
+import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+final ws = WebSocketChannel.connect(
+  Uri.parse('${wsUrl}'),
+);
+
+// 2. Subscribe ke Live ICMP Ping Stream (<2ms gateway socket duplex)
+ws.sink.add(jsonEncode({
+  "action": "subscribe_ping",
+  "address": "8.8.8.8",
+  "interval_ms": 1000,
+  "router": {
+    "host": "${host}",
+    "port": ${port},
+    "user": "${user}",
+    "password": "${pass}"
+  }
+}));
+
+// 3. Tangkap frame packet per detik secara instan di UI / Bloc / Riverpod:
+ws.stream.listen((message) {
+  final frame = jsonDecode(message);
+  if (frame['event'] == 'ping_frame') {
+    print('Ping \${frame['target']}: seq=\${frame['sequence']} time=\${frame['rtt']}');
+  }
+});`;
+      } else if (lang === 'js') {
+        box.textContent = `// Koneksi WebSocket Real-Time (Browser / React / Vue / Next.js / Node.js)
+const token = "${token}";
+const ws = new WebSocket("${wsUrl}");
+
+ws.onopen = () => {
+  // Subscribe ke live throughput bandwidth interface
+  ws.send(JSON.stringify({
+    action: "subscribe_traffic",
+    interface: "ether1",
+    router: {
+      host: "${host}",
+      port: ${port},
+      user: "${user}",
+      password: "${pass}"
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const frame = JSON.parse(event.data);
+  if (frame.event === 'traffic_frame') {
+    const rxBps = frame.data['rx-bits-per-second'];
+    const txBps = frame.data['tx-bits-per-second'];
+    console.log(\`RX: \${rxBps} bps | TX: \${txBps} bps\`);
+  }
+};`;
+      } else if (lang === 'python') {
+        box.textContent = `# pip install websockets
+import asyncio, json, websockets
+
+async def stream_live_telemetry():
+    uri = "${wsUrl}"
+    async with websockets.connect(uri) as ws:
+        # Subscribe ke System Overview Telemetry Live Heartbeat
+        await ws.send(json.dumps({
+            "action": "subscribe_overview",
+            "interval_ms": 2000,
+            "router": {
+                "host": "${host}",
+                "port": ${port},
+                "user": "${user}",
+                "password": "${pass}"
+            }
+        }))
+        async for msg in ws:
+            frame = json.loads(msg)
+            if frame.get("event") == "overview_frame":
+                data = frame.get("data", {})
+                print(f"Router {data.get('identity')} CPU: {data.get('cpu_load_percent')}% RAM Free: {data.get('free_memory_mb')}MB")
+
+asyncio.run(stream_live_telemetry())`;
+      }
     }
 
     function clearWsTerminal() {
@@ -1545,10 +1799,15 @@ pub async fn console_page() -> Html<&'static str> {
       if (type === 'ping') {
         paramInput.style.display = 'inline-block';
         paramInput.placeholder = 'Target IP / Host (e.g. 8.8.8.8)';
+        if (!paramInput.value || paramInput.value === 'ether1') paramInput.value = '8.8.8.8';
       } else if (type === 'traffic') {
         paramInput.style.display = 'inline-block';
         paramInput.placeholder = 'Interface Name (e.g. ether1)';
         if (!paramInput.value || paramInput.value === '8.8.8.8') paramInput.value = 'ether1';
+      } else if (type === 'logs') {
+        paramInput.style.display = 'inline-block';
+        paramInput.placeholder = 'Topic filter (e.g. info, firewall, hotspot)';
+        paramInput.value = '';
       } else {
         paramInput.style.display = 'none';
       }
@@ -1591,7 +1850,7 @@ pub async fn console_page() -> Html<&'static str> {
         btn.innerHTML = '<span>▶ Mulai Stream Real-Time</span>';
         btn.className = 'ws-btn ws-btn-start';
       }
-      appendWsLine('WebSocket stream stopped.', 'comment');
+      appendWsLine('WebSocket stream disconnected.', 'comment');
     }
 
     function startWsStream() {
@@ -1617,18 +1876,18 @@ pub async fn console_page() -> Html<&'static str> {
 
         wsSocket.onopen = () => {
           if (dot) dot.classList.add('active');
-          if (text) text.textContent = 'Connected (Live)';
+          if (text) text.textContent = 'Connected (Live <2ms Socket)';
           if (btn) {
             btn.innerHTML = '<span>⏹ Hentikan Stream</span>';
             btn.className = 'ws-btn ws-btn-stop';
           }
           appendWsLine(`WebSocket Handshake ESTABLISHED (<2ms Rust Gateway)`, 'success');
 
-          const baseMsg = {
-            router_host: host,
-            router_port: port ? parseInt(port, 10) : 8728,
-            router_user: user,
-            router_pass: pass
+          const routerObj = {
+            host: host || undefined,
+            port: port ? parseInt(port, 10) : 8728,
+            user: user || undefined,
+            password: pass || undefined
           };
 
           if (streamType === 'ping') {
@@ -1637,7 +1896,11 @@ pub async fn console_page() -> Html<&'static str> {
             wsSocket.send(JSON.stringify({
               action: "subscribe_ping",
               address: targetHost,
-              ...baseMsg
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
             }));
           } else if (streamType === 'traffic') {
             const iface = targetParam || 'ether1';
@@ -1645,19 +1908,32 @@ pub async fn console_page() -> Html<&'static str> {
             wsSocket.send(JSON.stringify({
               action: "subscribe_traffic",
               interface: iface,
-              ...baseMsg
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
             }));
           } else if (streamType === 'overview') {
             appendWsLine(`Subscribing to live System Overview stream...`, 'comment');
             wsSocket.send(JSON.stringify({
               action: "subscribe_overview",
-              ...baseMsg
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
             }));
           } else if (streamType === 'logs') {
             appendWsLine(`Listening to live syslog stream...`, 'comment');
             wsSocket.send(JSON.stringify({
               action: "listen_logs",
-              ...baseMsg
+              params: targetParam ? { topic: targetParam } : {},
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
             }));
           }
         };
@@ -1665,16 +1941,32 @@ pub async fn console_page() -> Html<&'static str> {
         wsSocket.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
-            if (msg.event === 'ping_reply' || msg.type === 'ping' || msg.avg_rtt || msg.time) {
-              const rtt = msg.time || msg.avg_rtt || msg['avg-rtt'] || msg.rtt || '0ms';
-              const seq = msg.seq || msg.sequence || '0';
-              const ttl = msg.ttl || '64';
-              const host = msg.host || targetParam || 'target';
-              appendWsLine(`64 bytes from ${host}: seq=${seq} ttl=${ttl} time=${rtt}`, 'normal');
-            } else if (msg.event === 'traffic' || (msg.rx_bps !== undefined && msg.tx_bps !== undefined)) {
-              appendWsLine(`[Traffic] RX: ${(msg.rx_bps / 1024).toFixed(1)} Kbps | TX: ${(msg.tx_bps / 1024).toFixed(1)} Kbps (Packets: ${msg.rx_pps || 0}r/${msg.tx_pps || 0}t)`, 'normal');
-            } else if (msg.event === 'overview' || msg.cpu_load !== undefined) {
-              appendWsLine(`[Overview Heartbeat] CPU: ${msg.cpu_load || 0}% | Free RAM: ${msg.free_memory_mb || 0}MB | Clients: ${msg.total_clients || 0}`, 'normal');
+            if (msg.event === 'connected') {
+              appendWsLine(`Gateway greeting: authenticated=${msg.authenticated}`, 'comment');
+            } else if (msg.event === 'ping_frame') {
+              const rtt = msg.rtt || '0ms';
+              const seq = msg.sequence || '1';
+              const target = msg.target || targetParam || 'target';
+              appendWsLine(`64 bytes from ${target}: seq=${seq} time=${rtt} status=LIVE_REPLY`, 'success');
+            } else if (msg.event === 'traffic_frame') {
+              const d = msg.data || {};
+              const rxBps = parseFloat(d['rx-bits-per-second'] || d.rx_bps || 0);
+              const txBps = parseFloat(d['tx-bits-per-second'] || d.tx_bps || 0);
+              const rxPps = d['rx-packets-per-second'] || 0;
+              const txPps = d['tx-packets-per-second'] || 0;
+              const rxFormatted = rxBps > 1000000 ? (rxBps / 1000000).toFixed(2) + ' Mbps' : (rxBps / 1000).toFixed(1) + ' Kbps';
+              const txFormatted = txBps > 1000000 ? (txBps / 1000000).toFixed(2) + ' Mbps' : (txBps / 1000).toFixed(1) + ' Kbps';
+              appendWsLine(`[TRAFFIC ${msg.interface || 'iface'}] ⬇ RX: ${rxFormatted} (${rxPps} pps) | ⬆ TX: ${txFormatted} (${txPps} pps)`, 'normal');
+            } else if (msg.event === 'overview_frame') {
+              const d = msg.data || {};
+              appendWsLine(`[TELEMETRY] ${d.identity || 'RouterOS'} | CPU: ${d.cpu_load_percent}% | RAM Free: ${d.free_memory_mb}MB (${d.memory_used_percent} used) | Clients: ${d.total_clients_count} | Uptime: ${d.uptime}`, 'normal');
+            } else if (msg.event === 'log_entry') {
+              const d = msg.data || {};
+              appendWsLine(`[SYSLOG] ${d.time || ''} [${d.topics || 'info'}] ${d.message || JSON.stringify(d)}`, 'comment');
+            } else if (msg.event === 'command_result') {
+              appendWsLine(`[CLI RESULT] Count: ${msg.count} row(s)\n${JSON.stringify(msg.data, null, 2)}`, 'success');
+            } else if (msg.event === 'stream_error' || msg.event === 'ping_error' || msg.event === 'command_error' || msg.event === 'error' || msg.event === 'unauthorized') {
+              appendWsLine(`[ERROR] ${msg.error || JSON.stringify(msg)}`, 'error');
             } else {
               appendWsLine(JSON.stringify(msg), 'normal');
             }
@@ -2276,36 +2568,75 @@ pub async fn docs_page() -> Html<&'static str> {
 
       <!-- Section: Real-Time WebSocket Protocol -->
       <section class="doc-section" id="sec-ws">
-        <div class="section-header">⚡ Real-Time WebSocket Streaming Protocol</div>
+        <div class="section-header">⚡ Real-Time WebSocket Streaming Protocol (Sub-2ms Gateway Engine)</div>
         <div class="ep-doc-card">
           <div class="ep-top">
-            <div class="methods-group"><span class="m-pill" style="background:#dcfce7; border: 1px solid #86efac; color:#15803d;">WS / WSS</span></div>
+            <div class="methods-group"><span class="m-pill" style="background:#dcfce7; border: 1px solid #86efac; color:#15803d; font-weight: 700;">WS / WSS</span></div>
             <div class="ep-path">/ws?token={bearer_token}</div>
-            <a href="/?ws_modal=true" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Buka Terminal WebSocket di Console</a>
+            <a href="/?ws_modal=true" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem; font-weight: 700;">Buka Terminal WebSocket di Console</a>
           </div>
           <div class="ep-desc">
             Koneksi duplex real-time langsung ke Rust Socket Gateway untuk streaming data live tanpa polling HTTP.
             Berbeda dengan endpoint batch HTTP (seperti <code>/api/v1/tools/ping</code> yang menunggu seluruh 4 paket selesai ~3.5 detik),
             koneksi WebSocket mengalirkan respons paket demi paket setiap detik secara instan (&lt;2ms latensi pemrosesan gateway).
           </div>
-          <pre class="code-preview">// 1. Handshake &amp; Auth via Query Param atau Pesan Pertama
+
+          <table class="params-table" style="margin-top: 10px;">
+            <tr><th>Action</th><th>Parameter Kunci</th><th>Event Balasan</th><th>Deskripsi</th></tr>
+            <tr><td><code>subscribe_ping</code></td><td><code>address</code>, <code>interval_ms</code></td><td><code>ping_frame</code></td><td>Streaming paket ICMP ping per detik dari router ke host tujuan secara instan</td></tr>
+            <tr><td><code>subscribe_traffic</code></td><td><code>interface</code></td><td><code>traffic_frame</code></td><td>Monitor throughput bitrate RX/TX &amp; packet counter interface real-time</td></tr>
+            <tr><td><code>subscribe_overview</code></td><td><code>interval_ms</code></td><td><code>overview_frame</code></td><td>Live heartbeat CPU load, RAM usage, total client hotspot/dhcp/ppp, dan uptime</td></tr>
+            <tr><td><code>listen_logs</code></td><td><code>params.topic</code></td><td><code>log_entry</code></td><td>Streaming live RouterOS syslog (firewall alerts, hotspot logins, critical events)</td></tr>
+            <tr><td><code>command</code></td><td><code>command</code>, <code>params</code></td><td><code>command_result</code></td><td>Eksekusi duplex RouterOS API command langsung melalui persistent socket</td></tr>
+          </table>
+
+          <div style="margin-top: 14px; font-size: 0.8rem; font-weight: 700; color: #334155;">Contoh Integrasi JavaScript (Browser / Node.js):</div>
+          <pre class="code-preview">// 1. Handshake & Auth via Query Param
 const ws = new WebSocket("ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string");
 
-// 2. Subscribe Live ICMP Ping
-ws.send(JSON.stringify({
-  action: "subscribe_ping",
-  address: "8.8.8.8",
-  router_host: "192.168.88.1",
-  router_port: 8728,
-  router_user: "admin",
-  router_pass: "password"
+// 2. Subscribe ke Live ICMP Ping (Mendukung kredensial nested atau flat)
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    action: "subscribe_ping",
+    address: "8.8.8.8",
+    interval_ms: 1000,
+    router: {
+      host: "192.168.88.1",
+      port: 8728,
+      user: "admin",
+      password: "router_password"
+    }
+  }));
+};
+
+// 3. Tangkap Event Reply Paket per Detik
+ws.onmessage = (event) => {
+  const frame = JSON.parse(event.data);
+  if (frame.event === 'ping_frame') {
+    console.log(`Live Ping reply seq=${frame.sequence}: ${frame.rtt}`);
+  }
+};</pre>
+
+          <div style="margin-top: 10px; font-size: 0.8rem; font-weight: 700; color: #334155;">Contoh Integrasi Flutter (Dart / web_socket_channel):</div>
+          <pre class="code-preview">import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+final ws = WebSocketChannel.connect(
+  Uri.parse('ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string'),
+);
+
+ws.sink.add(jsonEncode({
+  "action": "subscribe_traffic",
+  "interface": "ether1",
+  "router": { "host": "192.168.88.1", "port": 8728, "user": "admin", "password": "password" }
 }));
 
-// 3. Tangkap Event Reply per Detik
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log("Live Packet Reply:", data);
-};</pre>
+ws.stream.listen((message) {
+  final frame = jsonDecode(message);
+  if (frame['event'] == 'traffic_frame') {
+    print('Bandwidth RX: ${frame['data']['rx-bits-per-second']} bps');
+  }
+});</pre>
         </div>
       </section>
 

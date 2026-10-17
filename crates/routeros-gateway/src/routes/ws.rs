@@ -23,12 +23,33 @@ struct WsIncoming {
     pub tag: Option<String>,
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
+    pub router_host: Option<String>,
+    pub router_port: Option<u16>,
+    pub router_user: Option<String>,
+    pub router_pass: Option<String>,
     pub command: Option<String>,
     #[serde(default)]
     pub params: HashMap<String, String>,
     pub interface: Option<String>,
     pub address: Option<String>,
     pub interval_ms: Option<u64>,
+}
+
+impl WsIncoming {
+    pub fn resolved_target(&self) -> Option<RouterTarget> {
+        if let Some(r) = &self.router {
+            return Some(r.clone());
+        }
+        if self.router_host.is_some() || self.router_user.is_some() {
+            return Some(RouterTarget {
+                host: self.router_host.clone(),
+                port: self.router_port,
+                user: self.router_user.clone(),
+                password: self.router_pass.clone(),
+            });
+        }
+        None
+    }
 }
 
 pub async fn ws_handler(
@@ -125,7 +146,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                 let tag_clone = tag.clone();
 
                 tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -171,7 +193,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -232,7 +255,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                 let tag_clone = tag.clone();
 
                 tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -298,7 +322,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -377,7 +402,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -438,7 +464,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let log_tag_task = log_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let client_res = st_clone.resolve_client(req.router.as_ref(), req.router_id.as_deref()).await;
+                    let target = req.resolved_target();
+                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
