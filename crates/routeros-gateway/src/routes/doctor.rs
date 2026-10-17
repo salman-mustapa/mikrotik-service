@@ -95,7 +95,7 @@ pub async fn doctor_diagnose(
                     title: format!("RAM Hampir Habis: {}% terpakai", mem_usage_pct),
                     description_id: format!("Sisa RAM hanya {} MB. Router rentan crash jika subscriber bertambah.", free_ram_mb),
                     description_en: "Free RAM is critically low, risk of out-of-memory crash under subscriber spikes.".into(),
-                    recommendation: "Bersihkan DNS cache via POST /api/dns/cache/flush dan kurangi log buffer.".into(),
+                    recommendation: "Bersihkan DNS cache via POST /api/v1/dns/cache/flush dan kurangi log buffer.".into(),
                 });
             }
         }
@@ -249,7 +249,7 @@ pub async fn doctor_diagnose(
                     title: "Potensi Celah Open DNS Resolver Terbuka".into(),
                     description_id: "Fitur 'allow-remote-requests=yes' aktif tanpa aturan drop UDP port 53 pada firewall input WAN. Router rentan disalahgunakan untuk serangan DNS Amplification DDoS.".into(),
                     description_en: "Router has allow-remote-requests enabled without a WAN firewall filter rule blocking port 53 UDP, leaving it vulnerable to Open DNS Resolver abuse.".into(),
-                    recommendation: "Tambahkan filter rule drop chain=input dst-port=53 protocol=udp in-interface-list=WAN via POST /api/v1/hardening/quick-secure.".into(),
+                    recommendation: "Tambahkan filter rule drop chain=input dst-port=53 protocol=udp in-interface-list=WAN via POST /api/v1/security/hardening/deploy-dns-guard.".into(),
                 });
             }
         }

@@ -791,7 +791,7 @@ pub async fn console_page() -> Html<&'static str> {
 
         <!-- Category Filter Pills (Standardized English Nomenclature) -->
         <div class="category-pills">
-          <button class="cat-btn active" onclick="filterCategory('all', this)">All Endpoints (140+)</button>
+          <button class="cat-btn active" onclick="filterCategory('all', this)">All Endpoints (250+)</button>
           <button class="cat-btn" onclick="filterCategory('security', this)">🛡️ Security &amp; Diagnostics</button>
           <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path &amp; Performance</button>
           <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher Engine 2.0</button>
