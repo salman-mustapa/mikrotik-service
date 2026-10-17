@@ -131,6 +131,9 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
             continue;
         }
 
+        let target = req.resolved_target();
+        let router_id = req.router_id;
+
         match req.action.as_str() {
             "command" => {
                 let cmd_str = match req.command {
@@ -141,13 +144,15 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                     }
                 };
 
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let params = req.params;
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let tag_clone = tag.clone();
 
                 tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -156,7 +161,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         }
                     };
 
-                    let words = build_command(&cmd_str, req.params.into_iter());
+                    let words = build_command(&cmd_str, params.into_iter());
                     match client.run(words).await {
                         Ok(rows) => {
                             let data: Vec<_> = rows.into_iter().map(|r| r.attrs).collect();
@@ -181,6 +186,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
             "subscribe_traffic" => {
                 let iface = req.interface.unwrap_or_else(|| "ether1".into());
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let stream_tag = tag.clone();
@@ -193,8 +200,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -250,13 +256,14 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
             }
 
             "overview" => {
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let tag_clone = tag.clone();
 
                 tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -312,6 +319,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
             "subscribe_overview" => {
                 let interval = req.interval_ms.unwrap_or(2000).clamp(500, 60000);
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let stream_tag = tag.clone();
@@ -322,8 +331,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -391,6 +399,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
             "subscribe_ping" => {
                 let target_addr = req.address.unwrap_or_else(|| "8.8.8.8".into());
                 let interval = req.interval_ms.unwrap_or(1000).clamp(500, 10000);
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let stream_tag = tag.clone();
@@ -402,8 +412,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let stream_tag_task = stream_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
@@ -454,6 +463,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
             "listen_logs" => {
                 let topic_filter = req.params.get("topic").cloned();
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
                 let st_clone = st.clone();
                 let out_tx_clone = out_tx.clone();
                 let log_tag = tag.clone();
@@ -464,8 +475,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
 
                 let log_tag_task = log_tag.clone();
                 let handle = tokio::spawn(async move {
-                    let target = req.resolved_target();
-                    let client_res = st_clone.resolve_client(target.as_ref(), req.router_id.as_deref()).await;
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
                     let client = match client_res {
                         Ok(c) => c,
                         Err(e) => {
