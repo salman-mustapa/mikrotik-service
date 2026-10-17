@@ -47,12 +47,28 @@ pub struct TopologyEdge {
 }
 
 /// Helper function to detect device vendor from MAC address or Hostname with extensive IEEE OUI lookup
-fn detect_device_vendor(mac: &str, host_name: &str) -> String {
+pub fn detect_device_vendor(mac: &str, host_name: &str) -> String {
     let clean = mac.replace(['-', ':', '.'], "").to_uppercase();
     let lower_host = host_name.to_lowercase();
 
-    if lower_host.contains("redmi") || lower_host.contains("xiaomi") || lower_host.contains("poco") {
-        return "Xiaomi".into();
+    // 1. Hostname Heuristics (Smartphones, IoT, APs, PCs)
+    if lower_host.contains("aliosthings") || lower_host.contains("alios") {
+        return "AliOS IoT Device (Alibaba)".into();
+    }
+    if lower_host.contains("espressif") || lower_host.contains("esp32") || lower_host.contains("esp8266") || lower_host.starts_with("esp_") {
+        return "Espressif IoT Device".into();
+    }
+    if lower_host.contains("tuya") || lower_host.contains("bardi") || lower_host.contains("sonoff") || lower_host.contains("tasmota") || lower_host.contains("smartplug") {
+        return "Smart Home / IoT Device".into();
+    }
+    if lower_host.contains("itel") {
+        return "itel Mobile".into();
+    }
+    if lower_host.contains("infinix") || lower_host.contains("x6") {
+        return "Infinix Mobile".into();
+    }
+    if lower_host.contains("redmi") || lower_host.contains("xiaomi") || lower_host.contains("poco") || lower_host.contains("mi_") {
+        return "Xiaomi / POCO".into();
     }
     if lower_host.contains("oppo") || lower_host.contains("cph") {
         return "OPPO".into();
@@ -61,7 +77,7 @@ fn detect_device_vendor(mac: &str, host_name: &str) -> String {
         return "Realme".into();
     }
     if lower_host.contains("galaxy") || lower_host.contains("samsung") || lower_host.contains("sm-") {
-        return "Samsung".into();
+        return "Samsung Galaxy".into();
     }
     if lower_host.contains("iphone") || lower_host.contains("ipad") || lower_host.contains("apple") || lower_host.contains("macbook") {
         return "Apple".into();
@@ -69,11 +85,20 @@ fn detect_device_vendor(mac: &str, host_name: &str) -> String {
     if lower_host.contains("vivo") || lower_host.contains("v2") {
         return "Vivo".into();
     }
-    if lower_host.contains("infinix") || lower_host.contains("x6") {
-        return "Infinix".into();
-    }
-    if lower_host.contains("desktop") || lower_host.contains("laptop") || lower_host.contains("pc") || lower_host.contains("mances-pc") {
+    if lower_host.contains("desktop") || lower_host.contains("laptop") || lower_host.contains("pc") || lower_host.contains("windows") || lower_host.contains("mances-pc") {
         return "PC / Windows".into();
+    }
+    if lower_host.contains("linux") || lower_host.contains("ubuntu") || lower_host.contains("debian") || lower_host.contains("raspberry") {
+        return "Linux / Raspberry Pi".into();
+    }
+    if lower_host.contains("camera") || lower_host.contains("cctv") || lower_host.contains("dahua") || lower_host.contains("hikvision") || lower_host.contains("ezviz") || lower_host.contains("ipc") {
+        return "IP Camera / CCTV".into();
+    }
+    if lower_host.contains("printer") || lower_host.contains("epson") || lower_host.contains("canon") || lower_host.contains("hp_") {
+        return "Network Printer".into();
+    }
+    if lower_host.contains("tv") || lower_host.contains("androidtv") || lower_host.contains("mitv") || lower_host.contains("tcl") {
+        return "Smart TV".into();
     }
     if lower_host.contains("totolink") {
         return "TOTOLINK AP".into();
@@ -91,6 +116,7 @@ fn detect_device_vendor(mac: &str, host_name: &str) -> String {
         return "Access Point".into();
     }
 
+    // 2. IEEE OUI MAC Vendor Prefix Recognition
     if clean.len() >= 6 {
         let prefix = &clean[0..6];
         match prefix {
@@ -103,19 +129,28 @@ fn detect_device_vendor(mac: &str, host_name: &str) -> String {
             "001A30" | "001E13" | "00259C" | "C0830A" | "586D8F" => "Cisco / Linksys".into(),
             "001E10" | "4846FB" | "70723C" | "F4559C" | "200889" | "A4999B" | "00E0FC" => "Huawei".into(),
             "001E73" | "285AEB" | "5422F8" | "70A8E3" | "A0ECF9" => "ZTE".into(),
-            "F01898" | "38CADA" | "9801A7" | "ACBC32" | "F437B7" | "40A108" | "00CDFE" | "A483E7" => "Apple".into(),
-            "2816AD" | "5001D9" | "84253F" | "B49D02" | "380195" | "7840E4" | "A00798" => "Samsung".into(),
-            "50642B" | "64CC2E" | "7C49EB" | "9C99A0" | "ACC1EE" | "F4F5DB" | "286C07" => "Xiaomi".into(),
-            "2A73B5" | "3871DE" | "4CD1A1" | "982CBC" | "C0EEFB" => "OPPO".into(),
-            "A251CC" | "286D97" | "60AB67" | "E4FAED" => "Realme".into(),
-            "102AB3" | "508F4C" | "703A51" | "B41C33" => "Vivo".into(),
-            "001B21" | "3CFDFE" | "5891CF" | "8086F2" | "A036BC" => "Intel".into(),
+            "F01898" | "38CADA" | "9801A7" | "ACBC32" | "F437B7" | "40A108" | "00CDFE" | "A483E7" | "DC2B61" | "BC5451" => "Apple".into(),
+            "2816AD" | "5001D9" | "84253F" | "B49D02" | "380195" | "7840E4" | "A00798" | "D487D8" | "708976" => "Samsung".into(),
+            "50642B" | "64CC2E" | "7C49EB" | "9C99A0" | "ACC1EE" | "F4F5DB" | "286C07" | "584498" | "E4A7C5" => "Xiaomi".into(),
+            "2A73B5" | "3871DE" | "4CD1A1" | "982CBC" | "C0EEFB" | "A475B9" | "14680A" => "OPPO".into(),
+            "A251CC" | "286D97" | "60AB67" | "E4FAED" | "7487C3" => "Realme".into(),
+            "102AB3" | "508F4C" | "703A51" | "B41C33" | "F884F2" => "Vivo".into(),
+            "6C221A" | "240AC4" | "30AEA4" | "84F3EB" | "A4E57C" | "AC67B2" | "BCDD68" | "C44F33" | "D8A01D" | "E868E7" | "EC6260" | "246F28" | "3C71BF" | "483FDA" | "545A46" | "600194" | "68C63A" | "7C9EBD" | "84CCA8" | "90380C" | "94B97E" | "A020A6" | "B4E62D" | "BCFF4D" | "CC50E3" | "D8F15B" | "E09806" | "ECFAB0" => "Espressif / IoT (AliOS/Tuya)".into(),
+            "001B21" | "3CFDFE" | "5891CF" | "8086F2" | "A036BC" | "001500" => "Intel".into(),
             "00E04C" | "525400" | "000021" => "Realtek / Virtual".into(),
-            "30D16B" => "PC (Client)".into(),
-            _ => "Generic Network Device".into(),
+            "30D16B" | "0026B9" | "BCE92F" => "PC / Windows".into(),
+            _ => {
+                if !host_name.is_empty() {
+                    format!("Host ({})", host_name)
+                } else {
+                    "Connected Client Host".into()
+                }
+            }
         }
+    } else if !host_name.is_empty() {
+        format!("Host ({})", host_name)
     } else {
-        "Network Device".into()
+        "Connected Device".into()
     }
 }
 

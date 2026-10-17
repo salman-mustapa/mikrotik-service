@@ -27,10 +27,20 @@ pub struct BlockIpReq {
     pub list: String,
     pub timeout: Option<String>,
     pub comment: Option<String>,
+    pub ensure_drop_rule: Option<bool>,
 }
 
 fn default_list() -> String {
     "BLACKLIST".into()
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UnblockIpReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: Option<String>,
+    pub address: Option<String>,
+    pub list: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -94,18 +104,69 @@ pub async fn block_ip(
         args.push(("comment", c));
     }
     client.run(build_command("/ip/firewall/address-list/add", args)).await?;
-    Ok(Json(json!({ "success": true, "message": "IP added to address list" })))
+
+    let mut drop_rule_created = false;
+    if req.ensure_drop_rule.unwrap_or(true) {
+        let filter_rules = client.run(build_command("/ip/firewall/filter/print", [("?src-address-list", req.list.as_str())])).await.unwrap_or_default();
+        let has_drop_rule = filter_rules.iter().any(|r| r.get("action") == Some("drop") && r.get("chain") == Some("forward"));
+        if !has_drop_rule {
+            let comment = format!("Auto-drop blacklist filter for {}", req.list);
+            let _ = client.run(build_command(
+                "/ip/firewall/filter/add",
+                [
+                    ("chain", "forward"),
+                    ("action", "drop"),
+                    ("src-address-list", req.list.as_str()),
+                    ("comment", comment.as_str()),
+                ],
+            )).await;
+            drop_rule_created = true;
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("IP '{}' added to '{}' address list", req.address, req.list),
+        "drop_filter_ensured": req.ensure_drop_rule.unwrap_or(true),
+        "drop_rule_created": drop_rule_created
+    })))
 }
 
 pub async fn unblock_ip(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<IdReq>,
+    Json(req): Json<UnblockIpReq>,
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
-    client.run(build_command("/ip/firewall/address-list/remove", [(".id", req.id.as_str())])).await?;
-    Ok(Json(json!({ "success": true, "message": "Address list item removed" })))
+
+    if let Some(ref id) = req.id {
+        client.run(build_command("/ip/firewall/address-list/remove", [(".id", id.as_str())])).await?;
+        return Ok(Json(json!({ "success": true, "message": "Address list item removed by ID", "removed_count": 1 })));
+    }
+
+    if let Some(ref addr) = req.address {
+        let mut query = vec![("?address", addr.as_str())];
+        if let Some(ref l) = req.list {
+            query.push(("?list", l.as_str()));
+        }
+        let rows = client.run(build_command("/ip/firewall/address-list/print", query)).await?;
+        let mut removed = 0usize;
+        for r in rows {
+            if let Some(id) = r.get(".id") {
+                if client.run(build_command("/ip/firewall/address-list/remove", [(".id", id)])).await.is_ok() {
+                    removed += 1;
+                }
+            }
+        }
+        return Ok(Json(json!({
+            "success": true,
+            "message": format!("Address list items removed for IP '{}'", addr),
+            "removed_count": removed
+        })));
+    }
+
+    Err(ApiError::BadRequest("Must provide either 'id' or 'address' to unblock IP".into()))
 }
 
 #[derive(Deserialize, Debug, Default)]

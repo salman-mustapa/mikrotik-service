@@ -21,9 +21,10 @@ pub struct BaseReq {
 pub async fn cpu_profiler(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
-    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let req_inner = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     // 1. Run profile for 2 seconds
@@ -102,14 +103,15 @@ pub async fn cpu_profiler(
     })))
 }
 
-/// POST /api/v1/system/fasttrack/deploy - Automatically injects FastTrack connection acceleration
+/// POST & GET /api/v1/system/fasttrack/deploy - Automatically injects FastTrack connection acceleration
 /// rule into firewall filter, slashing CPU usage on budget routers by up to 80%!
 pub async fn deploy_fasttrack(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<BaseReq>,
+    req: Option<Json<BaseReq>>,
 ) -> Result<Json<Value>, ApiError> {
-    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let req_inner = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let comment_ft = "[FastTrack] CPU Hardware Accelerator (established, related)";
@@ -139,6 +141,32 @@ pub async fn deploy_fasttrack(
 
     Ok(Json(json!({
         "success": true,
+        "fasttrack_enabled": true,
         "message": "FastTrack Connection berhasil diaktifkan. Beban CPU router pada throughput tinggi akan turun drastis!"
+    })))
+}
+
+/// GET & POST /api/v1/system/fasttrack/status - Inspect FastTrack rules and acceleration state
+pub async fn fasttrack_status(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req_inner = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let filter_rows = client.run(build_command("/ip/firewall/filter/print", std::iter::empty::<(&str, &str)>())).await.unwrap_or_default();
+    let fasttrack_rules: Vec<_> = filter_rows.into_iter().filter(|r| {
+        r.get("action").is_some_and(|a| a == "fasttrack-connection")
+    }).map(|r| r.attrs).collect();
+
+    let is_active = !fasttrack_rules.is_empty() && fasttrack_rules.iter().any(|r| r.get("disabled").map(|v| v != "true").unwrap_or(true));
+
+    Ok(Json(json!({
+        "success": true,
+        "fasttrack_enabled": is_active,
+        "rules_count": fasttrack_rules.len(),
+        "rules": fasttrack_rules
     })))
 }

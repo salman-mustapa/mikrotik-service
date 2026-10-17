@@ -98,6 +98,7 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/system/services", get(system::services).post(system::services))
         .route("/api/v1/system/service/toggle", post(system::toggle_service))
         .route("/api/v1/system/reboot", post(system::reboot))
+        .route("/api/v1/system/shutdown", post(system::shutdown))
         .route("/api/v1/system/health", get(system::system_health).post(system::system_health))
         .route("/api/v1/system/ntp/setup", post(system::setup_ntp))
         .route("/api/v1/system/ntp", get(system::ntp_status).post(system::ntp_status))
@@ -172,6 +173,12 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/dhcp/relay/add", post(dhcp::add_relay))
         .route("/api/v1/dhcp/relay/set", post(dhcp::set_relay))
         .route("/api/v1/dhcp/relay/remove", post(dhcp::remove_relay))
+        .route("/api/v1/dhcp/clients", get(dhcp::clients).post(dhcp::clients))
+        .route("/api/v1/dhcp/client/add", post(dhcp::add_client))
+        .route("/api/v1/dhcp/client/set", post(dhcp::set_client))
+        .route("/api/v1/dhcp/client/remove", post(dhcp::remove_client))
+        .route("/api/v1/dhcp/client/renew", post(dhcp::renew_client))
+        .route("/api/v1/dhcp/client/release", post(dhcp::release_client))
 
         // --- Hotspot, Vouchers & Hosts ---
         .route("/api/v1/hotspot/users", get(hotspot::users).post(hotspot::users))
@@ -189,6 +196,11 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/profile/add", post(hotspot::add_profile))
         .route("/api/v1/hotspot/profile/remove", post(hotspot::remove_profile))
         .route("/api/v1/hotspot/profile/inject-expiry-script", post(hotspot::inject_expiry_script))
+        .route("/api/v1/hotspot/server-profiles", get(hotspot::server_profiles).post(hotspot::server_profiles))
+        .route("/api/v1/hotspot/server-profile/set", post(hotspot::set_server_profile))
+        .route("/api/v1/hotspot/servers", get(hotspot::servers).post(hotspot::servers))
+        .route("/api/v1/hotspot/server/set", post(hotspot::set_server))
+        .route("/api/v1/hotspot/login-page/set", post(hotspot::customize_login_page))
         .route("/api/v1/hotspot/ip-bindings", get(hotspot::ip_bindings).post(hotspot::ip_bindings))
         .route("/api/v1/hotspot/walled-garden", get(hotspot::walled_garden).post(hotspot::walled_garden))
         .route("/api/v1/hotspot/walled-garden/add", post(hotspot::add_walled_garden))
@@ -334,6 +346,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/backup/import", post(backup::import_config))
         .route("/api/v1/files/all", get(backup::files).post(backup::files))
         .route("/api/v1/files/read", post(backup::read_file_content))
+        .route("/api/v1/files/write", post(backup::write_file_content))
+        .route("/api/v1/files/upload", post(backup::write_file_content))
         .route("/api/v1/files/remove", post(backup::remove_file))
 
         // --- Router Administrator Users ---
@@ -418,8 +432,9 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/wizard/setup", post(hotspot_wizard::setup_hotspot_wizard))
 
         // --- Resource Hog Detective & FastTrack CPU Optimizer ---
-        .route("/api/v1/system/cpu-profiler", post(resource_detective::cpu_profiler))
-        .route("/api/v1/system/fasttrack/deploy", post(resource_detective::deploy_fasttrack))
+        .route("/api/v1/system/cpu-profiler", get(resource_detective::cpu_profiler).post(resource_detective::cpu_profiler))
+        .route("/api/v1/system/fasttrack/deploy", get(resource_detective::deploy_fasttrack).post(resource_detective::deploy_fasttrack))
+        .route("/api/v1/system/fasttrack/status", get(resource_detective::fasttrack_status).post(resource_detective::fasttrack_status))
 
         // --- Multi-WAN PCC Load Balancing Wizard & Status ---
         .route("/api/v1/load-balance/pcc/setup", post(load_balance::pcc_setup))

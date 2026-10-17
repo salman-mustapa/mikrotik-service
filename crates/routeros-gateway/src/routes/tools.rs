@@ -53,7 +53,8 @@ pub async fn ping(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![("address", req.address.as_str())];
-    let count_str = req.count.unwrap_or(4).to_string();
+    let count_val = req.count.unwrap_or(4);
+    let count_str = count_val.to_string();
     args.push(("count", count_str.as_str()));
     let size_str;
     if let Some(s) = req.size {
@@ -65,7 +66,70 @@ pub async fn ping(
     }
     let rows = client.run(build_command("/ping", args)).await?;
     let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
-    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+
+    // Compute detailed summary statistics from returned ICMP rows
+    let mut transmitted = count_val;
+    let mut received = 0u32;
+    let mut min_rtt: Option<String> = None;
+    let mut avg_rtt: Option<String> = None;
+    let mut max_rtt: Option<String> = None;
+    let mut packet_loss: u32 = 0;
+
+    // Check if RouterOS provided aggregated stats in the last row or across rows
+    if let Some(last) = data.last() {
+        if let Some(s) = last.get("sent").and_then(|v| v.parse::<u32>().ok()) {
+            transmitted = s;
+        }
+        if let Some(r) = last.get("received").and_then(|v| v.parse::<u32>().ok()) {
+            received = r;
+        }
+        if let Some(pl) = last.get("packet-loss").and_then(|v| v.trim_end_matches('%').parse::<u32>().ok()) {
+            packet_loss = pl;
+        }
+        min_rtt = last.get("min-rtt").cloned();
+        avg_rtt = last.get("avg-rtt").cloned();
+        max_rtt = last.get("max-rtt").cloned();
+    }
+
+    // Fallback calculation from individual packets if router didn't set aggregated keys
+    if received == 0 && !data.is_empty() {
+        let mut times: Vec<f64> = Vec::new();
+        for r in &data {
+            if let Some(t_str) = r.get("time").or_else(|| r.get("rtt")) {
+                let clean = t_str.trim_end_matches("ms").trim_end_matches("s");
+                if let Ok(val) = clean.parse::<f64>() {
+                    times.push(val);
+                }
+            }
+        }
+        if !times.is_empty() {
+            received = times.len() as u32;
+            let sum: f64 = times.iter().sum();
+            let avg = sum / (times.len() as f64);
+            let min = times.iter().copied().fold(f64::INFINITY, f64::min);
+            let max = times.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            avg_rtt = Some(format!("{:.1}ms", avg));
+            min_rtt = Some(format!("{:.1}ms", min));
+            max_rtt = Some(format!("{:.1}ms", max));
+            if transmitted > 0 {
+                let loss = (transmitted.saturating_sub(received) * 100) / transmitted;
+                packet_loss = loss;
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "target": req.address,
+        "transmitted": transmitted,
+        "received": received,
+        "packet_loss": packet_loss,
+        "min_rtt": min_rtt.unwrap_or_else(|| "-".into()),
+        "avg_rtt": avg_rtt.unwrap_or_else(|| "-".into()),
+        "max_rtt": max_rtt.unwrap_or_else(|| "-".into()),
+        "count": data.len(),
+        "data": data
+    })))
 }
 
 /// POST /api/v1/tools/traceroute - Traceroute diagnostik dari router

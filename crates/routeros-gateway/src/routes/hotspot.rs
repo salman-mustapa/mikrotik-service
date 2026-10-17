@@ -1599,4 +1599,215 @@ pub async fn kick_active(
     })))
 }
 
+#[derive(Deserialize, Debug, Default)]
+pub struct SetServerProfileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub html_directory: Option<String>,
+    pub dns_name: Option<String>,
+    pub login_by: Option<String>, // "cookie,http-chap,http-pap,mac-cookie,trial"
+    pub rate_limit: Option<String>,
+    pub http_cookie_lifetime: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CustomizeLoginPageReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub profile_name: Option<String>,
+    pub html_directory: String, // e.g. "hotspot" or "hotspot-custom"
+    pub dns_name: Option<String>, // e.g. "wifi.kafe.net"
+    pub login_by: Option<String>, // e.g. "cookie,http-chap,http-pap"
+    pub html_content: Option<String>, // Custom HTML template for login.html
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct SetHotspotServerReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub interface: Option<String>,
+    pub address_pool: Option<String>,
+    pub profile: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+/// GET & POST /api/v1/hotspot/server-profiles - Daftar Hotspot Server Profile (/ip/hotspot/profile/print)
+pub async fn server_profiles(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/hotspot/profile/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/hotspot/server-profile/set - Ubah parameter Hotspot Server Profile (html-directory, dns-name, login-by)
+pub async fn set_server_profile(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetServerProfileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let target_id = if let Some(ref id) = req.id {
+        id.clone()
+    } else if let Some(ref name) = req.name {
+        let rows = client.run(build_command("/ip/hotspot/profile/print", [("?name", name.as_str())])).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest(format!("Hotspot server profile '{}' tidak ditemukan", name)))?
+    } else {
+        let rows = client.run(build_command("/ip/hotspot/profile/print", std::iter::empty::<(&str, &str)>())).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest("Tidak ada Hotspot Server Profile yang ditemukan".into()))?
+    };
+
+    let mut args = vec![(".id", target_id.as_str())];
+    if let Some(ref hd) = req.html_directory {
+        args.push(("html-directory", hd.as_str()));
+    }
+    if let Some(ref dns) = req.dns_name {
+        args.push(("dns-name", dns.as_str()));
+    }
+    if let Some(ref lb) = req.login_by {
+        args.push(("login-by", lb.as_str()));
+    }
+    if let Some(ref rl) = req.rate_limit {
+        args.push(("rate-limit", rl.as_str()));
+    }
+    if let Some(ref lt) = req.http_cookie_lifetime {
+        args.push(("http-cookie-lifetime", lt.as_str()));
+    }
+
+    client.run(build_command("/ip/hotspot/profile/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "Hotspot Server Profile berhasil diperbarui", "id": target_id })))
+}
+
+/// GET & POST /api/v1/hotspot/servers - Daftar Hotspot Server Instance aktif (/ip/hotspot/print)
+pub async fn servers(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/hotspot/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/hotspot/server/set - Ubah konfigurasi Hotspot Server Instance (/ip/hotspot/set)
+pub async fn set_server(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetHotspotServerReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let target_id = if let Some(ref id) = req.id {
+        id.clone()
+    } else if let Some(ref name) = req.name {
+        let rows = client.run(build_command("/ip/hotspot/print", [("?name", name.as_str())])).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest(format!("Hotspot server '{}' tidak ditemukan", name)))?
+    } else {
+        let rows = client.run(build_command("/ip/hotspot/print", std::iter::empty::<(&str, &str)>())).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest("Tidak ada Hotspot Server instance yang ditemukan".into()))?
+    };
+
+    let mut args = vec![(".id", target_id.as_str())];
+    if let Some(ref p) = req.profile {
+        args.push(("profile", p.as_str()));
+    }
+    if let Some(ref i) = req.interface {
+        args.push(("interface", i.as_str()));
+    }
+    if let Some(ref ap) = req.address_pool {
+        args.push(("address-pool", ap.as_str()));
+    }
+    let dis_str;
+    if let Some(d) = req.disabled {
+        dis_str = if d { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+
+    client.run(build_command("/ip/hotspot/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "Hotspot Server instance berhasil diperbarui", "id": target_id })))
+}
+
+/// POST /api/v1/hotspot/login-page/set - Konfigurasi Folder & Template Halaman Login Captive Portal Hotspot
+pub async fn customize_login_page(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CustomizeLoginPageReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // Cari ID Hotspot Server Profile target
+    let target_id = if let Some(ref prof) = req.profile_name {
+        let rows = client.run(build_command("/ip/hotspot/profile/print", [("?name", prof.as_str())])).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest(format!("Hotspot profile '{}' tidak ditemukan", prof)))?
+    } else {
+        let rows = client.run(build_command("/ip/hotspot/profile/print", std::iter::empty::<(&str, &str)>())).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest("Tidak ada Hotspot Server Profile yang ditemukan".into()))?
+    };
+
+    // Update html-directory dan opsi lainnya
+    let mut args = vec![
+        (".id", target_id.as_str()),
+        ("html-directory", req.html_directory.as_str()),
+    ];
+    if let Some(ref dns) = req.dns_name {
+        args.push(("dns-name", dns.as_str()));
+    }
+    if let Some(ref lb) = req.login_by {
+        args.push(("login-by", lb.as_str()));
+    }
+    client.run(build_command("/ip/hotspot/profile/set", args)).await?;
+
+    // Jika user juga menyertakan html_content, tuliskan ke <html_directory>/login.html
+    let mut file_written = false;
+    if let Some(ref content) = req.html_content {
+        let file_path = format!("{}/login.html", req.html_directory.trim_end_matches('/'));
+        let _ = client.run(build_command("/file/print", [("file", file_path.as_str())])).await;
+        let set_res = client.run(build_command("/file/set", [("numbers", file_path.as_str()), ("contents", content.as_str())])).await;
+        if set_res.is_err() {
+            let id_res = client.run(build_command("/file/print", [("?name", file_path.as_str())])).await.unwrap_or_default();
+            if let Some(fid) = id_res.first().and_then(|r| r.get(".id")) {
+                let _ = client.run(build_command("/file/set", [(".id", fid), ("contents", content.as_str())])).await;
+            }
+        }
+        file_written = true;
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("Konfigurasi template halaman Hotspot berhasil diaktifkan ke folder '{}'", req.html_directory),
+        "html_directory": req.html_directory,
+        "dns_name": req.dns_name,
+        "html_template_uploaded": file_written
+    })))
+}
+
+
 

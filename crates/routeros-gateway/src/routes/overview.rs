@@ -30,7 +30,7 @@ pub async fn get_overview(
     let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    // Prepare 7 concurrent futures across the single persistent socket
+    // Prepare 9 concurrent futures across the single persistent socket
     let res_fut = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>()));
     let id_fut = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>()));
     let rb_fut = client.run(build_command("/system/routerboard/print", std::iter::empty::<(&str, &str)>()));
@@ -38,10 +38,12 @@ pub async fn get_overview(
     let ppp_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
     let if_fut = client.run(build_command("/interface/print", std::iter::empty::<(&str, &str)>()));
     let dhcp_fut = client.run(build_command("/ip/dhcp-server/lease/print", std::iter::empty::<(&str, &str)>()));
+    let route_fut = client.run(build_command("/ip/route/print", [("?dst-address", "0.0.0.0/0")]));
+    let addr_fut = client.run(build_command("/ip/address/print", std::iter::empty::<(&str, &str)>()));
 
     // Execute concurrently with .tag multiplexing
-    let (res_res, id_res, rb_res, hs_res, ppp_res, if_res, dhcp_res) =
-        tokio::join!(res_fut, id_fut, rb_fut, hs_fut, ppp_fut, if_fut, dhcp_fut);
+    let (res_res, id_res, rb_res, hs_res, ppp_res, if_res, dhcp_res, route_res, addr_res) =
+        tokio::join!(res_fut, id_fut, rb_fut, hs_fut, ppp_fut, if_fut, dhcp_fut, route_fut, addr_fut);
 
     let res_attrs = res_res
         .ok()
@@ -92,6 +94,42 @@ pub async fn get_overview(
         }));
     }
 
+    // WAN Gateway & IP Address evaluation
+    let mut wan_gateway = String::new();
+    let mut wan_interface = String::new();
+    let mut wan_ip = String::new();
+
+    if let Ok(routes) = route_res {
+        if let Some(r) = routes.first() {
+            if let Some(gw) = r.get("gateway") {
+                wan_gateway = gw.to_string();
+            }
+            if let Some(gw_status) = r.get("gateway-status") {
+                if let Some(if_name) = gw_status.split("via ").nth(1) {
+                    wan_interface = if_name.trim().to_string();
+                }
+            }
+            if wan_interface.is_empty() {
+                if let Some(iface) = r.get("interface") {
+                    wan_interface = iface.to_string();
+                }
+            }
+        }
+    }
+
+    if let Ok(addrs) = addr_res {
+        for a in addrs {
+            let iface = a.get("interface").unwrap_or("");
+            let address = a.get("address").unwrap_or("");
+            if !wan_interface.is_empty() && iface == wan_interface {
+                wan_ip = address.split('/').next().unwrap_or(address).to_string();
+                break;
+            } else if wan_ip.is_empty() && !address.is_empty() && !address.starts_with("127.") {
+                wan_ip = address.split('/').next().unwrap_or(address).to_string();
+            }
+        }
+    }
+
     // Health evaluation
     let cpu_load: u32 = res_attrs
         .get("cpu-load")
@@ -125,6 +163,15 @@ pub async fn get_overview(
         "execution_time_ms": elapsed.as_millis() as u64,
         "data": {
             "identity": identity_name,
+            "wan": {
+                "gateway": wan_gateway,
+                "interface": wan_interface,
+                "ip_address": wan_ip,
+                "is_connected": !wan_gateway.is_empty()
+            },
+            "wan_ip": wan_ip,
+            "wan_gateway": wan_gateway,
+            "wan_interface": wan_interface,
             "system": {
                 "cpu_load_percent": cpu_load,
                 "free_memory_mb": free_mem / (1024 * 1024),

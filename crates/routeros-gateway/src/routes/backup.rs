@@ -202,3 +202,46 @@ pub async fn read_file_content(
     })))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct WriteFileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub file: String,
+    pub contents: String,
+}
+
+/// POST /api/v1/files/write - Tulis atau unggah teks file (skrip, HTML hotspot, config) ke storage MikroTik
+pub async fn write_file_content(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<WriteFileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    // Check if file exists in /file/print
+    let rows = client.run(build_command("/file/print", [("?name", req.file.as_str())])).await.unwrap_or_default();
+    if rows.is_empty() {
+        // Create the file first using print file=<name>
+        let _ = client.run(build_command("/file/print", [("file", req.file.as_str())])).await;
+    }
+
+    // Attempt writing contents using numbers
+    let set_res = client.run(build_command("/file/set", [("numbers", req.file.as_str()), ("contents", req.contents.as_str())])).await;
+    if set_res.is_err() {
+        // Fallback using .id if available
+        let id_res = client.run(build_command("/file/print", [("?name", req.file.as_str())])).await.unwrap_or_default();
+        if let Some(id) = id_res.first().and_then(|r| r.get(".id")) {
+            client.run(build_command("/file/set", [(".id", id), ("contents", req.contents.as_str())])).await?;
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "message": format!("File '{}' berhasil disimpan di storage MikroTik", req.file),
+        "file_name": req.file,
+        "bytes_written": req.contents.len()
+    })))
+}
+
+

@@ -167,6 +167,9 @@ pub async fn visualizer_page() -> Html<&'static str> {
       background-size: 24px 24px;
       cursor: grab;
       min-height: 0;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
     #canvas-container:active { cursor: grabbing; }
 
@@ -174,6 +177,9 @@ pub async fn visualizer_page() -> Html<&'static str> {
       width: 100%;
       height: 100%;
       display: block;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     /* Edge line styling */
@@ -395,6 +401,56 @@ pub async fn visualizer_page() -> Html<&'static str> {
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
       display: none;
       z-index: 100;
+    }
+    /* Mobile Responsive Optimizations */
+    @media (max-width: 768px) {
+      header {
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .brand {
+        font-size: 0.95rem;
+      }
+      .creds-inline {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding: 6px;
+      }
+      .nav-controls {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+      }
+      #drawer {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        top: auto !important;
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        height: 70vh !important;
+        max-height: 70vh !important;
+        border-left: none !important;
+        border-top: 2px solid var(--accent-indigo) !important;
+        border-radius: 16px 16px 0 0 !important;
+        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15) !important;
+        z-index: 100 !important;
+      }
+      .zoom-toolbar {
+        bottom: 68px;
+        left: 12px;
+      }
+      .status-bar {
+        bottom: 12px;
+        right: 12px;
+        left: 12px;
+        justify-content: space-between;
+        padding: 6px 10px;
+      }
     }
   </style>
 </head>
@@ -901,13 +957,22 @@ pub async fn visualizer_page() -> Html<&'static str> {
           openDrawer(n);
         });
 
-        // Dragging Event Handlers
+        // Dragging Event Handlers (Mouse & Touch)
         g.addEventListener('mousedown', (e) => {
           e.stopPropagation();
           draggedNodeId = nodeId;
           dragStartX = e.clientX;
           dragStartY = e.clientY;
         });
+
+        g.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 1) {
+            e.stopPropagation();
+            draggedNodeId = nodeId;
+            dragStartX = e.touches[0].clientX;
+            dragStartY = e.touches[0].clientY;
+          }
+        }, { passive: false });
 
         nodesLayer.appendChild(g);
       });
@@ -948,20 +1013,21 @@ pub async fn visualizer_page() -> Html<&'static str> {
       g.setAttribute('transform', `translate(${panX}, ${panY}) scale(${scale})`);
     }
 
-    function zoomIn() { scale = Math.min(3.0, scale * 1.2); updateViewportTransform(); }
-    function zoomOut() { scale = Math.max(0.35, scale / 1.2); updateViewportTransform(); }
+    function zoomIn() { scale = Math.min(3.5, scale * 1.2); updateViewportTransform(); }
+    function zoomOut() { scale = Math.max(0.3, scale / 1.2); updateViewportTransform(); }
     function resetZoom() { scale = 1.0; panX = 0; panY = 0; updateViewportTransform(); }
 
-    /* Canvas Mouse Listeners for Pan & Drag */
+    /* Canvas Mouse & Touch Listeners for Pan, Drag & Pinch-Zoom */
     const container = document.getElementById('canvas-container');
 
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
       const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-      scale = Math.min(3.0, Math.max(0.35, scale * zoomFactor));
+      scale = Math.min(3.5, Math.max(0.3, scale * zoomFactor));
       updateViewportTransform();
     }, { passive: false });
 
+    // Mouse Pan & Drag
     container.addEventListener('mousedown', (e) => {
       if (draggedNodeId) return;
       isPanning = true;
@@ -993,6 +1059,78 @@ pub async fn visualizer_page() -> Html<&'static str> {
     window.addEventListener('mouseup', () => {
       draggedNodeId = null;
       isPanning = false;
+    });
+
+    // Touch Support for Mobile (Single-finger Pan/Drag, Two-finger Pinch to Zoom)
+    let initialPinchDistance = null;
+    let initialPinchScale = 1.0;
+
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        if (!draggedNodeId) {
+          isPanning = true;
+          startPanX = e.touches[0].clientX - panX;
+          startPanY = e.touches[0].clientY - panY;
+        }
+      } else if (e.touches.length === 2) {
+        // Pinch-to-zoom initialization
+        isPanning = false;
+        draggedNodeId = null;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDistance = Math.hypot(dx, dy);
+        initialPinchScale = scale;
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1) {
+        if (draggedNodeId) {
+          e.preventDefault();
+          const t = e.touches[0];
+          const dx = (t.clientX - dragStartX) / scale;
+          const dy = (t.clientY - dragStartY) / scale;
+          dragStartX = t.clientX;
+          dragStartY = t.clientY;
+
+          if (nodePositions[draggedNodeId]) {
+            nodePositions[draggedNodeId].x += dx;
+            nodePositions[draggedNodeId].y += dy;
+            updateConnectedEdges(draggedNodeId);
+          }
+        } else if (isPanning) {
+          e.preventDefault();
+          const t = e.touches[0];
+          panX = t.clientX - startPanX;
+          panY = t.clientY - startPanY;
+          updateViewportTransform();
+        }
+      } else if (e.touches.length === 2 && initialPinchDistance) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.hypot(dx, dy);
+        if (currentDistance > 0 && initialPinchDistance > 0) {
+          const pinchRatio = currentDistance / initialPinchDistance;
+          scale = Math.min(3.5, Math.max(0.3, initialPinchScale * pinchRatio));
+          updateViewportTransform();
+        }
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        draggedNodeId = null;
+        isPanning = false;
+        initialPinchDistance = null;
+      } else if (e.touches.length === 1) {
+        initialPinchDistance = null;
+        if (!draggedNodeId) {
+          isPanning = true;
+          startPanX = e.touches[0].clientX - panX;
+          startPanY = e.touches[0].clientY - panY;
+        }
+      }
     });
 
     function openDrawerById(nodeId) {
@@ -1125,7 +1263,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
         return;
       }
       const pingResult = document.getElementById('ping-result');
-      pingResult.textContent = `Mengirim 3 ICMP ping ke ${selectedNode.ip}...`;
+      pingResult.innerHTML = `<span style="color: var(--accent-blue);">Mengirim 3 ICMP ping ke ${selectedNode.ip}...</span>`;
 
       const host = document.getElementById('target-host').value;
       const port = document.getElementById('target-port').value;
@@ -1148,7 +1286,26 @@ pub async fn visualizer_page() -> Html<&'static str> {
         });
         const json = await res.json();
         if (json.success) {
-          pingResult.innerHTML = `<strong style="color: #059669;">RTT Min/Avg/Max:</strong> ${json.min_rtt || '-'} / <strong>${json.avg_rtt || '-'}</strong> / ${json.max_rtt || '-'}<br>Packet Loss: ${json.packet_loss || 0}%`;
+          let minRtt = json.min_rtt;
+          let avgRtt = json.avg_rtt;
+          let maxRtt = json.max_rtt;
+          let loss = json.packet_loss !== undefined ? json.packet_loss : 0;
+
+          // Fallback parsing from packet data array if summary fields weren't set
+          if ((!avgRtt || avgRtt === '-') && json.data && json.data.length > 0) {
+            const times = json.data.map(d => d.time || d.rtt).filter(Boolean);
+            if (times.length > 0) {
+              avgRtt = times[0];
+              minRtt = times[0];
+              maxRtt = times[times.length - 1];
+            }
+          }
+
+          if (loss === 100 || (!avgRtt && json.received === 0)) {
+            pingResult.innerHTML = `<span style="color: #dc2626; font-weight: 700;">Host Unreachable (Timeout)</span><br><span style="font-size: 0.72rem; color: #dc2626;">Packet Loss: 100% (0/${json.transmitted || 3} Packets)</span>`;
+          } else {
+            pingResult.innerHTML = `<strong style="color: #059669;">RTT Min/Avg/Max:</strong> ${minRtt || '-'} / <strong>${avgRtt || '-'}</strong> / ${maxRtt || '-'}<br><span style="color: ${loss > 0 ? '#d97706' : '#059669'}; font-weight: 600;">Packet Loss: ${loss}% (${json.received || 3}/${json.transmitted || 3} Packets)</span>`;
+          }
         } else {
           pingResult.textContent = "Ping gagal: " + (json.error || "Host unreachable");
         }

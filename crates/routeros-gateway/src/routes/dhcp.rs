@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::ApiError;
+use crate::routes::topology::detect_device_vendor;
 use crate::state::{AppState, RouterTarget};
 
 #[derive(Deserialize, Debug, Default)]
@@ -147,19 +148,92 @@ pub async fn leases(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let rows = client.run(build_command("/ip/dhcp-server/lease/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
-    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
-    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+
+    let mut bound_count = 0usize;
+    let mut dynamic_count = 0usize;
+    let mut static_count = 0usize;
+
+    let enriched: Vec<Value> = rows.into_iter().map(|r| {
+        let mac = r.get("mac-address")
+            .or_else(|| r.get("active-mac-address"))
+            .unwrap_or("")
+            .to_string();
+        let ip = r.get("active-address")
+            .or_else(|| r.get("address"))
+            .unwrap_or("")
+            .to_string();
+        let host_name = r.get("host-name").unwrap_or("").to_string();
+        let status = r.get("status").unwrap_or("waiting").to_string();
+        let is_bound = status == "bound";
+        let is_dynamic = r.get("dynamic").map(|v| v == "true").unwrap_or(true);
+        let is_static = !is_dynamic;
+
+        if is_bound { bound_count += 1; }
+        if is_dynamic { dynamic_count += 1; } else { static_count += 1; }
+
+        let vendor = detect_device_vendor(&mac, &host_name);
+
+        let mut map = serde_json::Map::new();
+        for (k, v) in r.attrs {
+            map.insert(k, Value::String(v));
+        }
+        map.insert("vendor".to_string(), Value::String(vendor));
+        map.insert("is_static".to_string(), Value::Bool(is_static));
+        map.insert("is_online".to_string(), Value::Bool(is_bound));
+        map.insert("mac_address".to_string(), Value::String(mac));
+        map.insert("ip_address".to_string(), Value::String(ip));
+        Value::Object(map)
+    }).collect();
+
+    let total = enriched.len();
+    Ok(Json(json!({
+        "success": true,
+        "count": total,
+        "summary": {
+            "total_leases": total,
+            "active_bound": bound_count,
+            "dynamic_leases": dynamic_count,
+            "static_leases": static_count
+        },
+        "data": enriched
+    })))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct MakeStaticReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: Option<String>,
+    pub address: Option<String>,
+    pub mac_address: Option<String>,
 }
 
 pub async fn make_static(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<IdReq>,
+    Json(req): Json<MakeStaticReq>,
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
-    client.run(build_command("/ip/dhcp-server/lease/make-static", [(".id", req.id.as_str())])).await?;
-    Ok(Json(json!({ "success": true, "message": "Lease made static" })))
+
+    let target_id = if let Some(ref id) = req.id {
+        id.clone()
+    } else if let Some(ref addr) = req.address {
+        let rows = client.run(build_command("/ip/dhcp-server/lease/print", [("?address", addr.as_str())])).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest(format!("No DHCP lease found for IP address '{}'", addr)))?
+    } else if let Some(ref mac) = req.mac_address {
+        let rows = client.run(build_command("/ip/dhcp-server/lease/print", [("?mac-address", mac.as_str())])).await?;
+        rows.first()
+            .and_then(|r| r.get(".id").map(str::to_owned))
+            .ok_or_else(|| ApiError::BadRequest(format!("No DHCP lease found for MAC '{}'", mac)))?
+    } else {
+        return Err(ApiError::BadRequest("Must provide 'id', 'address', or 'mac_address' to make lease static".into()));
+    };
+
+    client.run(build_command("/ip/dhcp-server/lease/make-static", [(".id", target_id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "Lease successfully converted to static", "id": target_id })))
 }
 
 pub async fn remove_lease(
@@ -463,5 +537,152 @@ pub async fn remove_relay(
     client.run(build_command("/ip/dhcp-relay/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "DHCP Relay agent removed successfully" })))
 }
+
+#[derive(Deserialize, Debug)]
+pub struct AddDhcpClientReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub interface: String,
+    pub add_default_route: Option<String>, // "yes", "no", "special-class"
+    pub use_peer_dns: Option<bool>,
+    pub use_peer_ntp: Option<bool>,
+    pub comment: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetDhcpClientReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub id: String,
+    pub interface: Option<String>,
+    pub add_default_route: Option<String>,
+    pub use_peer_dns: Option<bool>,
+    pub use_peer_ntp: Option<bool>,
+    pub comment: Option<String>,
+    pub disabled: Option<bool>,
+}
+
+/// GET or POST /api/v1/dhcp/clients - Daftar DHCP Client interface (/ip/dhcp-client/print)
+pub async fn clients(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let rows = client.run(build_command("/ip/dhcp-client/print", req.filter.iter().map(|(k, v)| (k.as_str(), v.as_str())))).await?;
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+    Ok(Json(json!({ "success": true, "count": data.len(), "data": data })))
+}
+
+/// POST /api/v1/dhcp/client/add - Tambah DHCP Client pada interface WAN (/ip/dhcp-client/add)
+pub async fn add_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AddDhcpClientReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![("interface", req.interface.as_str())];
+    if let Some(ref r) = req.add_default_route {
+        args.push(("add-default-route", r.as_str()));
+    }
+    let dns_str;
+    if let Some(d) = req.use_peer_dns {
+        dns_str = if d { "yes" } else { "no" };
+        args.push(("use-peer-dns", dns_str));
+    }
+    let ntp_str;
+    if let Some(n) = req.use_peer_ntp {
+        ntp_str = if n { "yes" } else { "no" };
+        args.push(("use-peer-ntp", ntp_str));
+    }
+    let dis_str;
+    if let Some(dis) = req.disabled {
+        dis_str = if dis { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/ip/dhcp-client/add", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Client successfully added" })))
+}
+
+/// POST /api/v1/dhcp/client/set - Ubah parameter DHCP Client (/ip/dhcp-client/set)
+pub async fn set_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetDhcpClientReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    let mut args = vec![(".id", req.id.as_str())];
+    if let Some(ref i) = req.interface {
+        args.push(("interface", i.as_str()));
+    }
+    if let Some(ref r) = req.add_default_route {
+        args.push(("add-default-route", r.as_str()));
+    }
+    let dns_str;
+    if let Some(d) = req.use_peer_dns {
+        dns_str = if d { "yes" } else { "no" };
+        args.push(("use-peer-dns", dns_str));
+    }
+    let ntp_str;
+    if let Some(n) = req.use_peer_ntp {
+        ntp_str = if n { "yes" } else { "no" };
+        args.push(("use-peer-ntp", ntp_str));
+    }
+    let dis_str;
+    if let Some(dis) = req.disabled {
+        dis_str = if dis { "yes" } else { "no" };
+        args.push(("disabled", dis_str));
+    }
+    if let Some(ref c) = req.comment {
+        args.push(("comment", c.as_str()));
+    }
+    client.run(build_command("/ip/dhcp-client/set", args)).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Client updated successfully" })))
+}
+
+/// POST /api/v1/dhcp/client/remove - Hapus DHCP Client (/ip/dhcp-client/remove)
+pub async fn remove_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-client/remove", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Client removed successfully" })))
+}
+
+/// POST /api/v1/dhcp/client/renew - Perbarui lease IP DHCP Client (/ip/dhcp-client/renew)
+pub async fn renew_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-client/renew", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Client lease renewed" })))
+}
+
+/// POST /api/v1/dhcp/client/release - Lepas (release) IP DHCP Client (/ip/dhcp-client/release)
+pub async fn release_client(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<IdReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/ip/dhcp-client/release", [(".id", req.id.as_str())])).await?;
+    Ok(Json(json!({ "success": true, "message": "DHCP Client lease released" })))
+}
+
 
 

@@ -107,6 +107,18 @@ pub async fn reboot(
     Ok(Json(json!({ "success": true, "message": "Reboot command dispatched" })))
 }
 
+/// POST /api/v1/system/shutdown - Mematikan router secara aman (graceful shutdown)
+pub async fn shutdown(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BaseReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+    client.run(build_command("/system/shutdown", std::iter::empty::<(&str, &str)>())).await?;
+    Ok(Json(json!({ "success": true, "message": "Graceful shutdown command dispatched to router" })))
+}
+
 #[derive(Deserialize, Debug)]
 pub struct ChannelReq {
     pub router: Option<RouterTarget>,

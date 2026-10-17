@@ -475,6 +475,122 @@ pub async fn console_page() -> Html<&'static str> {
       white-space: pre-wrap;
       word-break: break-all;
     }
+    /* Live Real-Time WebSocket Terminal Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25);
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+    }
+    .modal-header {
+      padding: 14px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 1.25rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px;
+    }
+    .modal-close:hover { color: #dc2626; }
+    .ws-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+    }
+    .btn-ws-start {
+      background: var(--accent-indigo);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-ws-start:hover { background: #4338ca; }
+    .btn-ws-stop {
+      background: #dc2626 !important;
+    }
+    .btn-ws-stop:hover { background: #b91c1c !important; }
+    .ws-metrics-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 8px 20px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+    .ws-terminal-screen {
+      background: #0f172a;
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      padding: 16px;
+      height: 350px;
+      max-height: 350px;
+      overflow-y: auto;
+      line-height: 1.6;
+      box-sizing: border-box;
+    }
+    .term-line { margin-bottom: 3px; word-break: break-all; }
+    .term-system { color: #94a3b8; }
+    .term-ping { color: #4ade80; }
+    .term-err { color: #f87171; }
+    .term-traffic { color: #a78bfa; }
+    .ws-pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+    }
+    .ws-pill-connected {
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      border-color: #a7f3d0 !important;
+    }
+    .dot-ws-live {
+      width: 7px; height: 7px; border-radius: 50%; background: #10b981;
+      animation: pulse-dot 1.5s infinite ease-in-out;
+    }
+    .dot-ws-idle {
+      width: 7px; height: 7px; border-radius: 50%; background: #94a3b8;
+    }
   </style>
 </head>
 <body>
@@ -491,7 +607,8 @@ pub async fn console_page() -> Html<&'static str> {
 
     <div style="display: flex; align-items: center; gap: 8px;">
       <span class="badge-endpoints">280+ Enterprise Endpoints</span>
-      <span class="badge-engine"><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
+      <span class="badge-engine" title="Internal Rust micro-socket binary processing time (&lt;2ms) for atomic RouterOS queries. ICMP ping batch takes ~3.5s due to 1s network probe intervals."><span class="dot-live"></span>Rust Socket Engine: &lt;2ms</span>
+      <button class="nav-btn" onclick="openWsModal()" style="background: #ecfdf5; border-color: #a7f3d0; color: #047857; font-weight: 700; cursor: pointer;">⚡ Live WebSocket Terminal</button>
     </div>
 
     <div class="nav-links">
@@ -578,24 +695,25 @@ pub async fn console_page() -> Html<&'static str> {
           </div>
         </div>
 
-        <!-- Category Filter Pills -->
+        <!-- Category Filter Pills (Standardized English Nomenclature) -->
         <div class="category-pills">
-          <button class="cat-btn active" onclick="filterCategory('all', this)">Semua (110+)</button>
-          <button class="cat-btn" onclick="filterCategory('security', this)">🛡️ Keamanan &amp; Dokter</button>
-          <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher 2.0</button>
-          <button class="cat-btn" onclick="filterCategory('notify', this)">💬 Bot &amp; Netwatch</button>
-          <button class="cat-btn" onclick="filterCategory('loadbalance', this)">🔀 Load Balance &amp; NAT</button>
+          <button class="cat-btn active" onclick="filterCategory('all', this)">All Endpoints (140+)</button>
+          <button class="cat-btn" onclick="filterCategory('security', this)">🛡️ Security &amp; Diagnostics</button>
+          <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path &amp; Performance</button>
+          <button class="cat-btn" onclick="filterCategory('voucher', this)">🎟️ Voucher Engine 2.0</button>
+          <button class="cat-btn" onclick="filterCategory('notify', this)">🤖 Bot &amp; Netwatch Automation</button>
+          <button class="cat-btn" onclick="filterCategory('loadbalance', this)">🔀 Load Balancing &amp; NAT</button>
           <button class="cat-btn" onclick="filterCategory('vpn', this)">🔐 VPN &amp; WireGuard</button>
-          <button class="cat-btn" onclick="filterCategory('queues', this)">📊 QoS &amp; Queues</button>
-          <button class="cat-btn" onclick="filterCategory('tools', this)">🛠️ NOC Tools</button>
-          <button class="cat-btn" onclick="filterCategory('maintenance', this)">💾 Backup &amp; Files</button>
-          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🔥 Hotspot</button>
-          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP</button>
-          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE</button>
-          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP &amp; Routing</button>
-          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ Sistem</button>
-          <button class="cat-btn" onclick="filterCategory('fast', this)">🚀 Fast-Path</button>
-          <button class="cat-btn" onclick="filterCategory('net', this)">🌐 Topologi</button>
+          <button class="cat-btn" onclick="filterCategory('queues', this)">📊 QoS &amp; Traffic Shaping</button>
+          <button class="cat-btn" onclick="filterCategory('tools', this)">🛠️ NOC Diagnostic Tools</button>
+          <button class="cat-btn" onclick="filterCategory('maintenance', this)">💾 Backup &amp; Maintenance</button>
+          <button class="cat-btn" onclick="filterCategory('hotspot', this)">🔥 Hotspot Captive Portal</button>
+          <button class="cat-btn" onclick="filterCategory('dhcp', this)">💻 DHCP &amp; IPAM</button>
+          <button class="cat-btn" onclick="filterCategory('pppoe', this)">🌐 PPPoE &amp; ISP Access</button>
+          <button class="cat-btn" onclick="filterCategory('ip', this)">📡 IP &amp; Routing Tables</button>
+          <button class="cat-btn" onclick="filterCategory('system', this)">⚙️ System &amp; Hardware</button>
+          <button class="cat-btn" onclick="filterCategory('net', this)">🗺️ Network Topology &amp; Discovery</button>
+          <button class="cat-btn" onclick="openWsModal()" style="background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; font-weight: 700;">⚡ Real-Time WebSocket</button>
         </div>
 
         <!-- Endpoint Select Dropdown & Method Badge -->
@@ -650,87 +768,70 @@ pub async fn console_page() -> Html<&'static str> {
     </div>
   </main>
 
+  <!-- Live WebSocket Real-Time Terminal Modal -->
+  <div id="ws-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+            <span>⚡ Real-Time WebSocket Live Stream</span>
+            <span style="font-size: 0.68rem; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-weight: 600;">Sub-2ms Socket Engine</span>
+          </h3>
+          <p style="font-size: 0.76rem; color: #64748b; margin-top: 2px;">
+            Direct duplex connection to RouterOS via <code>/ws</code>. Menampilkan respons paket demi paket secara instan saat dikirim router, membedakannya dari batch HTTP roundtrip.
+          </p>
+        </div>
+        <button class="btn-close-modal" onclick="closeWsModal()">&times;</button>
+      </div>
+
+      <div class="ws-controls">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+          <select id="ws-stream-type" class="ws-input" onchange="onWsStreamTypeChange()">
+            <option value="ping">Live ICMP Ping Stream (RouterOS -> Target Host)</option>
+            <option value="traffic">Real-Time Interface Bandwidth (RX/TX Bps)</option>
+            <option value="overview">System Overview Live Heartbeat (CPU &amp; RAM)</option>
+            <option value="logs">Live RouterOS Syslog Stream</option>
+          </select>
+          <input id="ws-target-param" class="ws-input" type="text" placeholder="Target Host / IP (e.g. 8.8.8.8)" value="8.8.8.8" style="min-width: 180px;">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="ws-connect-btn" class="ws-btn ws-btn-start" onclick="toggleWsStream()">
+            <span>▶ Mulai Stream Real-Time</span>
+          </button>
+          <button class="ws-btn ws-btn-clear" onclick="clearWsTerminal()">Clear Terminal</button>
+        </div>
+      </div>
+
+      <div class="ws-terminal-screen" id="ws-terminal">
+        <div class="ws-line comment"># RouterOS Universal Gateway Live WebSocket Terminal</div>
+        <div class="ws-line comment"># Protocol: ws://${location.host}/ws?token=&lt;bearer_token&gt;</div>
+        <div class="ws-line comment"># Socket Engine: Async Rust Multiplexed Channel (&lt;2ms)</div>
+        <div class="ws-line comment"># Ready. Klik 'Mulai Stream Real-Time' untuk menguji koneksi live socket duplex.</div>
+      </div>
+
+      <div class="modal-footer">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="ws-dot" id="ws-status-dot"></span>
+          <span style="font-weight: 600; color: #475569;" id="ws-status-text">Disconnected</span>
+        </div>
+        <div style="font-size: 0.72rem; color: #94a3b8;">
+          💡 ICMP Ping via HTTP mengirim seluruh paket batch sekaligus (e.g. 4 ping ~ 3.5s). Gunakan WebSocket ini untuk streaming ICMP per detik secara real-time.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const ENDPOINTS = [
+      // --- Fast-Path & Performance (cat: fast) ---
       { id: "overview", path: "/api/v1/overview", method: "GET", cat: "fast", desc: "Snapshot agregasi cepat: CPU, memory, uptime, total user hotspot, ppp, dan leases dalam <2ms.", defaultPayload: "{}" },
       { id: "connected_devices", path: "/api/v1/network/connected-devices", method: "GET", cat: "fast", desc: "Korelasikan perangkat terhubung dari seluruh layer (DHCP, ARP, Hotspot, WiFi, PPPoE).", defaultPayload: "{}" },
-      { id: "topology", path: "/api/v1/network/topology-graph", method: "GET", cat: "net", desc: "Data graf relasi simpul (Nodes & Edges) jaringan berjenjang untuk visualizer topologi.", defaultPayload: "{}" },
-      { id: "sys_resource", path: "/api/v1/system/resource", method: "GET", cat: "system", desc: "Spesifikasi resource CPU, RAM bebas, storage, dan arsitektur router.", defaultPayload: "{}" },
-      { id: "sys_routerboard", path: "/api/v1/system/routerboard", method: "GET", cat: "system", desc: "Model board MikroTik, serial number, firmware saat ini dan firmware upgrade.", defaultPayload: "{}" },
-      { id: "sys_identity", path: "/api/v1/system/identity", method: "GET", cat: "system", desc: "Nama identity sistem router MikroTik.", defaultPayload: "{}" },
-      { id: "sys_clock", path: "/api/v1/system/clock", method: "GET", cat: "system", desc: "Waktu jam, tanggal, dan timezone internal router.", defaultPayload: "{}" },
-      { id: "sys_packages", path: "/api/v1/system/packages", method: "GET", cat: "system", desc: "Daftar paket software RouterOS terpasang (wireless, routing, ppp, security).", defaultPayload: "{}" },
-      { id: "sys_services", path: "/api/v1/system/services", method: "GET", cat: "system", desc: "Daftar service port router (API, SSH, Winbox, WWW) dan status disable/enable.", defaultPayload: "{}" },
-      { id: "dhcp_leases", path: "/api/v1/dhcp/leases", method: "GET", cat: "dhcp", desc: "Daftar seluruh IP lease DHCP server, hostname klien, status bound, dan MAC address.", defaultPayload: "{}" },
-      { id: "dhcp_servers", path: "/api/v1/dhcp/servers", method: "GET", cat: "dhcp", desc: "Daftar instance DHCP Server yang aktif dan interface induknya.", defaultPayload: "{}" },
-      { id: "dhcp_networks", path: "/api/v1/dhcp/networks", method: "GET", cat: "dhcp", desc: "Daftar subnet jaringan DHCP, gateway IP, DNS server, dan domain.", defaultPayload: "{}" },
-      { id: "hs_active", path: "/api/v1/hotspot/active", method: "GET", cat: "hotspot", desc: "Daftar pengguna Hotspot yang sedang login aktif, IP, MAC address, uptime, dan bytes.", defaultPayload: "{}" },
-      { id: "hs_users", path: "/api/v1/hotspot/users", method: "GET", cat: "hotspot", desc: "Daftar seluruh database user Hotspot dan voucher di router.", defaultPayload: "{}" },
-      { id: "hs_hosts", path: "/api/v1/hotspot/hosts", method: "GET", cat: "hotspot", desc: "Daftar seluruh perangkat host yang terdeteksi di subnet hotspot (authorized & unauthorized).", defaultPayload: "{}" },
-      { id: "hs_profiles", path: "/api/v1/hotspot/profiles", method: "GET", cat: "hotspot", desc: "Profil kecepatan dan batasan user Hotspot (rate-limit, shared-users).", defaultPayload: "{}" },
-      { id: "hs_ip_bindings", path: "/api/v1/hotspot/ip-bindings", method: "GET", cat: "hotspot", desc: "Daftar IP/MAC binding Hotspot untuk bypass tanpa login (AP, Smart TV, CCTV).", defaultPayload: "{}" },
-      { id: "ppp_secrets", path: "/api/v1/ppp/secrets", method: "GET", cat: "pppoe", desc: "Database akun PPPoE ISP, username, password, profile, dan IP remote statis.", defaultPayload: "{}" },
-      { id: "ppp_active", path: "/api/v1/ppp/active", method: "GET", cat: "pppoe", desc: "Daftar sesi PPPoE yang sedang terhubung aktif (tunnel UP) beserta uptime.", defaultPayload: "{}" },
-      { id: "ppp_servers", path: "/api/v1/ppp/servers", method: "GET", cat: "pppoe", desc: "Daftar server PPPoE Concentrator di router.", defaultPayload: "{}" },
-      { id: "if_all", path: "/api/v1/interfaces/all", method: "GET", cat: "net", desc: "Daftar seluruh interface jaringan (ether, bridge, wlan, pppoe, vlan) dan statistik trafik.", defaultPayload: "{}" },
-      { id: "ip_addr", path: "/api/v1/ip/addresses", method: "GET", cat: "ip", desc: "Daftar alamat IP yang dikonfigurasi pada setiap interface router.", defaultPayload: "{}" },
-      { id: "ip_routes", path: "/api/v1/ip/routes", method: "GET", cat: "ip", desc: "Tabel routing IPv4 lengkap (default gateway, routing dinamik dan statis).", defaultPayload: "{}" },
-      { id: "ip_arp", path: "/api/v1/ip/arp", method: "GET", cat: "ip", desc: "Tabel pemetaan ARP (IP ke MAC Address) dari seluruh interface router.", defaultPayload: "{}" },
-      { id: "ip_dns", path: "/api/v1/ip/dns", method: "GET", cat: "ip", desc: "Konfigurasi upstream DNS resolver dan opsi allow-remote-requests.", defaultPayload: "{}" },
-      { id: "fw_filters", path: "/api/v1/firewall/filters", method: "GET", cat: "firewall", desc: "Daftar rule firewall filter (input, forward, output).", defaultPayload: "{}" },
-      { id: "fw_nat", path: "/api/v1/firewall/nat", method: "GET", cat: "firewall", desc: "Daftar rule NAT (Masquerade, Port Forwarding, dst-nat).", defaultPayload: "{}" },
-      { id: "fw_addr_list", path: "/api/v1/firewall/address-lists", method: "GET", cat: "firewall", desc: "Daftar Address-List firewall (Whitelist, Blacklist, isolir).", defaultPayload: "{}" },
-      { id: "fw_conntrack", path: "/api/v1/firewall/connections", method: "GET", cat: "firewall", desc: "Inspeksi tabel conntrack aktif (IP sumber, tujuan, protokol, timeout).", defaultPayload: "{}" },
-      { id: "fw_top_talkers", path: "/api/v1/firewall/connections/top-talkers", method: "GET", cat: "firewall", desc: "Deteksi top talkers / host penghabis sesi koneksi (BitTorrent, DDoS, botnet).", defaultPayload: "{}" },
-      { id: "dns_adlist", path: "/api/v1/dns/adlist", method: "GET", cat: "ip", desc: "RouterOS v7 native AdList (Blocklist Iklan & Malware tingkat router).", defaultPayload: "{}" },
-      { id: "dns_adlist_presets", path: "/api/v1/dns/adlist/presets", method: "GET", cat: "ip", desc: "Katalog preset blocklist resmi aman (HaGeZi, StevenBlack, AdGuard).", defaultPayload: "{}" },
-      { id: "dhcp_alerts", path: "/api/v1/dhcp/alerts", method: "GET", cat: "dhcp", desc: "Monitoring alarm Rogue DHCP Server ilegal di jaringan lokal.", defaultPayload: "{}" },
-      { id: "tools_ping", path: "/api/v1/tools/ping", method: "POST", cat: "tools", desc: "Kirim ICMP Ping langsung dari router ke target host/IP dengan hitungan latency.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 4\n}' },
-      { id: "tools_multi_ping", path: "/api/v1/tools/multi-ping", method: "GET", cat: "tools", desc: "Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare, Google, OpenDNS) dengan ringkasan SLA.", defaultPayload: '{\n  "targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"],\n  "count": 3\n}' },
-      { id: "capsman_radios", path: "/api/v1/capsman/radios", method: "GET", cat: "net", desc: "Daftar seluruh radio Access Point MikroTik (CAPs) yang terhubung ke controller.", defaultPayload: "{}" },
-      { id: "capsman_set_wifi", path: "/api/v1/capsman/set-wifi", method: "POST", cat: "net", desc: "Konfigurasi SSID & Password WiFi terpusat ke seluruh AP MikroTik sekaligus.", defaultPayload: '{\n  "ssid": "HOTSPOT-WARUNG",\n  "passphrase": "password123"\n}' },
-      { id: "capsman_registrations", path: "/api/v1/capsman/registrations", method: "GET", cat: "net", desc: "Daftar seluruh klien wireless (HP/Laptop) yang tersambung di semua AP.", defaultPayload: "{}" },
-      { id: "backup_restore", path: "/api/v1/backup/restore", method: "POST", cat: "system", desc: "Pulihkan sistem router dari file binary (.backup) dan reboot otomatis.", defaultPayload: '{\n  "name": "backup-auto.backup"\n}' },
-      { id: "backup_import", path: "/api/v1/backup/import", method: "POST", cat: "system", desc: "Impor dan jalankan skrip konfigurasi RouterOS (.rsc) ke router.", defaultPayload: '{\n  "file": "config.rsc"\n}' },
-      { id: "infra_poe_cycle", path: "/api/v1/network/infrastructure/poe-cycle", method: "POST", cat: "net", desc: "Reboot paksa Access Point yang hang lewat pemutusan daya PoE port sementara.", defaultPayload: '{\n  "interface": "ether5",\n  "off_seconds": 3\n}' },
-      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' },
+      { id: "fasttrack_status", path: "/api/v1/system/fasttrack/status", method: "GET", cat: "fast", desc: "Status aturan FastTrack Hardware Acceleration RouterOS, packet counter, dan status bypass.", defaultPayload: "{}" },
+      { id: "fasttrack_deploy", path: "/api/v1/system/fasttrack/deploy", method: "POST", cat: "fast", desc: "1-Klik Deploy Rule FastTrack IPv4 Connection Tracking: Bypass firewall untuk established/related packets, memangkas CPU load hingga 80%.", defaultPayload: "{}" },
+      { id: "cpu_profiler", path: "/api/v1/system/cpu-profiler", method: "GET", cat: "fast", desc: "Pemeriksa profil CPU live & pendeteksi bottleneck proses RouterOS (networking, firewall, profiling).", defaultPayload: "{}" },
 
-      // Integrasi Telegram, WhatsApp Gowa & Netwatch Pro
-      { id: "integ_tg_send", path: "/api/v1/integrations/telegram/send", method: "POST", cat: "notify", desc: "Kirim pesan/alert instan ke Telegram Bot via socket fetch RouterOS.", defaultPayload: '{\n  "bot_token": "YOUR_BOT_TOKEN",\n  "chat_id": "123456789",\n  "text": "🚨 *ALERT NOC*: Link Internet Utama DOWN!"\n}' },
-      { id: "integ_wa_send", path: "/api/v1/integrations/whatsapp/send", method: "POST", cat: "notify", desc: "Kirim notifikasi pesan WhatsApp langsung via Gowa API service.", defaultPayload: '{\n  "phone": "081234567890",\n  "message": "Halo, voucher internet hotspot Anda: *HOT-9812* berlaku 24 Jam.",\n  "gowa_url": "http://127.0.0.1:3000"\n}' },
-      { id: "integ_multi_notify", path: "/api/v1/integrations/notify", method: "POST", cat: "notify", desc: "Multi-platform notification dispatcher (Telegram + WhatsApp) dengan severity level.", defaultPayload: '{\n  "channel": "all",\n  "severity": "WARNING",\n  "title": "Koneksi AP Terganggu",\n  "message": "AP Ruang Meeting down sejak 2 menit yang lalu.",\n  "telegram_bot_token": "",\n  "telegram_chat_id": "",\n  "whatsapp_phone": ""\n}' },
-      { id: "integ_netwatch_setup", path: "/api/v1/integrations/netwatch/setup", method: "POST", cat: "notify", desc: "Setup probe Netwatch RouterOS otomatis dengan skrip alert instan ke Telegram & WhatsApp.", defaultPayload: '{\n  "host": "192.168.88.2",\n  "comment": "AP-HOTSPOT-1",\n  "interval": "00:00:10",\n  "timeout": "1000ms",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
-      { id: "integ_netwatch_batch", path: "/api/v1/integrations/netwatch/batch-setup", method: "POST", cat: "notify", desc: "Otomatisasi pengawasan Netwatch armada seluruh Access Point (AP Fleet) sekaligus.", defaultPayload: '{\n  "items": [\n    { "host": "192.168.88.2", "comment": "AP-HOTSPOT-1" },\n    { "host": "192.168.88.3", "comment": "AP-HOTSPOT-2" },\n    { "host": "192.168.88.4", "comment": "AP-HOTSPOT-3" },\n    { "host": "192.168.88.5", "comment": "AP-HOTSPOT-4" }\n  ],\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
-      { id: "integ_netwatch_list", path: "/api/v1/integrations/netwatch/list", method: "GET", cat: "notify", desc: "Daftar seluruh probe Netwatch, status up/down/since, dan skrip alert terpasang.", defaultPayload: "{}" },
-      { id: "integ_netwatch_toggle", path: "/api/v1/integrations/netwatch/toggle", method: "POST", cat: "notify", desc: "Enable atau Disable probe Netwatch target pada router.", defaultPayload: '{\n  "id": "*1",\n  "disabled": false\n}' },
-      { id: "integ_reports_sched", path: "/api/v1/integrations/reports/scheduler", method: "POST", cat: "notify", desc: "Pasang skrip & scheduler otomatis RouterOS untuk rekap laporan harian NOC ke Telegram.", defaultPayload: '{\n  "name": "noc-daily-report",\n  "start_time": "07:00:00",\n  "interval": "1d",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
-      { id: "integ_chat_snippet", path: "/api/v1/integrations/hotspot-chat/snippet", method: "GET", cat: "notify", desc: "Dapatkan snippet embed live chat widget (Intergram Telegram & WhatsApp) untuk login.html & status.html hotspot.", defaultPayload: "{}" },
-
-      // Hotspot Voucher Engine 2.0 (Mikhmon Killer)
-      { id: "vouchers_gen", path: "/api/v1/hotspot/vouchers/generate", method: "POST", cat: "voucher", desc: "Ultra-fast parallel batch voucher generator (1-1000 voucher, ROS v6/v7 safe, custom prefix, time/quota limit).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "count": 5,\n  "prefix": "HOT-",\n  "user_mode": "same",\n  "charset": "alphanumeric_lower",\n  "length": 6,\n  "timelimit": "1h",\n  "datalimit": "500M",\n  "price": 3000,\n  "selling_price": 3000\n}' },
-      { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
-      { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "dns_name": "hotspot.local",\n  "paper_width": "58mm"\n}' },
-      { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "login_url": "http://hotspot.local/login"\n}' },
-      { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Mikhmon-Style Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
-      { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' },
-
-      // Hotspot Walled Garden & Advanced Session Management
-      { id: "hs_walled_garden", path: "/api/v1/hotspot/walled-garden", method: "GET", cat: "hotspot", desc: "Daftar domain dan IP subnet yang di-bypass sebelum login (Payment Gateway, Webhook, QRIS).", defaultPayload: "{}" },
-      { id: "hs_walled_garden_preset", path: "/api/v1/hotspot/walled-garden/deploy-preset", method: "POST", cat: "hotspot", desc: "1-Klik deploy preset bypass Walled Garden (Midtrans, Xendit, DANA, OVO, QRIS, WhatsApp API).", defaultPayload: '{\n  "preset": "payment_gateways"\n}' },
-      { id: "hs_cookies", path: "/api/v1/hotspot/cookies", method: "GET", cat: "hotspot", desc: "Daftar active MAC/User cookie Hotspot tersimpan di router.", defaultPayload: "{}" },
-      { id: "hs_reset_counters", path: "/api/v1/hotspot/user/reset-counters", method: "POST", cat: "hotspot", desc: "Reset traffic bytes dan uptime counter user hotspot tanpa menghapus voucher.", defaultPayload: '{\n  "name": "HOT-a89f2"\n}' },
-      { id: "hs_inject_expiry", path: "/api/v1/hotspot/profile/inject-expiry-script", method: "POST", cat: "hotspot", desc: "Pasang script On-Login first login validity tracker otomatis pada user profile hotspot.", defaultPayload: '{\n  "profile_name": "1JAM-3RB",\n  "validity": "1d"\n}' },
-
-      // Queues Burst Calculator & Helper
-      { id: "queues_burst_calc", path: "/api/v1/queues/burst-calculator", method: "POST", cat: "tools", desc: "Kalkulator & Formatter formula Burst Rate-Limit MikroTik (Max Limit, Burst, Threshold, Time, Priority).", defaultPayload: '{\n  "max_limit": "2M/2M",\n  "burst_limit": "5M/5M",\n  "burst_time": "8/8",\n  "threshold_percent": 75\n}' },
-
-      // User Manager (RADIUS Internal MikroTik v6 & v7)
-      { id: "userman_profiles", path: "/api/v1/user-manager/profiles", method: "GET", cat: "hotspot", desc: "Daftar billing profile User Manager (RADIUS internal MikroTik).", defaultPayload: "{}" },
-      { id: "userman_limitations", path: "/api/v1/user-manager/limitations", method: "GET", cat: "hotspot", desc: "Daftar limitations kecepatan & kuota paket User Manager.", defaultPayload: "{}" },
-      { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' },
-
-      // --- Keamanan, Dokter Heuristik & App Blocker (cat: security) ---
-      { id: "doctor_diagnose", path: "/api/v1/doctor/diagnose", method: "POST", cat: "security", desc: "AI Heuristic Network Doctor: Audit 6 pilar vital (CPU, RAM, WAN Ping, Throttled Queues, FastTrack, AP/LAN) & rekomendasi perbaikan.", defaultPayload: "{}" },
+      // --- Security & Diagnostics (cat: security) ---
+      { id: "doctor_diagnose", path: "/api/v1/doctor/diagnose", method: "POST", cat: "security", desc: "AI Heuristic Network Doctor: Audit 6 pilar vital (CPU, RAM, WAN Ping, Throttled Queues, FastTrack, AP/LAN) & rekomendasi perbaikan instan.", defaultPayload: "{}" },
       { id: "sec_vuln_audit", path: "/api/v1/security/vulnerability-audit", method: "GET", cat: "security", desc: "Audit kerentanan CVE RouterOS, open service sniffing (Telnet, FTP, API), & Open DNS Resolver.", defaultPayload: "{}" },
       { id: "sec_antibruteforce", path: "/api/v1/security/deploy-antibruteforce", method: "POST", cat: "security", desc: "1-Klik pasang firewall filter anti brute-force attack bertingkat untuk WinBox, SSH, & API.", defaultPayload: '{\n  "protect_winbox": true,\n  "protect_ssh": true,\n  "protect_api": true,\n  "blacklist_timeout": "7d"\n}' },
       { id: "app_block", path: "/api/v1/security/app-block", method: "POST", cat: "security", desc: "1-Klik blokir Layer 7 / TLS host untuk TikTok, YouTube, WhatsApp, Judi Online, atau Torrent P2P.", defaultPayload: '{\n  "app_type": "judi_online",\n  "comment": "Blokir Judol"\n}' },
@@ -739,43 +840,117 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "anti_tethering_enable", path: "/api/v1/security/anti-tethering/enable", method: "POST", cat: "security", desc: "Proteksi anti-tethering hotspot: Paksa TTL=1 di Mangle agar klien tidak bisa berbagi hotspot via HP.", defaultPayload: '{\n  "comment": "Lock TTL to prevent tethering"\n}' },
       { id: "anti_tethering_status", path: "/api/v1/security/anti-tethering/status", method: "GET", cat: "security", desc: "Status proteksi anti-tethering hotspot (aktif / tidak).", defaultPayload: "{}" },
       { id: "anti_tethering_disable", path: "/api/v1/security/anti-tethering/disable", method: "POST", cat: "security", desc: "Nonaktifkan proteksi anti-tethering hotspot.", defaultPayload: "{}" },
+      { id: "sec_port_knocking_setup", path: "/api/v1/security/port-knocking/setup", method: "POST", cat: "security", desc: "1-Klik setup 3-Step Port Knocking (amankan port Winbox 8291 & SSH 22).", defaultPayload: '{\n  "knock_port_1": 7000,\n  "knock_port_2": 8000,\n  "knock_port_3": 9000,\n  "target_ports": "8291,22",\n  "access_duration": "1h"\n}' },
+      { id: "sec_port_knocking_status", path: "/api/v1/security/port-knocking/status", method: "GET", cat: "security", desc: "Status port knocking dan daftar IP admin yang sedang memiliki akses aktif.", defaultPayload: "{}" },
+      { id: "sec_port_knocking_remove", path: "/api/v1/security/port-knocking/remove", method: "POST", cat: "security", desc: "Hapus rule port knocking dan bersihkan konfigurasi stealth access.", defaultPayload: "{}" },
+      { id: "sec_bogon_filter", path: "/api/v1/security/hardening/deploy-bogon-filter", method: "POST", cat: "security", desc: "Deploy filter drop paket IP Bogon & Martian di interface WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_dns_guard", path: "/api/v1/security/hardening/deploy-dns-guard", method: "POST", cat: "security", desc: "Blokir celah DNS Open Resolver port 53 dari internet WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_raw_antiddos", path: "/api/v1/security/hardening/deploy-raw-antiddos", method: "POST", cat: "security", desc: "Raw Firewall Anti-DDoS sebelum Connection Tracking (MTCTCE).", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
+      { id: "sec_auto_reboot", path: "/api/v1/security/hardening/setup-auto-reboot", method: "POST", cat: "security", desc: "Jadwalkan auto-reboot router harian jam 04:00 subuh.", defaultPayload: '{\n  "reboot_time": "04:00:00"\n}' },
+      { id: "sec_full_hardening", path: "/api/v1/security/hardening/deploy-full-hardening", method: "POST", cat: "security", desc: "1-Klik deploy seluruh paket hardening & auto-reboot sekaligus.", defaultPayload: '{\n  "wan_interface": "ether1",\n  "enable_auto_reboot": true\n}' },
+      { id: "sec_hardening_audit", path: "/api/v1/security/hardening/audit-status", method: "GET", cat: "security", desc: "Audit status kepatuhan enterprise security hardening router.", defaultPayload: "{}" },
       { id: "expert_diag", path: "/api/v1/expert/quick-diagnose", method: "POST", cat: "security", desc: "Expert deep diagnostic analyzer untuk performa dan latency router.", defaultPayload: "{}" },
       { id: "expert_traffic", path: "/api/v1/expert/traffic-matrix", method: "POST", cat: "security", desc: "Matriks persebaran trafik komprehensif antar interface.", defaultPayload: "{}" },
+      { id: "expert_security", path: "/api/v1/expert/security-audit", method: "POST", cat: "security", desc: "Comprehensive expert firewall and security posture analyzer.", defaultPayload: "{}" },
+      { id: "fw_filters", path: "/api/v1/firewall/filters", method: "GET", cat: "security", desc: "Daftar seluruh rule Firewall Filter IPv4 (input, forward, output).", defaultPayload: "{}" },
+      { id: "fw_nat", path: "/api/v1/firewall/nat", method: "GET", cat: "security", desc: "Daftar seluruh rule Firewall NAT (srcnat & dstnat).", defaultPayload: "{}" },
+      { id: "fw_address_lists", path: "/api/v1/firewall/address-lists", method: "GET", cat: "security", desc: "Daftar tabel Address-List firewall (BLACKLIST, ISOLIR, WHITELIST).", defaultPayload: "{}" },
+      { id: "fw_block_ip", path: "/api/v1/firewall/block-ip", method: "POST", cat: "security", desc: "Blokir IP instan: Tambahkan ke address-list BLACKLIST dan pastikan rule drop forward aktif.", defaultPayload: '{\n  "address": "192.168.88.99",\n  "list": "BLACKLIST",\n  "comment": "Abuse client",\n  "ensure_drop_rule": true\n}' },
+      { id: "fw_unblock_ip", path: "/api/v1/firewall/unblock-ip", method: "POST", cat: "security", desc: "Buka blokir IP target secara langsung via alamat IP atau ID.", defaultPayload: '{\n  "address": "192.168.88.99",\n  "list": "BLACKLIST"\n}' },
+      { id: "fw_conntrack", path: "/api/v1/firewall/connections", method: "GET", cat: "security", desc: "Inspeksi tabel Connection Tracking (Conntrack) aktif di router.", defaultPayload: "{}" },
+      { id: "fw_top_talkers", path: "/api/v1/firewall/connections/top-talkers", method: "GET", cat: "security", desc: "Top Talkers Conntrack: Perangkat yang memiliki koneksi terbanyak.", defaultPayload: "{}" },
+      { id: "fw_conntrack_flush", path: "/api/v1/firewall/connections/flush", method: "POST", cat: "security", desc: "Flush/reset tabel koneksi conntrack aktif.", defaultPayload: '{\n  "src_address": "192.168.88.99"\n}' },
 
-      // --- Load Balancing Multi-WAN & NAT Wizards (cat: loadbalance) ---
+      // --- Voucher Engine 2.0 (cat: voucher) ---
+      { id: "vouchers_gen", path: "/api/v1/hotspot/vouchers/generate", method: "POST", cat: "voucher", desc: "Ultra-fast parallel batch voucher generator (1-1000 voucher, ROS v6/v7 safe, custom prefix, time/quota limit).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "count": 5,\n  "prefix": "HOT-",\n  "user_mode": "same",\n  "charset": "alphanumeric_lower",\n  "length": 6,\n  "timelimit": "1h",\n  "datalimit": "500M",\n  "price": 3000,\n  "selling_price": 3000\n}' },
+      { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
+      { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "dns_name": "hotspot.local",\n  "paper_width": "58mm"\n}' },
+      { id: "vouchers_sell", path: "/api/v1/hotspot/vouchers/sell", method: "POST", cat: "voucher", desc: "Tandai voucher terjual di kasir dengan nama operator dan nominal rupiah.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "cashier": "Kasir-1",\n  "price": 3000\n}' },
+      { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "login_url": "http://hotspot.local/login"\n}' },
+      { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Mikhmon-Style Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
+      { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' },
+      { id: "voucher_template_render", path: "/api/v1/hotspot/voucher-template/render", method: "POST", cat: "voucher", desc: "Render lembaran cetak voucher visual berformat HTML (58mm, 80mm, atau A4 Grid) dengan QR Code.", defaultPayload: '{\n  "theme": "modern",\n  "paper_width": "80mm",\n  "hotspot_name": "WAROENG HOTSPOT",\n  "vouchers": [\n    { "username": "HOT-9012", "password": "pass-9012", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ]\n}' },
+      { id: "mikhmon_lock_mac", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/enable", method: "POST", cat: "voucher", desc: "Auto-Lock MAC Address pada Hotspot profile (Anti tukar/bagi-bagi voucher).", defaultPayload: '{\n  "profile_name": "default"\n}' },
+      { id: "mikhmon_lock_mac_now", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/bind-now", method: "POST", cat: "voucher", desc: "Kunci MAC address user hotspot target ke entri user saat ini juga.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "mac_address": "AA:BB:CC:DD:EE:FF"\n}' },
+      { id: "mikhmon_expiry_setup", path: "/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", method: "POST", cat: "voucher", desc: "Setup 3-Mode Expiry Voucher: Remove, Notice (isolir web peringatan), atau Record.", defaultPayload: '{\n  "profile_name": "default",\n  "expiry_mode": "notice",\n  "validity": "1d",\n  "notice_profile": "EXPIRED_NOTICE"\n}' },
+      { id: "mikhmon_trial_status", path: "/api/v1/hotspot/mikhmon-v4/trial/status", method: "GET", cat: "voucher", desc: "Status konfigurasi login gratisan (Trial) di Hotspot Server Profile.", defaultPayload: "{}" },
+      { id: "mikhmon_trial_setup", path: "/api/v1/hotspot/mikhmon-v4/trial/setup", method: "POST", cat: "voucher", desc: "Setup batasan durasi trial gratisan dan waktu reset per MAC.", defaultPayload: '{\n  "enable_trial": true,\n  "trial_uptime_limit": "15m",\n  "trial_uptime_reset": "1d"\n}' },
+      { id: "mikhmon_trial_reset", path: "/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", method: "POST", cat: "voucher", desc: "Reset seluruh cookies MAC trial agar pengunjung dapat mencoba login kembali.", defaultPayload: "{}" },
+
+      // --- Bot & Netwatch Automation (cat: notify) ---
+      { id: "integ_tg_send", path: "/api/v1/integrations/telegram/send", method: "POST", cat: "notify", desc: "Kirim pesan/alert instan ke Telegram Bot via socket fetch RouterOS.", defaultPayload: '{\n  "bot_token": "YOUR_BOT_TOKEN",\n  "chat_id": "123456789",\n  "text": "🚨 *ALERT NOC*: Link Internet Utama DOWN!"\n}' },
+      { id: "integ_wa_send", path: "/api/v1/integrations/whatsapp/send", method: "POST", cat: "notify", desc: "Kirim notifikasi pesan WhatsApp langsung via Gowa API service.", defaultPayload: '{\n  "phone": "081234567890",\n  "message": "Halo, voucher internet hotspot Anda: *HOT-9812* berlaku 24 Jam.",\n  "gowa_url": "http://127.0.0.1:3000"\n}' },
+      { id: "integ_multi_notify", path: "/api/v1/integrations/notify", method: "POST", cat: "notify", desc: "Multi-platform notification dispatcher (Telegram + WhatsApp) dengan severity level.", defaultPayload: '{\n  "channel": "all",\n  "severity": "WARNING",\n  "title": "Koneksi AP Terganggu",\n  "message": "AP Ruang Meeting down sejak 2 menit yang lalu.",\n  "telegram_bot_token": "",\n  "telegram_chat_id": "",\n  "whatsapp_phone": ""\n}' },
+      { id: "integ_netwatch_setup", path: "/api/v1/integrations/netwatch/setup", method: "POST", cat: "notify", desc: "Setup probe Netwatch RouterOS otomatis dengan skrip alert instan ke Telegram & WhatsApp.", defaultPayload: '{\n  "host": "192.168.88.2",\n  "comment": "AP-HOTSPOT-1",\n  "interval": "00:00:10",\n  "timeout": "1000ms",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_batch", path: "/api/v1/integrations/netwatch/batch-setup", method: "POST", cat: "notify", desc: "Otomatisasi pengawasan Netwatch armada seluruh Access Point (AP Fleet) sekaligus.", defaultPayload: '{\n  "items": [\n    { "host": "192.168.88.2", "comment": "AP-HOTSPOT-1" },\n    { "host": "192.168.88.3", "comment": "AP-HOTSPOT-2" },\n    { "host": "192.168.88.4", "comment": "AP-HOTSPOT-3" }\n  ],\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_netwatch_list", path: "/api/v1/integrations/netwatch/monitors", method: "GET", cat: "notify", desc: "Daftar seluruh probe Netwatch, status up/down/since, dan skrip alert terpasang.", defaultPayload: "{}" },
+      { id: "integ_netwatch_toggle", path: "/api/v1/integrations/netwatch/toggle", method: "POST", cat: "notify", desc: "Enable atau Disable probe Netwatch target pada router.", defaultPayload: '{\n  "id": "*1",\n  "disabled": false\n}' },
+      { id: "integ_netwatch_remove", path: "/api/v1/integrations/netwatch/remove", method: "POST", cat: "notify", desc: "Hapus probe Netwatch spesifik dari router.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "integ_reports_sched", path: "/api/v1/integrations/reports/setup-scheduler", method: "POST", cat: "notify", desc: "Pasang skrip & scheduler otomatis RouterOS untuk rekap laporan harian NOC ke Telegram.", defaultPayload: '{\n  "name": "noc-daily-report",\n  "start_time": "07:00:00",\n  "interval": "1d",\n  "telegram_bot_token": "BOT_TOKEN",\n  "telegram_chat_id": "CHAT_ID"\n}' },
+      { id: "integ_chat_snippet", path: "/api/v1/integrations/hotspot-chat/snippet", method: "GET", cat: "notify", desc: "Snippet embed live chat widget (Intergram Telegram & WhatsApp) untuk login.html & status.html hotspot.", defaultPayload: "{}" },
+      { id: "tg_send_message", path: "/api/v1/telegram/send-message", method: "POST", cat: "notify", desc: "Kirim pesan Telegram melalui bot bridge internal gateway.", defaultPayload: '{\n  "chat_id": "123456",\n  "message": "Tes Alert dari Gateway"\n}' },
+
+      // --- Load Balancing & NAT (cat: loadbalance) ---
       { id: "lb_pcc_setup", path: "/api/v1/load-balance/pcc/setup", method: "POST", cat: "loadbalance", desc: "Automated Dual-WAN PCC Wizard: Buat otomatis rule Mangle PCC, routing marks, & failover 2-4 ISP.", defaultPayload: '{\n  "wan_interfaces": ["ether1", "ether2"],\n  "gateways": ["192.168.1.1", "192.168.2.1"],\n  "lan_interface": "bridge-lan"\n}' },
       { id: "lb_status", path: "/api/v1/load-balance/status", method: "GET", cat: "loadbalance", desc: "Status konfigurasi Multi-WAN PCC Load Balancer aktif di router.", defaultPayload: "{}" },
       { id: "lb_remove", path: "/api/v1/load-balance/remove", method: "POST", cat: "loadbalance", desc: "Hapus seluruh rule Load Balancing PCC dan bersihkan firewall Mangle.", defaultPayload: "{}" },
+      { id: "failover_setup", path: "/api/v1/routing/failover/setup", method: "POST", cat: "loadbalance", desc: "1-Klik setup Recursive Gateway Failover via DNS ping 8.8.8.8 & 1.1.1.1 (MTCRE).", defaultPayload: '{\n  "primary_gateway": "192.168.1.1",\n  "backup_gateway": "192.168.2.1",\n  "primary_check_host": "8.8.8.8",\n  "backup_check_host": "1.1.1.1"\n}' },
+      { id: "failover_status", path: "/api/v1/routing/failover/status", method: "GET", cat: "loadbalance", desc: "Cek status rute failover rekursif aktif vs rute cadangan.", defaultPayload: "{}" },
+      { id: "failover_remove", path: "/api/v1/routing/failover/remove", method: "POST", cat: "loadbalance", desc: "Hapus seluruh rute failover rekursif bertag [Recursive-Failover].", defaultPayload: "{}" },
       { id: "nat_port_forward", path: "/api/v1/firewall/port-forward", method: "POST", cat: "loadbalance", desc: "Port Forwarding Wizard (dst-nat) lengkap dengan opsi Hairpin NAT untuk akses Web/CCTV dari luar LAN.", defaultPayload: '{\n  "protocol": "tcp",\n  "dst_port": "8080",\n  "to_addresses": "192.168.88.50",\n  "to_ports": "80",\n  "in_interface": "ether1",\n  "enable_hairpin": true,\n  "comment": "Web Server Forward"\n}' },
       { id: "nat_port_forward_list", path: "/api/v1/firewall/port-forward/list", method: "GET", cat: "loadbalance", desc: "Daftar seluruh rule port forwarding (dst-nat) aktif di router.", defaultPayload: "{}" },
+      { id: "nat_port_forward_remove", path: "/api/v1/firewall/port-forward/remove", method: "POST", cat: "loadbalance", desc: "Hapus rule port forwarding berdasarkan ID router.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "nat_hairpin", path: "/api/v1/firewall/hairpin-nat", method: "POST", cat: "loadbalance", desc: "Setup rule Hairpin NAT otomatis untuk subnet LAN internal.", defaultPayload: '{\n  "lan_subnet": "192.168.88.0/24",\n  "server_ip": "192.168.88.50"\n}' },
       { id: "nat_masquerade", path: "/api/v1/firewall/srcnat/masquerade", method: "POST", cat: "loadbalance", desc: "Buat rule Masquerade WAN standar agar LAN dapat terhubung ke internet.", defaultPayload: '{\n  "out_interface": "ether1",\n  "comment": "Default Internet NAT"\n}' },
 
-      // --- VPN Modern & Remote Access (cat: vpn) ---
+      // --- VPN & WireGuard (cat: vpn) ---
       { id: "wg_interfaces", path: "/api/v1/wireguard/interfaces", method: "GET", cat: "vpn", desc: "Daftar interface WireGuard VPN di router (RouterOS v7).", defaultPayload: "{}" },
       { id: "wg_peers", path: "/api/v1/wireguard/peers", method: "GET", cat: "vpn", desc: "Daftar peer WireGuard (klien & site-to-site) aktif di router.", defaultPayload: "{}" },
       { id: "wg_peer_add", path: "/api/v1/wireguard/peer/add", method: "POST", cat: "vpn", desc: "Tambah peer WireGuard baru dengan public key & allowed-address.", defaultPayload: '{\n  "interface": "wireguard1",\n  "public_key": "YOUR_PEER_PUBLIC_KEY=",\n  "allowed_address": "10.0.0.2/32"\n}' },
-      { id: "vpn_l2tp", path: "/api/v1/vpn/l2tp", method: "GET", cat: "vpn", desc: "Konfigurasi server L2TP VPN dan status IPsec encryption.", defaultPayload: "{}" },
+      { id: "wg_peer_remove", path: "/api/v1/wireguard/peer/remove", method: "POST", cat: "vpn", desc: "Hapus peer WireGuard berdasarkan ID atau public key.", defaultPayload: '{\n  "id": "*1"\n}' },
       { id: "vpn_sstp", path: "/api/v1/vpn/sstp", method: "GET", cat: "vpn", desc: "Konfigurasi server SSTP VPN (Port 443 SSL).", defaultPayload: "{}" },
+      { id: "vpn_sstp_set", path: "/api/v1/vpn/sstp/set", method: "POST", cat: "vpn", desc: "Aktifkan atau ubah opsi server SSTP VPN.", defaultPayload: '{\n  "enabled": true,\n  "port": 443\n}' },
+      { id: "vpn_l2tp", path: "/api/v1/vpn/l2tp", method: "GET", cat: "vpn", desc: "Konfigurasi server L2TP VPN dan status IPsec encryption.", defaultPayload: "{}" },
+      { id: "vpn_l2tp_set", path: "/api/v1/vpn/l2tp/set", method: "POST", cat: "vpn", desc: "Aktifkan atau ubah opsi server L2TP VPN dan secret IPsec.", defaultPayload: '{\n  "enabled": true,\n  "use_ipsec": "yes",\n  "ipsec_secret": "securepresharedkey"\n}' },
       { id: "vpn_ovpn", path: "/api/v1/vpn/ovpn", method: "GET", cat: "vpn", desc: "Konfigurasi server OpenVPN (TCP/UDP) di router.", defaultPayload: "{}" },
+      { id: "vpn_ovpn_set", path: "/api/v1/vpn/ovpn/set", method: "POST", cat: "vpn", desc: "Aktifkan atau ubah mode server OpenVPN router.", defaultPayload: '{\n  "enabled": true,\n  "mode": "ip",\n  "port": 1194\n}' },
       { id: "vpn_eoip", path: "/api/v1/vpn/eoip", method: "GET", cat: "vpn", desc: "Daftar tunnel EoIP (Ethernet over IP) untuk bridging L2 antar cabang.", defaultPayload: "{}" },
+      { id: "vpn_eoip_add", path: "/api/v1/vpn/eoip/add", method: "POST", cat: "vpn", desc: "Buat tunnel EoIP baru dengan tunnel-id dan remote-address.", defaultPayload: '{\n  "name": "eoip-cabang",\n  "tunnel_id": 10,\n  "remote_address": "203.0.113.5"\n}' },
+      { id: "vpn_eoip_remove", path: "/api/v1/vpn/eoip/remove", method: "POST", cat: "vpn", desc: "Hapus interface tunnel EoIP.", defaultPayload: '{\n  "name": "eoip-cabang"\n}' },
+      { id: "vpn_gre", path: "/api/v1/vpn/gre", method: "GET", cat: "vpn", desc: "Daftar GRE Tunnels (Generic Routing Encapsulation) aktif di router.", defaultPayload: "{}" },
+      { id: "vpn_ipip", path: "/api/v1/vpn/ipip", method: "GET", cat: "vpn", desc: "Daftar IPIP Tunnels (IP Encapsulation within IP).", defaultPayload: "{}" },
 
-      // --- QoS, Bandwidth & Queues (cat: queues) ---
+      // --- QoS & Traffic Shaping (cat: queues) ---
       { id: "queues_simple", path: "/api/v1/queues/simple", method: "GET", cat: "queues", desc: "Daftar seluruh Simple Queues, target IP, max-limit (upload/download), & bytes terpakai.", defaultPayload: "{}" },
       { id: "queues_summary", path: "/api/v1/queues/overview-summary", method: "GET", cat: "queues", desc: "Ringkasan total kuota, agregasi kecepatan, dan status throttling seluruh antrean.", defaultPayload: "{}" },
       { id: "queues_simple_add", path: "/api/v1/queues/simple/add", method: "POST", cat: "queues", desc: "Tambah antrean Simple Queue baru dengan limit bandwidth target.", defaultPayload: '{\n  "name": "User-Kantor-1",\n  "target": "192.168.88.20/32",\n  "max_limit": "5M/10M",\n  "comment": "Staff Kantor"\n}' },
       { id: "queues_set_limit", path: "/api/v1/queues/simple/set-limit", method: "POST", cat: "queues", desc: "Ubah batas bandwidth Simple Queue target secara langsung.", defaultPayload: '{\n  "name": "User-Kantor-1",\n  "max_limit": "10M/20M"\n}' },
+      { id: "queues_remove", path: "/api/v1/queues/simple/remove", method: "POST", cat: "queues", desc: "Hapus Simple Queue spesifik berdasarkan ID atau nama.", defaultPayload: '{\n  "name": "User-Kantor-1"\n}' },
       { id: "queues_inspect", path: "/api/v1/queues/inspect-user", method: "POST", cat: "queues", desc: "Inspeksi utilisasi antrean bandwidth per user atau IP spesifik.", defaultPayload: '{\n  "target": "192.168.88.20"\n}' },
+      { id: "queues_test_limit", path: "/api/v1/queues/test-limit", method: "POST", cat: "queues", desc: "Uji coba validitas format limit kecepatan (misal 512k/2M).", defaultPayload: '{\n  "limit": "5M/10M"\n}' },
+      { id: "queues_burst_calc", path: "/api/v1/queues/burst-calculator", method: "POST", cat: "queues", desc: "Kalkulator & Formatter formula Burst Rate-Limit MikroTik (Max Limit, Burst, Threshold, Time, Priority).", defaultPayload: '{\n  "max_limit": "2M/2M",\n  "burst_limit": "5M/5M",\n  "burst_time": "8/8",\n  "threshold_percent": 75\n}' },
       { id: "traffic_preset_game", path: "/api/v1/traffic/preset/game-social-separation", method: "POST", cat: "queues", desc: "1-Klik Smart Traffic Shaper: Pisahkan trafik Game Online (prioritas tinggi) dari Sosmed/Download via Mangle & Queue Tree.", defaultPayload: '{\n  "wan_interface": "ether1",\n  "lan_interface": "bridge-lan"\n}' },
       { id: "traffic_queue_tree", path: "/api/v1/traffic/queue-tree", method: "GET", cat: "queues", desc: "Daftar Queue Tree hierarkis (Parent & Child queues) di router.", defaultPayload: "{}" },
+      { id: "traffic_queue_tree_add", path: "/api/v1/traffic/queue-tree/add", method: "POST", cat: "queues", desc: "Tambah child queue baru pada Queue Tree dengan packet mark.", defaultPayload: '{\n  "name": "Game-Traffic",\n  "parent": "global",\n  "packet_mark": "game_pkt",\n  "limit_at": "5M",\n  "max_limit": "10M",\n  "priority": 1\n}' },
       { id: "traffic_mangle_rules", path: "/api/v1/traffic/mangle/rules", method: "GET", cat: "queues", desc: "Daftar rule Firewall Mangle untuk penandaan paket (packet marks & routing marks).", defaultPayload: "{}" },
+      { id: "traffic_mangle_add", path: "/api/v1/traffic/mangle/add", method: "POST", cat: "queues", desc: "Tambah penandaan paket baru di tabel firewall mangle.", defaultPayload: '{\n  "chain": "forward",\n  "protocol": "udp",\n  "dst_port": "5000-5500",\n  "action": "mark-packet",\n  "new_packet_mark": "game_pkt",\n  "passthrough": true\n}' },
 
-      // --- NOC Tools & Diagnostics (cat: tools) ---
-      { id: "noc_torch", path: "/api/v1/tools/torch", method: "POST", cat: "tools", desc: "Torch live real-time bandwidth monitor per-IP, protocol, & port pada interface target.", defaultPayload: '{\n  "interface": "ether1",\n  "duration_seconds": 3\n}' },
+      // --- NOC Diagnostic Tools (cat: tools) ---
+      { id: "tools_ping", path: "/api/v1/tools/ping", method: "POST", cat: "tools", desc: "Kirim batch ICMP Ping langsung dari router ke target host/IP dengan metrik latency (min/avg/max) & packet loss.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 4\n}' },
+      { id: "tools_multi_ping", path: "/api/v1/tools/multi-ping", method: "GET", cat: "tools", desc: "Ping matriks multi-target sekaligus (Gateway, DNS Cloudflare, Google, OpenDNS) dengan ringkasan SLA.", defaultPayload: '{\n  "targets": ["1.1.1.1", "8.8.8.8", "208.67.222.222"],\n  "count": 3\n}' },
+      { id: "tools_traceroute", path: "/api/v1/tools/traceroute", method: "POST", cat: "tools", desc: "Jalankan Traceroute ICMP/UDP dari router untuk melacak hop rute ke internet.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 3\n}' },
+      { id: "noc_torch", path: "/api/v1/tools/torch", method: "POST", cat: "tools", desc: "Torch live bandwidth monitor per-IP, protocol, & port pada interface target.", defaultPayload: '{\n  "interface": "ether1",\n  "duration_seconds": 3\n}' },
       { id: "noc_btest", path: "/api/v1/tools/bandwidth-test", method: "POST", cat: "tools", desc: "MikroTik Bandwidth Test internal ke router tujuan (TCP/UDP speed test).", defaultPayload: '{\n  "address": "192.168.88.2",\n  "direction": "both",\n  "duration": 5\n}' },
-      { id: "noc_traceroute", path: "/api/v1/tools/traceroute", method: "POST", cat: "tools", desc: "Jalankan Traceroute ICMP/UDP dari router untuk melacak hop rute ke internet.", defaultPayload: '{\n  "address": "8.8.8.8",\n  "count": 3\n}' },
       { id: "noc_ip_scan", path: "/api/v1/tools/ip-scan", method: "POST", cat: "tools", desc: "IP Scan: Deteksi seluruh perangkat aktif dan MAC address pada subnet interface.", defaultPayload: '{\n  "interface": "bridge-lan"\n}' },
       { id: "noc_profile", path: "/api/v1/tools/profile", method: "POST", cat: "tools", desc: "CPU Profile Detective (/tool profile): Profil mikro beban CPU per-proses (firewall, networking, console, queuing).", defaultPayload: '{\n  "duration": 3\n}' },
+      { id: "tools_sniffer_status", path: "/api/v1/tools/sniffer/status", method: "GET", cat: "tools", desc: "Status Packet Sniffer RouterOS (running, buffer, limit).", defaultPayload: "{}" },
+      { id: "tools_sniffer_start", path: "/api/v1/tools/sniffer/start", method: "POST", cat: "tools", desc: "Mulai packet capture ke file .pcap atau streaming TZSP ke PC Wireshark.", defaultPayload: '{\n  "interface": "all",\n  "file_name": "capture.pcap",\n  "file_limit": "2000KiB"\n}' },
+      { id: "tools_sniffer_stop", path: "/api/v1/tools/sniffer/stop", method: "POST", cat: "tools", desc: "Hentikan packet sniffer.", defaultPayload: "{}" },
+      { id: "tools_graphing_status", path: "/api/v1/tools/graphing/status", method: "GET", cat: "tools", desc: "Status konfigurasi grafik historis web RouterOS (/graphs).", defaultPayload: "{}" },
+      { id: "tools_graphing_enable", path: "/api/v1/tools/graphing/enable", method: "POST", cat: "tools", desc: "Aktifkan grafik web MRTG untuk interface, queue bandwidth, dan CPU.", defaultPayload: '{\n  "enable_interfaces": true,\n  "interface": "all",\n  "enable_queues": true,\n  "enable_resource": true\n}' },
+      { id: "tools_graphing_disable", path: "/api/v1/tools/graphing/disable", method: "POST", cat: "tools", desc: "Nonaktifkan grafik historis web MRTG.", defaultPayload: "{}" },
       { id: "noc_romon_discover", path: "/api/v1/tools/romon/discover", method: "GET", cat: "tools", desc: "Temukan router MikroTik tetangga di jaringan RoMON (Router Management Overlay Network).", defaultPayload: "{}" },
+      { id: "noc_romon_status", path: "/api/v1/tools/romon/status", method: "GET", cat: "tools", desc: "Status service RoMON pada router.", defaultPayload: "{}" },
       { id: "noc_watchdog", path: "/api/v1/system/watchdog", method: "GET", cat: "tools", desc: "Status hardware Watchdog router (auto reboot saat kernel freeze).", defaultPayload: "{}" },
       { id: "noc_ntp_config", path: "/api/v1/system/ntp/config", method: "GET", cat: "tools", desc: "Konfigurasi NTP Client (Network Time Protocol) sinkronisasi jam router.", defaultPayload: "{}" },
       { id: "noc_terminal_exec", path: "/api/v1/scripts/terminal-exec", method: "POST", cat: "tools", desc: "Eksekusi baris perintah skrip RouterOS langsung dan ambil keluarannya.", defaultPayload: '{\n  "script": ":put [/system resource get cpu-load]"\n}' },
@@ -783,59 +958,154 @@ pub async fn console_page() -> Html<&'static str> {
       // --- Backup & Maintenance (cat: maintenance) ---
       { id: "backup_create", path: "/api/v1/backup/create", method: "POST", cat: "maintenance", desc: "Buat file binary backup sistem router (.backup) di storage internal.", defaultPayload: '{\n  "name": "backup-gateway-manual"\n}' },
       { id: "backup_export", path: "/api/v1/backup/export", method: "POST", cat: "maintenance", desc: "Ekspor konfigurasi teks skrip RouterOS (.rsc) dengan hide-sensitive.", defaultPayload: '{\n  "file": "export-gateway.rsc",\n  "hide_sensitive": true\n}' },
+      { id: "backup_restore", path: "/api/v1/backup/restore", method: "POST", cat: "maintenance", desc: "Pulihkan sistem router dari file binary (.backup) dan reboot otomatis.", defaultPayload: '{\n  "name": "backup-auto.backup"\n}' },
+      { id: "backup_import", path: "/api/v1/backup/import", method: "POST", cat: "maintenance", desc: "Impor dan jalankan skrip konfigurasi RouterOS (.rsc) ke router.", defaultPayload: '{\n  "file": "config.rsc"\n}' },
       { id: "backup_files", path: "/api/v1/files/all", method: "GET", cat: "maintenance", desc: "Daftar seluruh file di storage router (backup, skin hotspot, cert, log).", defaultPayload: "{}" },
+      { id: "backup_file_read", path: "/api/v1/files/read", method: "POST", cat: "maintenance", desc: "Baca isi file teks atau skrip dari storage router.", defaultPayload: '{\n  "file": "config.rsc"\n}' },
+      { id: "backup_file_write", path: "/api/v1/files/write", method: "POST", cat: "maintenance", desc: "Tulis atau unggah teks file (skrip, custom HTML hotspot, config) langsung ke storage MikroTik.", defaultPayload: '{\n  "file": "hotspot/custom.txt",\n  "contents": "Hello MikroTik Storage"\n}' },
+      { id: "backup_file_remove", path: "/api/v1/files/remove", method: "POST", cat: "maintenance", desc: "Hapus file dari storage router.", defaultPayload: '{\n  "file": "old-backup.backup"\n}' },
       { id: "maint_reboot", path: "/api/v1/system/reboot", method: "POST", cat: "maintenance", desc: "Reboot sistem router MikroTik secara graceful.", defaultPayload: "{}" },
+      { id: "maint_shutdown", path: "/api/v1/system/shutdown", method: "POST", cat: "maintenance", desc: "Mematikan router MikroTik secara graceful dan aman.", defaultPayload: "{}" },
       { id: "maint_check_update", path: "/api/v1/system/check-update", method: "GET", cat: "maintenance", desc: "Periksa ketersediaan pembaruan RouterOS versi terbaru dari server MikroTik.", defaultPayload: "{}" },
+      { id: "maint_install_update", path: "/api/v1/system/install-update", method: "POST", cat: "maintenance", desc: "Unduh dan pasang update RouterOS kemudian reboot router.", defaultPayload: "{}" },
       { id: "maint_health", path: "/api/v1/system/health", method: "GET", cat: "maintenance", desc: "Sensor voltase, suhu CPU, dan temperatur board router (RouterBOARD).", defaultPayload: "{}" },
       { id: "maint_pre_upgrade", path: "/api/v1/maintenance/pre-upgrade-snapshot", method: "POST", cat: "maintenance", desc: "Snapshot pra-upgrade: Simpan backup konfigurasi dan riwayat package sebelum OS di-upgrade.", defaultPayload: "{}" },
+      { id: "maint_reset_config", path: "/api/v1/maintenance/reset-configuration", method: "POST", cat: "maintenance", desc: "Factory reset konfigurasi router (opsi no-defaults & keep-users).", defaultPayload: '{\n  "no_defaults": false,\n  "keep_users": true\n}' },
+      { id: "audit_logs", path: "/api/v1/audit/logs", method: "GET", cat: "maintenance", desc: "Daftar riwayat audit log seluruh eksekusi API gateway.", defaultPayload: "{}" },
+      { id: "audit_stats", path: "/api/v1/audit/stats", method: "GET", cat: "maintenance", desc: "Statistik performa gateway: total request, error rate, dan p95 latency.", defaultPayload: "{}" },
+      { id: "audit_clear", path: "/api/v1/audit/clear", method: "POST", cat: "maintenance", desc: "Bersihkan rekaman riwayat audit log gateway.", defaultPayload: "{}" },
 
-      // --- Hotspot Wizard & Visual Templates (cat: hotspot & voucher) ---
+      // --- Hotspot Captive Portal (cat: hotspot) ---
+      { id: "hs_active", path: "/api/v1/hotspot/active", method: "GET", cat: "hotspot", desc: "Daftar pengguna Hotspot yang sedang login aktif, IP, MAC address, uptime, dan bytes.", defaultPayload: "{}" },
+      { id: "hs_users", path: "/api/v1/hotspot/users", method: "GET", cat: "hotspot", desc: "Daftar seluruh database user Hotspot dan voucher di router.", defaultPayload: "{}" },
+      { id: "hs_user_create", path: "/api/v1/hotspot/user/create", method: "POST", cat: "hotspot", desc: "Tambah user hotspot baru dengan username, password, dan profile.", defaultPayload: '{\n  "name": "guest1",\n  "password": "pass",\n  "profile": "default"\n}' },
+      { id: "hs_user_remove", path: "/api/v1/hotspot/user/remove", method: "POST", cat: "hotspot", desc: "Hapus akun user hotspot dari database router.", defaultPayload: '{\n  "name": "guest1"\n}' },
+      { id: "hs_kick", path: "/api/v1/hotspot/kick", method: "POST", cat: "hotspot", desc: "Kick / diskoneksi sesi login user hotspot yang sedang online.", defaultPayload: '{\n  "user": "guest1"\n}' },
+      { id: "hs_hosts", path: "/api/v1/hotspot/hosts", method: "GET", cat: "hotspot", desc: "Daftar seluruh perangkat host yang terdeteksi di subnet hotspot (authorized & unauthorized).", defaultPayload: "{}" },
+      { id: "hs_host_bind", path: "/api/v1/hotspot/host/bind", method: "POST", cat: "hotspot", desc: "Bypass perangkat host spesifik agar bisa akses internet tanpa perlu login.", defaultPayload: '{\n  "mac_address": "AA:BB:CC:DD:EE:FF",\n  "type": "bypassed"\n}' },
+      { id: "hs_host_remove", path: "/api/v1/hotspot/host/remove", method: "POST", cat: "hotspot", desc: "Hapus host terdeteksi dari tabel hotspot host.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "hs_profiles", path: "/api/v1/hotspot/profiles", method: "GET", cat: "hotspot", desc: "Profil kecepatan dan batasan user Hotspot (rate-limit, shared-users).", defaultPayload: "{}" },
+      { id: "hs_profile_add", path: "/api/v1/hotspot/profile/add", method: "POST", cat: "hotspot", desc: "Buat user profile hotspot baru dengan limit kecepatan.", defaultPayload: '{\n  "name": "Paket-Vip",\n  "rate_limit": "10M/10M",\n  "shared_users": "1"\n}' },
+      { id: "hs_profile_remove", path: "/api/v1/hotspot/profile/remove", method: "POST", cat: "hotspot", desc: "Hapus user profile hotspot.", defaultPayload: '{\n  "name": "Paket-Vip"\n}' },
+      { id: "hs_ip_bindings", path: "/api/v1/hotspot/ip-bindings", method: "GET", cat: "hotspot", desc: "Daftar IP/MAC binding Hotspot untuk bypass tanpa login (AP, Smart TV, CCTV).", defaultPayload: "{}" },
+      { id: "hs_ip_binding_add", path: "/api/v1/hotspot/ip-binding/add", method: "POST", cat: "hotspot", desc: "Tambah entri IP/MAC binding bypass hotspot baru.", defaultPayload: '{\n  "mac_address": "AA:BB:CC:DD:EE:FF",\n  "type": "bypassed",\n  "comment": "Smart TV"\n}' },
+      { id: "hs_ip_binding_remove", path: "/api/v1/hotspot/ip-binding/remove", method: "POST", cat: "hotspot", desc: "Hapus entri IP binding hotspot.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "hs_walled_garden", path: "/api/v1/hotspot/walled-garden", method: "GET", cat: "hotspot", desc: "Daftar domain dan IP subnet yang di-bypass sebelum login (Payment Gateway, Webhook, QRIS).", defaultPayload: "{}" },
+      { id: "hs_walled_garden_preset", path: "/api/v1/hotspot/walled-garden/deploy-preset", method: "POST", cat: "hotspot", desc: "1-Klik deploy preset bypass Walled Garden (Midtrans, Xendit, DANA, OVO, QRIS, WhatsApp API).", defaultPayload: '{\n  "preset": "payment_gateways"\n}' },
+      { id: "hs_cookies", path: "/api/v1/hotspot/cookies", method: "GET", cat: "hotspot", desc: "Daftar active MAC/User cookie Hotspot tersimpan di router.", defaultPayload: "{}" },
+      { id: "hs_reset_counters", path: "/api/v1/hotspot/user/reset-counters", method: "POST", cat: "hotspot", desc: "Reset traffic bytes dan uptime counter user hotspot tanpa menghapus voucher.", defaultPayload: '{\n  "name": "HOT-a89f2"\n}' },
+      { id: "hs_inject_expiry", path: "/api/v1/hotspot/profile/inject-expiry-script", method: "POST", cat: "hotspot", desc: "Pasang script On-Login first login validity tracker otomatis pada user profile hotspot.", defaultPayload: '{\n  "profile_name": "1JAM-3RB",\n  "validity": "1d"\n}' },
       { id: "hs_wizard_setup", path: "/api/v1/hotspot/wizard/setup", method: "POST", cat: "hotspot", desc: "1-Klik Hotspot Wizard: Konfigurasi lengkap interface, IP pool, DNS, profile & login page otomatis.", defaultPayload: '{\n  "interface": "wlan1",\n  "dns_name": "hotspot.net",\n  "network": "192.168.10.0/24",\n  "gateway": "192.168.10.1"\n}' },
-      { id: "voucher_template_render", path: "/api/v1/hotspot/voucher-template/render", method: "POST", cat: "voucher", desc: "Render lembaran cetak voucher visual berformat HTML (58mm, 80mm, atau A4 Grid) dengan QR Code.", defaultPayload: '{\n  "theme": "modern",\n  "paper_width": "80mm",\n  "hotspot_name": "WAROENG HOTSPOT",\n  "vouchers": [\n    { "username": "HOT-9012", "password": "pass-9012", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ]\n}' },
-      { id: "raw_command", path: "/api/v1/command", method: "POST", cat: "system", desc: "Universal Raw Command Executor: Kirim perintah sembarang ke RouterOS API secara langsung.", defaultPayload: '{\n  "command": "/system/resource/print"\n}' },
+      { id: "hs_server_profiles", path: "/api/v1/hotspot/server-profiles", method: "GET", cat: "hotspot", desc: "Daftar Hotspot Server Profiles (html-directory, login-by, dns-name).", defaultPayload: "{}" },
+      { id: "hs_server_profile_set", path: "/api/v1/hotspot/server-profile/set", method: "POST", cat: "hotspot", desc: "Ubah konfigurasi Hotspot Server Profile (folder HTML, DNS name, mode login).", defaultPayload: '{\n  "name": "hsprof1",\n  "html_directory": "hotspot",\n  "dns_name": "wifi.kafe.net",\n  "login_by": "cookie,http-chap,http-pap"\n}' },
+      { id: "hs_servers", path: "/api/v1/hotspot/servers", method: "GET", cat: "hotspot", desc: "Daftar instance Hotspot Server aktif dan interface pengikatnya.", defaultPayload: "{}" },
+      { id: "hs_server_set", path: "/api/v1/hotspot/server/set", method: "POST", cat: "hotspot", desc: "Ubah konfigurasi Hotspot Server instance (interface, pool, profil).", defaultPayload: '{\n  "name": "hotspot1",\n  "profile": "hsprof1"\n}' },
+      { id: "hs_login_page_set", path: "/api/v1/hotspot/login-page/set", method: "POST", cat: "hotspot", desc: "Konfigurasi folder skin & upload template HTML halaman login captive portal Hotspot.", defaultPayload: '{\n  "profile_name": "hsprof1",\n  "html_directory": "hotspot",\n  "dns_name": "wifi.kafe.net",\n  "login_by": "cookie,http-chap,http-pap",\n  "html_content": "<!DOCTYPE html><html><head><title>WiFi Login</title></head><body><h1>Selamat Datang</h1><form name=\\"login\\" action=\\"$(link-login-only)\\" method=\\"post\\"><input type=\\"text\\" name=\\"username\\"><input type=\\"password\\" name=\\"password\\"><button type=\\"submit\\">Login</button></form></body></html>"\n}' },
+      { id: "hs_members", path: "/api/v1/hotspot/members", method: "GET", cat: "hotspot", desc: "Daftar pelanggan member langganan hotspot bulanan/tetap.", defaultPayload: "{}" },
+      { id: "hs_members_register", path: "/api/v1/hotspot/members/register", method: "POST", cat: "hotspot", desc: "Daftarkan pelanggan member hotspot baru dengan data kontak dan paket langganan.", defaultPayload: '{\n  "username": "member_budi",\n  "password": "pass",\n  "profile": "Member-1Bulan",\n  "phone": "08123456789"\n}' },
+      { id: "hs_members_renew", path: "/api/v1/hotspot/members/renew", method: "POST", cat: "hotspot", desc: "Perpanjang masa aktif langganan member hotspot.", defaultPayload: '{\n  "username": "member_budi",\n  "extension_days": 30\n}' },
+      { id: "userman_users", path: "/api/v1/user-manager/users", method: "GET", cat: "hotspot", desc: "Daftar seluruh user di database RADIUS User Manager internal MikroTik.", defaultPayload: "{}" },
+      { id: "userman_profiles", path: "/api/v1/user-manager/profiles", method: "GET", cat: "hotspot", desc: "Daftar billing profile User Manager (RADIUS internal MikroTik).", defaultPayload: "{}" },
+      { id: "userman_limitations", path: "/api/v1/user-manager/limitations", method: "GET", cat: "hotspot", desc: "Daftar limitations kecepatan & kuota paket User Manager.", defaultPayload: "{}" },
+      { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' },
 
-      // --- IP Cloud DDNS (Winbox & Indihome/Biznet Dynamic IP) ---
-      { id: "cloud_status", path: "/api/v1/cloud/status", method: "GET", cat: "system", desc: "Status IP Cloud DDNS MikroTik (*.sn.mynetname.net) dan deteksi IP publik aktif.", defaultPayload: "{}" },
-      { id: "cloud_set", path: "/api/v1/cloud/set", method: "POST", cat: "system", desc: "Aktifkan atau atur interval IP Cloud DDNS dan sinkronisasi jam RouterOS.", defaultPayload: '{\n  "ddns_enabled": true,\n  "update_time": true\n}' },
-      { id: "cloud_force_update", path: "/api/v1/cloud/force-update", method: "POST", cat: "system", desc: "Paksa update rekaman DDNS publik ke server MikroTik mynetname.net.", defaultPayload: "{}" },
+      // --- DHCP & IPAM (cat: dhcp) ---
+      { id: "dhcp_leases", path: "/api/v1/dhcp/leases", method: "GET", cat: "dhcp", desc: "Daftar seluruh IP lease DHCP server, hostname klien, status bound, dan MAC address.", defaultPayload: "{}" },
+      { id: "dhcp_lease_make_static", path: "/api/v1/dhcp/lease/make-static", method: "POST", cat: "dhcp", desc: "Ubah dynamic lease menjadi static IP lease permanen.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "dhcp_lease_add", path: "/api/v1/dhcp/lease/add", method: "POST", cat: "dhcp", desc: "Tambah static DHCP lease manual dengan MAC dan IP address target.", defaultPayload: '{\n  "address": "192.168.88.50",\n  "mac_address": "AA:BB:CC:DD:EE:FF",\n  "comment": "Server NVR CCTV"\n}' },
+      { id: "dhcp_lease_set", path: "/api/v1/dhcp/lease/set", method: "POST", cat: "dhcp", desc: "Ubah parameter static lease (comment, address, dll).", defaultPayload: '{\n  "id": "*1",\n  "comment": "Updated Server"\n}' },
+      { id: "dhcp_lease_remove", path: "/api/v1/dhcp/lease/remove", method: "POST", cat: "dhcp", desc: "Hapus IP lease dari tabel DHCP.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "dhcp_servers", path: "/api/v1/dhcp/servers", method: "GET", cat: "dhcp", desc: "Daftar instance DHCP Server yang aktif dan interface induknya.", defaultPayload: "{}" },
+      { id: "dhcp_server_add", path: "/api/v1/dhcp/server/add", method: "POST", cat: "dhcp", desc: "Buat DHCP Server baru pada interface.", defaultPayload: '{\n  "name": "dhcp_lan",\n  "interface": "bridge-lan",\n  "address_pool": "pool_lan",\n  "lease_time": "1d"\n}' },
+      { id: "dhcp_networks", path: "/api/v1/dhcp/networks", method: "GET", cat: "dhcp", desc: "Daftar subnet jaringan DHCP, gateway IP, DNS server, dan domain.", defaultPayload: "{}" },
+      { id: "dhcp_network_add", path: "/api/v1/dhcp/network/add", method: "POST", cat: "dhcp", desc: "Tambah konfigurasi network DHCP baru dengan gateway & DNS.", defaultPayload: '{\n  "address": "192.168.88.0/24",\n  "gateway": "192.168.88.1",\n  "dns_server": "192.168.88.1"\n}' },
+      { id: "dhcp_alerts", path: "/api/v1/dhcp/alerts", method: "GET", cat: "dhcp", desc: "Monitoring alarm Rogue DHCP Server ilegal di jaringan lokal.", defaultPayload: "{}" },
+      { id: "dhcp_alert_add", path: "/api/v1/dhcp/alert/add", method: "POST", cat: "dhcp", desc: "Pasang alert pengawasan rogue DHCP server pada interface.", defaultPayload: '{\n  "interface": "bridge-lan",\n  "valid_server": "AA:BB:CC:DD:EE:FF"\n}' },
+      { id: "dhcp_relays", path: "/api/v1/dhcp/relays", method: "GET", cat: "dhcp", desc: "Daftar DHCP Relay agent yang meneruskan permintaan DHCP ke server pusat.", defaultPayload: "{}" },
+      { id: "dhcp_clients", path: "/api/v1/dhcp/clients", method: "GET", cat: "dhcp", desc: "Daftar DHCP Client interface WAN (/ip/dhcp-client/print).", defaultPayload: "{}" },
+      { id: "dhcp_client_add", path: "/api/v1/dhcp/client/add", method: "POST", cat: "dhcp", desc: "Tambah DHCP Client pada interface WAN router.", defaultPayload: '{\n  "interface": "ether1",\n  "add_default_route": "yes",\n  "use_peer_dns": true,\n  "comment": "ISP WAN DHCP"\n}' },
+      { id: "dhcp_client_set", path: "/api/v1/dhcp/client/set", method: "POST", cat: "dhcp", desc: "Ubah parameter DHCP Client pada interface router.", defaultPayload: '{\n  "id": "*1",\n  "use_peer_dns": true\n}' },
+      { id: "dhcp_client_remove", path: "/api/v1/dhcp/client/remove", method: "POST", cat: "dhcp", desc: "Hapus DHCP Client dari interface router.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "dhcp_client_renew", path: "/api/v1/dhcp/client/renew", method: "POST", cat: "dhcp", desc: "Perbarui masa sewa (lease) IP DHCP Client WAN.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "dhcp_client_release", path: "/api/v1/dhcp/client/release", method: "POST", cat: "dhcp", desc: "Lepaskan (release) IP DHCP Client WAN.", defaultPayload: '{\n  "id": "*1"\n}' },
 
-      // --- Recursive Gateway Multi-WAN Failover (MTCRE & YouTube Standar) ---
-      { id: "failover_setup", path: "/api/v1/routing/failover/setup", method: "POST", cat: "loadbalance", desc: "1-Klik setup Recursive Gateway Failover via DNS ping 8.8.8.8 & 1.1.1.1 (MTCRE).", defaultPayload: '{\n  "primary_gateway": "192.168.1.1",\n  "backup_gateway": "192.168.2.1",\n  "primary_check_host": "8.8.8.8",\n  "backup_check_host": "1.1.1.1"\n}' },
-      { id: "failover_status", path: "/api/v1/routing/failover/status", method: "GET", cat: "loadbalance", desc: "Cek status rute failover rekursif aktif vs rute cadangan.", defaultPayload: "{}" },
-      { id: "failover_remove", path: "/api/v1/routing/failover/remove", method: "POST", cat: "loadbalance", desc: "Hapus seluruh rute failover rekursif bertag [Recursive-Failover].", defaultPayload: "{}" },
-
-      // --- WISP & RT-RW Net Isolir Web Redirect & Overdue Manager ---
+      // --- PPPoE & ISP Access (cat: pppoe) ---
+      { id: "ppp_secrets", path: "/api/v1/ppp/secrets", method: "GET", cat: "pppoe", desc: "Database akun PPPoE ISP, username, password, profile, dan IP remote statis.", defaultPayload: "{}" },
+      { id: "ppp_secret_create", path: "/api/v1/ppp/secret/create", method: "POST", cat: "pppoe", desc: "Tambah akun PPPoE secret baru dengan username, password, dan paket profil.", defaultPayload: '{\n  "name": "user_pppoe1",\n  "password": "password123",\n  "profile": "default-encryption",\n  "service": "pppoe"\n}' },
+      { id: "ppp_secret_set", path: "/api/v1/ppp/secret/set", method: "POST", cat: "pppoe", desc: "Ubah parameter akun PPPoE (password, profil, remote IP, status disabled).", defaultPayload: '{\n  "name": "user_pppoe1",\n  "profile": "Paket-20Mbps"\n}' },
+      { id: "ppp_secret_remove", path: "/api/v1/ppp/secret/remove", method: "POST", cat: "pppoe", desc: "Hapus akun PPPoE dari database router.", defaultPayload: '{\n  "name": "user_pppoe1"\n}' },
+      { id: "ppp_active", path: "/api/v1/ppp/active", method: "GET", cat: "pppoe", desc: "Daftar sesi PPPoE yang sedang terhubung aktif (tunnel UP) beserta uptime.", defaultPayload: "{}" },
+      { id: "ppp_disconnect", path: "/api/v1/ppp/disconnect", method: "POST", cat: "pppoe", desc: "Putuskan paksa koneksi sesi PPPoE aktif.", defaultPayload: '{\n  "name": "user_pppoe1"\n}' },
+      { id: "ppp_servers", path: "/api/v1/ppp/servers", method: "GET", cat: "pppoe", desc: "Daftar server PPPoE Concentrator di router.", defaultPayload: "{}" },
+      { id: "ppp_server_create", path: "/api/v1/ppp/server/create", method: "POST", cat: "pppoe", desc: "Buat server PPPoE baru pada interface jaringan.", defaultPayload: '{\n  "service_name": "pppoe-server1",\n  "interface": "ether2",\n  "default_profile": "default"\n}' },
+      { id: "ppp_profiles", path: "/api/v1/ppp/profiles", method: "GET", cat: "pppoe", desc: "Profil paket langganan PPP (rate limit, local/remote address pool, DNS).", defaultPayload: "{}" },
+      { id: "ppp_profile_create", path: "/api/v1/ppp/profile/create", method: "POST", cat: "pppoe", desc: "Buat profil paket PPP baru.", defaultPayload: '{\n  "name": "Paket-50M",\n  "local_address": "10.10.10.1",\n  "remote_address": "pool-pppoe",\n  "rate_limit": "20M/50M"\n}' },
       { id: "isolir_setup", path: "/api/v1/wisp/isolir/setup", method: "POST", cat: "pppoe", desc: "Setup NAT Redirect port 80 dan firewall drop isolir untuk pelanggan jatuh tempo.", defaultPayload: '{\n  "isolir_server_ip": "192.168.88.254",\n  "isolir_server_port": 80\n}' },
       { id: "isolir_isolate", path: "/api/v1/wisp/isolir/isolate", method: "POST", cat: "pppoe", desc: "Isolir pelanggan menunggak ke address-list ISOLIR_LIST.", defaultPayload: '{\n  "client_ip": "192.168.88.105",\n  "customer_name": "Budi Santoso",\n  "due_date": "10 Oktober 2026"\n}' },
       { id: "isolir_restore", path: "/api/v1/wisp/isolir/restore", method: "POST", cat: "pppoe", desc: "Pulihkan akses internet pelanggan setelah lunas.", defaultPayload: '{\n  "client_ip": "192.168.88.105"\n}' },
       { id: "isolir_list", path: "/api/v1/wisp/isolir/list", method: "GET", cat: "pppoe", desc: "Daftar seluruh pelanggan yang sedang diisolir saat ini.", defaultPayload: "{}" },
 
-      // --- Packet Sniffer & Wireshark Streamer ---
-      { id: "tools_sniffer_status", path: "/api/v1/tools/sniffer/status", method: "GET", cat: "tools", desc: "Status Packet Sniffer RouterOS (running, buffer, limit).", defaultPayload: "{}" },
-      { id: "tools_sniffer_start", path: "/api/v1/tools/sniffer/start", method: "POST", cat: "tools", desc: "Mulai packet capture ke file .pcap atau streaming TZSP ke PC Wireshark.", defaultPayload: '{\n  "interface": "all",\n  "file_name": "capture.pcap",\n  "file_limit": "2000KiB"\n}' },
-      { id: "tools_sniffer_stop", path: "/api/v1/tools/sniffer/stop", method: "POST", cat: "tools", desc: "Hentikan packet sniffer.", defaultPayload: "{}" },
+      // --- IP & Routing Tables (cat: ip) ---
+      { id: "ip_addr", path: "/api/v1/ip/addresses", method: "GET", cat: "ip", desc: "Daftar alamat IP yang dikonfigurasi pada setiap interface router.", defaultPayload: "{}" },
+      { id: "ip_addr_add", path: "/api/v1/ip/address/add", method: "POST", cat: "ip", desc: "Pasang IP Address baru ke interface.", defaultPayload: '{\n  "address": "192.168.50.1/24",\n  "interface": "ether3",\n  "comment": "LAN Subnet 2"\n}' },
+      { id: "ip_addr_remove", path: "/api/v1/ip/address/remove", method: "POST", cat: "ip", desc: "Hapus konfigurasi IP Address dari interface.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "ip_routes", path: "/api/v1/ip/routes", method: "GET", cat: "ip", desc: "Tabel routing IPv4 lengkap (default gateway, routing dinamik dan statis).", defaultPayload: "{}" },
+      { id: "ip_route_add", path: "/api/v1/ip/route/add", method: "POST", cat: "ip", desc: "Tambah static route baru ke gateway target.", defaultPayload: '{\n  "dst_address": "0.0.0.0/0",\n  "gateway": "192.168.1.1",\n  "distance": 1\n}' },
+      { id: "ip_route_remove", path: "/api/v1/ip/route/remove", method: "POST", cat: "ip", desc: "Hapus rute dari tabel routing.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "ip_arp", path: "/api/v1/ip/arp", method: "GET", cat: "ip", desc: "Tabel pemetaan ARP (IP ke MAC Address) dari seluruh interface router.", defaultPayload: "{}" },
+      { id: "ip_arp_add", path: "/api/v1/ip/arp/add", method: "POST", cat: "ip", desc: "Tambah entri static ARP manual.", defaultPayload: '{\n  "address": "192.168.88.99",\n  "mac_address": "AA:BB:CC:DD:EE:FF",\n  "interface": "bridge-lan"\n}' },
+      { id: "ip_arp_remove", path: "/api/v1/ip/arp/remove", method: "POST", cat: "ip", desc: "Hapus entri ARP.", defaultPayload: '{\n  "id": "*1"\n}' },
+      { id: "ip_pools", path: "/api/v1/ip/pools", method: "GET", cat: "ip", desc: "Daftar IP Pool yang terdaftar untuk DHCP, Hotspot, dan VPN.", defaultPayload: "{}" },
+      { id: "ip_pools_utilization", path: "/api/v1/ip/pools/utilization", method: "GET", cat: "ip", desc: "Analisis persentase penggunaan IP pool dan sisa kapasitas alamat yang tersedia.", defaultPayload: "{}" },
+      { id: "ip_dns", path: "/api/v1/ip/dns", method: "GET", cat: "ip", desc: "Konfigurasi upstream DNS resolver dan opsi allow-remote-requests.", defaultPayload: "{}" },
+      { id: "dns_static", path: "/api/v1/dns/static", method: "GET", cat: "ip", desc: "Daftar entri DNS statis lokal yang terpasang di router.", defaultPayload: "{}" },
+      { id: "dns_static_add", path: "/api/v1/dns/static/add", method: "POST", cat: "ip", desc: "Tambah mapping DNS statis baru.", defaultPayload: '{\n  "name": "router.local",\n  "address": "192.168.88.1"\n}' },
+      { id: "dns_cache_flush", path: "/api/v1/dns/cache/flush", method: "POST", cat: "ip", desc: "Bersihkan cache DNS router.", defaultPayload: "{}" },
+      { id: "dns_adlist", path: "/api/v1/dns/adlist", method: "GET", cat: "ip", desc: "RouterOS v7 native AdList (Blocklist Iklan & Malware tingkat router).", defaultPayload: "{}" },
+      { id: "dns_adlist_presets", path: "/api/v1/dns/adlist/presets", method: "GET", cat: "ip", desc: "Katalog preset blocklist resmi aman (HaGeZi, StevenBlack, AdGuard).", defaultPayload: "{}" },
+      { id: "dns_adlist_deploy", path: "/api/v1/dns/adlist/deploy-preset", method: "POST", cat: "ip", desc: "Deploy preset AdList pilihan langsung ke router.", defaultPayload: '{\n  "preset": "hagezi_light"\n}' },
+      { id: "routing_bgp", path: "/api/v1/routing/bgp/sessions", method: "GET", cat: "ip", desc: "Daftar sesi peering BGP aktif dan status state (Established, Active, Idle).", defaultPayload: "{}" },
+      { id: "routing_ospf", path: "/api/v1/routing/ospf/neighbors", method: "GET", cat: "ip", desc: "Daftar tetangga OSPF (OSPF Neighbors) dan status adjacency.", defaultPayload: "{}" },
+      { id: "routing_tables", path: "/api/v1/routing/tables", method: "GET", cat: "ip", desc: "Daftar Routing Table yang terdaftar di sistem RouterOS v7.", defaultPayload: "{}" },
 
-      // --- RouterOS Built-in Web Graphing MRTG (/graphs) ---
-      { id: "tools_graphing_status", path: "/api/v1/tools/graphing/status", method: "GET", cat: "tools", desc: "Status konfigurasi grafik historis web RouterOS (/graphs).", defaultPayload: "{}" },
-      { id: "tools_graphing_enable", path: "/api/v1/tools/graphing/enable", method: "POST", cat: "tools", desc: "Aktifkan grafik web MRTG untuk interface, queue bandwidth, dan CPU.", defaultPayload: '{\n  "enable_interfaces": true,\n  "interface": "all",\n  "enable_queues": true,\n  "enable_resource": true\n}' },
+      // --- System & Hardware (cat: system) ---
+      { id: "sys_resource", path: "/api/v1/system/resource", method: "GET", cat: "system", desc: "Spesifikasi resource CPU, RAM bebas, storage, dan arsitektur router.", defaultPayload: "{}" },
+      { id: "sys_routerboard", path: "/api/v1/system/routerboard", method: "GET", cat: "system", desc: "Model board MikroTik, serial number, firmware saat ini dan firmware upgrade.", defaultPayload: "{}" },
+      { id: "sys_identity", path: "/api/v1/system/identity", method: "GET", cat: "system", desc: "Nama identity sistem router MikroTik.", defaultPayload: "{}" },
+      { id: "sys_identity_set", path: "/api/v1/system/identity/set", method: "POST", cat: "system", desc: "Ubah nama router identity MikroTik.", defaultPayload: '{\n  "name": "ROUTER-UTAMA-NOC"\n}' },
+      { id: "sys_clock", path: "/api/v1/system/clock", method: "GET", cat: "system", desc: "Waktu jam, tanggal, dan timezone internal router.", defaultPayload: "{}" },
+      { id: "sys_packages", path: "/api/v1/system/packages", method: "GET", cat: "system", desc: "Daftar paket software RouterOS terpasang (wireless, routing, ppp, security).", defaultPayload: "{}" },
+      { id: "sys_services", path: "/api/v1/system/services", method: "GET", cat: "system", desc: "Daftar service port router (API, SSH, Winbox, WWW) dan status disable/enable.", defaultPayload: "{}" },
+      { id: "sys_service_toggle", path: "/api/v1/system/service/toggle", method: "POST", cat: "system", desc: "Aktifkan atau nonaktifkan service port router.", defaultPayload: '{\n  "name": "telnet",\n  "disabled": true\n}' },
+      { id: "sys_ntp", path: "/api/v1/system/ntp", method: "GET", cat: "system", desc: "Status sinkronisasi waktu NTP Client router.", defaultPayload: "{}" },
+      { id: "sys_ntp_setup", path: "/api/v1/system/ntp/setup", method: "POST", cat: "system", desc: "Atur server NTP pool Indonesia (id.pool.ntp.org).", defaultPayload: '{\n  "primary_ntp": "162.159.200.1",\n  "secondary_ntp": "162.159.200.123"\n}' },
+      { id: "cloud_status", path: "/api/v1/cloud/status", method: "GET", cat: "system", desc: "Status IP Cloud DDNS MikroTik (*.sn.mynetname.net) dan deteksi IP publik aktif.", defaultPayload: "{}" },
+      { id: "cloud_set", path: "/api/v1/cloud/set", method: "POST", cat: "system", desc: "Aktifkan atau atur interval IP Cloud DDNS dan sinkronisasi jam RouterOS.", defaultPayload: '{\n  "ddns_enabled": true,\n  "update_time": true\n}' },
+      { id: "cloud_force_update", path: "/api/v1/cloud/force-update", method: "POST", cat: "system", desc: "Paksa update rekaman DDNS publik ke server MikroTik mynetname.net.", defaultPayload: "{}" },
+      { id: "users_all", path: "/api/v1/users/all", method: "GET", cat: "system", desc: "Daftar akun administrator router MikroTik.", defaultPayload: "{}" },
+      { id: "users_create", path: "/api/v1/users/create", method: "POST", cat: "system", desc: "Tambah user administrator baru dengan group wewenang (full, read, write).", defaultPayload: '{\n  "name": "noc_operator",\n  "group": "read",\n  "password": "SecurePassword123"\n}' },
+      { id: "scripts_all", path: "/api/v1/scripts/all", method: "GET", cat: "system", desc: "Daftar seluruh script tersimpan di sistem RouterOS.", defaultPayload: "{}" },
+      { id: "scripts_run", path: "/api/v1/scripts/run", method: "POST", cat: "system", desc: "Jalankan script RouterOS yang sudah tersimpan.", defaultPayload: '{\n  "name": "auto-backup"\n}' },
+      { id: "schedulers_all", path: "/api/v1/schedulers/all", method: "GET", cat: "system", desc: "Daftar cron scheduler otomatis yang sedang aktif.", defaultPayload: "{}" },
+      { id: "logs_all", path: "/api/v1/logs/all", method: "GET", cat: "system", desc: "Daftar log aktivitas sistem, login, firewall, dan error router.", defaultPayload: "{}" },
+      { id: "raw_command", path: "/api/v1/command", method: "POST", cat: "system", desc: "Universal Raw Command Executor: Kirim perintah sembarang ke RouterOS API secara langsung.", defaultPayload: '{\n  "command": "/system/resource/print"\n}' },
+      { id: "raw_batch", path: "/api/v1/batch", method: "POST", cat: "system", desc: "Eksekusi kumpulan perintah RouterOS berurutan dalam satu transaksi.", defaultPayload: '{\n  "commands": ["/system/identity/print", "/system/clock/print"]\n}' },
 
-      // --- 3-Step Stealth Port Knocking Wizard (MTCSE Security) ---
-      { id: "sec_port_knocking_setup", path: "/api/v1/security/port-knocking/setup", method: "POST", cat: "security", desc: "1-Klik setup 3-Step Port Knocking (amankan port Winbox 8291 & SSH 22).", defaultPayload: '{\n  "knock_port_1": 7000,\n  "knock_port_2": 8000,\n  "knock_port_3": 9000,\n  "target_ports": "8291,22",\n  "access_duration": "1h"\n}' },
-      { id: "sec_port_knocking_status", path: "/api/v1/security/port-knocking/status", method: "GET", cat: "security", desc: "Status port knocking dan daftar IP admin yang sedang memiliki akses aktif.", defaultPayload: "{}" },
-
-      // --- Enterprise Security Hardening & Auto-Reboot 04:00 ---
-      { id: "sec_bogon_filter", path: "/api/v1/security/hardening/deploy-bogon-filter", method: "POST", cat: "security", desc: "Deploy filter drop paket IP Bogon & Martian di interface WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
-      { id: "sec_dns_guard", path: "/api/v1/security/hardening/deploy-dns-guard", method: "POST", cat: "security", desc: "Blokir celah DNS Open Resolver port 53 dari internet WAN.", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
-      { id: "sec_raw_antiddos", path: "/api/v1/security/hardening/deploy-raw-antiddos", method: "POST", cat: "security", desc: "Raw Firewall Anti-DDoS sebelum Connection Tracking (MTCTCE).", defaultPayload: '{\n  "wan_interface": "ether1"\n}' },
-      { id: "sec_auto_reboot", path: "/api/v1/security/hardening/setup-auto-reboot", method: "POST", cat: "security", desc: "Jadwalkan auto-reboot router harian jam 04:00 subuh.", defaultPayload: '{\n  "reboot_time": "04:00:00"\n}' },
-      { id: "sec_full_hardening", path: "/api/v1/security/hardening/deploy-full-hardening", method: "POST", cat: "security", desc: "1-Klik deploy seluruh paket hardening & auto-reboot sekaligus.", defaultPayload: '{\n  "wan_interface": "ether1",\n  "enable_auto_reboot": true\n}' },
-
-      // --- Mikhmon v4 Suite: Lock MAC, Expiry Modes & Trial ---
-      { id: "mikhmon_lock_mac", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/enable", method: "POST", cat: "voucher", desc: "Auto-Lock MAC Address pada Hotspot profile (Anti tukar/bagi-bagi voucher).", defaultPayload: '{\n  "profile_name": "default"\n}' },
-      { id: "mikhmon_expiry_setup", path: "/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", method: "POST", cat: "voucher", desc: "Setup 3-Mode Expiry Voucher: Remove, Notice (isolir web peringatan), atau Record.", defaultPayload: '{\n  "profile_name": "default",\n  "expiry_mode": "notice",\n  "validity": "1d",\n  "notice_profile": "EXPIRED_NOTICE"\n}' },
-      { id: "mikhmon_trial_status", path: "/api/v1/hotspot/mikhmon-v4/trial/status", method: "GET", cat: "voucher", desc: "Status konfigurasi login gratisan (Trial) di Hotspot Server Profile.", defaultPayload: "{}" },
-      { id: "mikhmon_trial_setup", path: "/api/v1/hotspot/mikhmon-v4/trial/setup", method: "POST", cat: "voucher", desc: "Setup batasan durasi trial gratisan dan waktu reset per MAC.", defaultPayload: '{\n  "enable_trial": true,\n  "trial_uptime_limit": "15m",\n  "trial_uptime_reset": "1d"\n}' },
-      { id: "mikhmon_trial_reset", path: "/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", method: "POST", cat: "voucher", desc: "Reset seluruh cookies MAC trial agar pengunjung dapat mencoba login kembali.", defaultPayload: "{}" }
+      // --- Network Topology & Discovery (cat: net) ---
+      { id: "topology", path: "/api/v1/network/topology-graph", method: "GET", cat: "net", desc: "Data graf relasi simpul (Nodes & Edges) jaringan berjenjang untuk visualizer topologi.", defaultPayload: "{}" },
+      { id: "if_all", path: "/api/v1/interfaces/all", method: "GET", cat: "net", desc: "Daftar seluruh interface jaringan (ether, bridge, wlan, pppoe, vlan) dan statistik trafik.", defaultPayload: "{}" },
+      { id: "bridge_all", path: "/api/v1/bridge/all", method: "GET", cat: "net", desc: "Daftar seluruh bridge interface di router.", defaultPayload: "{}" },
+      { id: "bridge_ports", path: "/api/v1/bridge/ports", method: "GET", cat: "net", desc: "Daftar port interface fisik yang tergabung dalam bridge.", defaultPayload: "{}" },
+      { id: "bridge_vlans", path: "/api/v1/bridge/vlans", method: "GET", cat: "net", desc: "Daftar VLAN pada bridge (Bridge VLAN Filtering).", defaultPayload: "{}" },
+      { id: "capsman_radios", path: "/api/v1/capsman/radios", method: "GET", cat: "net", desc: "Daftar seluruh radio Access Point MikroTik (CAPs) yang terhubung ke controller.", defaultPayload: "{}" },
+      { id: "capsman_registrations", path: "/api/v1/capsman/registrations", method: "GET", cat: "net", desc: "Daftar seluruh klien wireless (HP/Laptop) yang tersambung di semua AP.", defaultPayload: "{}" },
+      { id: "capsman_set_wifi", path: "/api/v1/capsman/set-wifi", method: "POST", cat: "net", desc: "Konfigurasi SSID & Password WiFi terpusat ke seluruh AP MikroTik sekaligus.", defaultPayload: '{\n  "ssid": "HOTSPOT-WARUNG",\n  "passphrase": "password123"\n}' },
+      { id: "wireless_ifaces", path: "/api/v1/wireless/interfaces", method: "GET", cat: "net", desc: "Daftar interface kartu WiFi internal router MikroTik.", defaultPayload: "{}" },
+      { id: "wireless_registrations", path: "/api/v1/wireless/registrations", method: "GET", cat: "net", desc: "Daftar klien WiFi yang tersambung ke antarmuka wireless router.", defaultPayload: "{}" },
+      { id: "neighbors_all", path: "/api/v1/neighbors/all", method: "GET", cat: "net", desc: "Daftar perangkat tetangga yang ditemukan via MNDP / CDP / LLDP discovery.", defaultPayload: "{}" },
+      { id: "infra_scan", path: "/api/v1/network/infrastructure/scan", method: "GET", cat: "net", desc: "Deteksi otomatis Access Point pihak ketiga (Totolink, TP-Link, Mercusys, ZTE) di jaringan.", defaultPayload: "{}" },
+      { id: "infra_poe_cycle", path: "/api/v1/network/infrastructure/poe-cycle", method: "POST", cat: "net", desc: "Reboot paksa Access Point yang hang lewat pemutusan daya PoE port sementara.", defaultPayload: '{\n  "interface": "ether5",\n  "off_seconds": 3\n}' },
+      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' }
     ];
 
 
@@ -1083,10 +1353,16 @@ pub async fn console_page() -> Html<&'static str> {
         statusBadge.style.background = res.ok ? '#ecfdf5' : '#fef2f2';
         statusBadge.style.color = res.ok ? '#047857' : '#dc2626';
         statusBadge.style.borderColor = res.ok ? '#a7f3d0' : '#fecaca';
-        latencyBadge.textContent = `Latency: ${latency} ms`;
-
         const json = await res.json();
         viewer.textContent = JSON.stringify(json, null, 2);
+
+        if (currentEndpoint.path === '/api/v1/tools/ping' && (json.avg_rtt || json.min_rtt)) {
+          latencyBadge.textContent = `HTTP: ${latency}ms | ICMP Avg: ${json.avg_rtt || json.min_rtt}`;
+          latencyBadge.title = "HTTP adalah total durasi transmisi batch paket ICMP oleh router. ICMP Ping adalah rata-rata latency jaringan ke target.";
+        } else {
+          latencyBadge.textContent = `Latency: ${latency} ms`;
+        }
+
         if (json && json.success && json.data) {
           updateDashboardKPIs(json.data);
         }
@@ -1243,10 +1519,202 @@ pub async fn console_page() -> Html<&'static str> {
       });
     }
 
+    // --- Live WebSocket Real-Time Terminal Controller ---
+    let wsSocket = null;
+    let wsPingInterval = null;
+
+    function openWsModal() {
+      const modal = document.getElementById('ws-modal');
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeWsModal() {
+      const modal = document.getElementById('ws-modal');
+      if (modal) modal.classList.remove('show');
+      stopWsStream();
+    }
+
+    function clearWsTerminal() {
+      const term = document.getElementById('ws-terminal');
+      if (term) term.innerHTML = '<div class="ws-line comment"># Terminal cleared.</div>';
+    }
+
+    function onWsStreamTypeChange() {
+      const type = document.getElementById('ws-stream-type').value;
+      const paramInput = document.getElementById('ws-target-param');
+      if (type === 'ping') {
+        paramInput.style.display = 'inline-block';
+        paramInput.placeholder = 'Target IP / Host (e.g. 8.8.8.8)';
+      } else if (type === 'traffic') {
+        paramInput.style.display = 'inline-block';
+        paramInput.placeholder = 'Interface Name (e.g. ether1)';
+        if (!paramInput.value || paramInput.value === '8.8.8.8') paramInput.value = 'ether1';
+      } else {
+        paramInput.style.display = 'none';
+      }
+    }
+
+    function appendWsLine(text, type = 'normal') {
+      const term = document.getElementById('ws-terminal');
+      if (!term) return;
+      const line = document.createElement('div');
+      line.className = `ws-line ${type}`;
+      const now = new Date().toTimeString().split(' ')[0];
+      line.textContent = `[${now}] ${text}`;
+      term.appendChild(line);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function toggleWsStream() {
+      if (wsSocket && (wsSocket.readyState === WebSocket.OPEN || wsSocket.readyState === WebSocket.CONNECTING)) {
+        stopWsStream();
+      } else {
+        startWsStream();
+      }
+    }
+
+    function stopWsStream() {
+      if (wsPingInterval) {
+        clearInterval(wsPingInterval);
+        wsPingInterval = null;
+      }
+      if (wsSocket) {
+        wsSocket.close();
+        wsSocket = null;
+      }
+      const dot = document.getElementById('ws-status-dot');
+      const text = document.getElementById('ws-status-text');
+      const btn = document.getElementById('ws-connect-btn');
+      if (dot) dot.classList.remove('active');
+      if (text) text.textContent = 'Disconnected';
+      if (btn) {
+        btn.innerHTML = '<span>▶ Mulai Stream Real-Time</span>';
+        btn.className = 'ws-btn ws-btn-start';
+      }
+      appendWsLine('WebSocket stream stopped.', 'comment');
+    }
+
+    function startWsStream() {
+      const host = document.getElementById('target-host').value.trim();
+      const port = document.getElementById('target-port').value.trim();
+      const user = document.getElementById('target-user').value.trim();
+      const pass = document.getElementById('target-pass').value;
+      const token = document.getElementById('gw-token').value.trim();
+
+      const streamType = document.getElementById('ws-stream-type').value;
+      const targetParam = document.getElementById('ws-target-param').value.trim();
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+
+      appendWsLine(`Connecting to WebSocket: ${wsUrl}...`, 'comment');
+      const dot = document.getElementById('ws-status-dot');
+      const text = document.getElementById('ws-status-text');
+      const btn = document.getElementById('ws-connect-btn');
+
+      try {
+        wsSocket = new WebSocket(wsUrl);
+
+        wsSocket.onopen = () => {
+          if (dot) dot.classList.add('active');
+          if (text) text.textContent = 'Connected (Live)';
+          if (btn) {
+            btn.innerHTML = '<span>⏹ Hentikan Stream</span>';
+            btn.className = 'ws-btn ws-btn-stop';
+          }
+          appendWsLine(`WebSocket Handshake ESTABLISHED (<2ms Rust Gateway)`, 'success');
+
+          const baseMsg = {
+            router_host: host,
+            router_port: port ? parseInt(port, 10) : 8728,
+            router_user: user,
+            router_pass: pass
+          };
+
+          if (streamType === 'ping') {
+            const targetHost = targetParam || '8.8.8.8';
+            appendWsLine(`Subscribing to live ICMP Ping -> ${targetHost}...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "subscribe_ping",
+              address: targetHost,
+              ...baseMsg
+            }));
+          } else if (streamType === 'traffic') {
+            const iface = targetParam || 'ether1';
+            appendWsLine(`Subscribing to live traffic on [${iface}]...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "subscribe_traffic",
+              interface: iface,
+              ...baseMsg
+            }));
+          } else if (streamType === 'overview') {
+            appendWsLine(`Subscribing to live System Overview stream...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "subscribe_overview",
+              ...baseMsg
+            }));
+          } else if (streamType === 'logs') {
+            appendWsLine(`Listening to live syslog stream...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "listen_logs",
+              ...baseMsg
+            }));
+          }
+        };
+
+        wsSocket.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.event === 'ping_reply' || msg.type === 'ping' || msg.avg_rtt || msg.time) {
+              const rtt = msg.time || msg.avg_rtt || msg['avg-rtt'] || msg.rtt || '0ms';
+              const seq = msg.seq || msg.sequence || '0';
+              const ttl = msg.ttl || '64';
+              const host = msg.host || targetParam || 'target';
+              appendWsLine(`64 bytes from ${host}: seq=${seq} ttl=${ttl} time=${rtt}`, 'normal');
+            } else if (msg.event === 'traffic' || (msg.rx_bps !== undefined && msg.tx_bps !== undefined)) {
+              appendWsLine(`[Traffic] RX: ${(msg.rx_bps / 1024).toFixed(1)} Kbps | TX: ${(msg.tx_bps / 1024).toFixed(1)} Kbps (Packets: ${msg.rx_pps || 0}r/${msg.tx_pps || 0}t)`, 'normal');
+            } else if (msg.event === 'overview' || msg.cpu_load !== undefined) {
+              appendWsLine(`[Overview Heartbeat] CPU: ${msg.cpu_load || 0}% | Free RAM: ${msg.free_memory_mb || 0}MB | Clients: ${msg.total_clients || 0}`, 'normal');
+            } else {
+              appendWsLine(JSON.stringify(msg), 'normal');
+            }
+          } catch (e) {
+            appendWsLine(event.data, 'normal');
+          }
+        };
+
+        wsSocket.onerror = (err) => {
+          appendWsLine(`WebSocket error: ${err.message || 'Connection interrupted'}`, 'error');
+        };
+
+        wsSocket.onclose = () => {
+          stopWsStream();
+        };
+
+      } catch (err) {
+        appendWsLine(`Gagal membuat WebSocket: ${err.message}`, 'error');
+        stopWsStream();
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       initCreds();
       initSavedProfiles();
       populateDropdown('all');
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('endpoint')) {
+        const targetEp = urlParams.get('endpoint');
+        const sel = document.getElementById('ep-select');
+        if (sel) {
+          sel.value = targetEp;
+          onEndpointChange();
+        }
+      }
+      if (urlParams.get('ws_modal') === 'true') {
+        openWsModal();
+      }
+
       const host = document.getElementById('target-host').value.trim();
       if (host) {
         setTimeout(testConnectionAndSnapshot, 400);
@@ -1574,23 +2042,23 @@ pub async fn docs_page() -> Html<&'static str> {
       <input type="text" id="doc-search" class="search-box" placeholder="Cari endpoint (mis: pppoe, hotspot, arp)..." oninput="filterDocCards()">
 
       <div>
-        <div class="cat-menu-title">Kategori Endpoint</div>
-        <a href="#sec-notify" class="cat-link"><span>💬 Bot &amp; Netwatch Pro</span><span class="cat-count">9</span></a>
-        <a href="#sec-vouchers" class="cat-link"><span>🎟️ Hotspot Voucher 2.0</span><span class="cat-count">5</span></a>
-        <a href="#sec-fast" class="cat-link"><span>🚀 Fast-Path Snapshot</span><span class="cat-count">3</span></a>
-        <a href="#sec-net" class="cat-link"><span>🌐 Relasi Topologi</span><span class="cat-count">3</span></a>
-        <a href="#sec-sys" class="cat-link"><span>⚙️ Sistem &amp; Board</span><span class="cat-count">13</span></a>
-        <a href="#sec-dhcp" class="cat-link"><span>💻 DHCP Server &amp; Leases</span><span class="cat-count">6</span></a>
-        <a href="#sec-hotspot" class="cat-link"><span>🎟️ Hotspot &amp; Voucher</span><span class="cat-count">15</span></a>
+        <div class="cat-menu-title">API Categories</div>
+        <a href="#sec-fast" class="cat-link"><span>🚀 Fast-Path &amp; Performance</span><span class="cat-count">5</span></a>
+        <a href="#sec-ws" class="cat-link"><span>⚡ Real-Time WebSocket</span><span class="cat-count">4</span></a>
+        <a href="#sec-security" class="cat-link"><span>🛡️ Security &amp; Diagnostics</span><span class="cat-count">16</span></a>
+        <a href="#sec-vouchers" class="cat-link"><span>🎟️ Voucher Engine 2.0</span><span class="cat-count">7</span></a>
+        <a href="#sec-notify" class="cat-link"><span>🤖 Bot &amp; Netwatch Automation</span><span class="cat-count">9</span></a>
+        <a href="#sec-loadbalance" class="cat-link"><span>🔀 Load Balancing &amp; NAT</span><span class="cat-count">8</span></a>
+        <a href="#sec-vpn" class="cat-link"><span>🔐 VPN &amp; WireGuard</span><span class="cat-count">7</span></a>
+        <a href="#sec-queues" class="cat-link"><span>📊 QoS &amp; Traffic Shaping</span><span class="cat-count">8</span></a>
+        <a href="#sec-tools" class="cat-link"><span>🛠️ NOC Diagnostic Tools</span><span class="cat-count">14</span></a>
+        <a href="#sec-maintenance" class="cat-link"><span>💾 Backup &amp; Maintenance</span><span class="cat-count">7</span></a>
+        <a href="#sec-hotspot" class="cat-link"><span>🔥 Hotspot Captive Portal</span><span class="cat-count">15</span></a>
+        <a href="#sec-dhcp" class="cat-link"><span>💻 DHCP &amp; IPAM</span><span class="cat-count">8</span></a>
         <a href="#sec-pppoe" class="cat-link"><span>🌐 PPPoE &amp; ISP Access</span><span class="cat-count">11</span></a>
-        <a href="#sec-ip" class="cat-link"><span>📡 IP &amp; Routing</span><span class="cat-count">12</span></a>
-        <a href="#sec-iface" class="cat-link"><span>🔌 Interface &amp; Trafik</span><span class="cat-count">5</span></a>
-        <a href="#sec-wifi" class="cat-link"><span>📶 WiFi Wireless</span><span class="cat-count">4</span></a>
-        <a href="#sec-fw" class="cat-link"><span>🛡️ Firewall &amp; Keamanan</span><span class="cat-count">14</span></a>
-        <a href="#sec-queues" class="cat-link"><span>📊 Queues &amp; Bandwidth</span><span class="cat-count">8</span></a>
-        <a href="#sec-tools" class="cat-link"><span>🛠️ NOC Diagnostics</span><span class="cat-count">12</span></a>
-        <a href="#sec-scripts" class="cat-link"><span>📝 Scripts &amp; Cron</span><span class="cat-count">5</span></a>
-        <a href="#sec-raw" class="cat-link"><span>⚡ Raw Socket &amp; Batch</span><span class="cat-count">3</span></a>
+        <a href="#sec-ip" class="cat-link"><span>📡 IP &amp; Routing Tables</span><span class="cat-count">14</span></a>
+        <a href="#sec-sys" class="cat-link"><span>⚙️ System &amp; Hardware</span><span class="cat-count">13</span></a>
+        <a href="#sec-net" class="cat-link"><span>🗺️ Network Topology &amp; Discovery</span><span class="cat-count">5</span></a>
       </div>
     </aside>
 
@@ -1750,7 +2218,7 @@ pub async fn docs_page() -> Html<&'static str> {
 
       <!-- Section: Fast Path -->
       <section class="doc-section" id="sec-fast">
-        <div class="section-header">🚀 1. Fast-Path Snapshot &amp; Aggregator</div>
+        <div class="section-header">🚀 Fast-Path &amp; Performance Optimization</div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
@@ -1774,6 +2242,70 @@ pub async fn docs_page() -> Html<&'static str> {
             <a href="/?endpoint=connected_devices" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
           </div>
           <div class="ep-desc">Korelasikan seluruh perangkat terhubung lintas layer (DHCP Leases, ARP table, Hotspot Active, Hotspot Hosts, WiFi registration table). Menghasilkan relasi IP, MAC, hostname, sinyal, dan status otorisasi.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/fasttrack/status</div>
+            <a href="/?endpoint=fasttrack_status" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Inspeksi status aturan FastTrack Hardware Acceleration RouterOS, packet counter ter-bypass, dan konfirmasi rule forward active.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/fasttrack/deploy</div>
+            <a href="/?endpoint=fasttrack_deploy" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">1-Klik Deploy Rule FastTrack IPv4 Connection Tracking: Bypass firewall untuk paket established/related, memangkas CPU load hingga 80% saat beban trafik gigabit tinggi.</div>
+          <div class="code-preview">POST /api/v1/system/fasttrack/deploy
+{}</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/system/cpu-profiler</div>
+            <a href="/?endpoint=cpu_profiler" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Pemeriksa profil CPU live &amp; pendeteksi bottleneck proses RouterOS (networking, firewall, profiling) untuk menemukan penyebab router lambat.</div>
+        </div>
+      </section>
+
+      <!-- Section: Real-Time WebSocket Protocol -->
+      <section class="doc-section" id="sec-ws">
+        <div class="section-header">⚡ Real-Time WebSocket Streaming Protocol</div>
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill" style="background:#dcfce7; border: 1px solid #86efac; color:#15803d;">WS / WSS</span></div>
+            <div class="ep-path">/ws?token={bearer_token}</div>
+            <a href="/?ws_modal=true" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Buka Terminal WebSocket di Console</a>
+          </div>
+          <div class="ep-desc">
+            Koneksi duplex real-time langsung ke Rust Socket Gateway untuk streaming data live tanpa polling HTTP.
+            Berbeda dengan endpoint batch HTTP (seperti <code>/api/v1/tools/ping</code> yang menunggu seluruh 4 paket selesai ~3.5 detik),
+            koneksi WebSocket mengalirkan respons paket demi paket setiap detik secara instan (&lt;2ms latensi pemrosesan gateway).
+          </div>
+          <pre class="code-preview">// 1. Handshake &amp; Auth via Query Param atau Pesan Pertama
+const ws = new WebSocket("ws://127.0.0.1:8080/ws?token=change-me-to-a-long-random-string");
+
+// 2. Subscribe Live ICMP Ping
+ws.send(JSON.stringify({
+  action: "subscribe_ping",
+  address: "8.8.8.8",
+  router_host: "192.168.88.1",
+  router_port: 8728,
+  router_user: "admin",
+  router_pass: "password"
+}));
+
+// 3. Tangkap Event Reply per Detik
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log("Live Packet Reply:", data);
+};</pre>
         </div>
       </section>
 

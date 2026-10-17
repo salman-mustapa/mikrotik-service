@@ -17,7 +17,7 @@ pub struct BaseReq {
 
 #[derive(Serialize, Debug)]
 pub struct DiagnosticIssue {
-    pub category: String, // "CPU", "Memory", "Internet Link", "Bandwidth", "FastTrack", "AP/LAN"
+    pub category: String, // "CPU", "Memory", "Internet Link", "Bandwidth", "FastTrack", "AP/LAN", "DNS", "DHCP Pool", "Security"
     pub severity: String, // "INFO", "WARNING", "CRITICAL"
     pub title: String,
     pub description_id: String,
@@ -26,7 +26,7 @@ pub struct DiagnosticIssue {
 }
 
 /// GET & POST /api/v1/doctor/diagnose - Automated Heuristic Network Diagnostic Assistant
-/// Audits 6 critical networking pillars: CPU, RAM, WAN Ping, Throttled Queues, FastTrack, and Access Points.
+/// Audits 8 critical networking pillars: CPU, RAM, WAN Ping, Throttled Queues, FastTrack, AP/LAN Drops, DNS Health & Open Resolver, DHCP Pool Exhaustion, and Management Protocol Hardening.
 pub async fn doctor_diagnose(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -36,17 +36,21 @@ pub async fn doctor_diagnose(
     let (target, router_id) = AppState::parse_target(&headers, req_inner.router, req_inner.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    // Concurrent diagnostics
+    // Concurrent diagnostics (8 pillars dispatched simultaneously over multiplexed socket)
     let res_fut = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>()));
     let ping_fut = client.run(build_command("/ping", [("address", "1.1.1.1"), ("count", "3")]));
     let queue_fut = client.run(build_command("/queue/simple/print", std::iter::empty::<(&str, &str)>()));
     let if_fut = client.run(build_command("/interface/print", std::iter::empty::<(&str, &str)>()));
     let fw_fut = client.run(build_command("/ip/firewall/filter/print", std::iter::empty::<(&str, &str)>()));
+    let dns_fut = client.run(build_command("/ip/dns/print", std::iter::empty::<(&str, &str)>()));
+    let pool_used_fut = client.run(build_command("/ip/pool/used/print", std::iter::empty::<(&str, &str)>()));
+    let svc_fut = client.run(build_command("/ip/service/print", std::iter::empty::<(&str, &str)>()));
 
-    let (res_res, ping_res, queue_res, if_res, fw_res) = tokio::join!(res_fut, ping_fut, queue_fut, if_fut, fw_fut);
+    let (res_res, ping_res, queue_res, if_res, fw_res, dns_res, pool_used_res, svc_res) =
+        tokio::join!(res_fut, ping_fut, queue_fut, if_fut, fw_fut, dns_fut, pool_used_fut, svc_fut);
 
     let mut issues = Vec::new();
-    let mut score = 100;
+    let mut score = 100i32;
 
     // 1. CPU & Memory Check
     let mut cpu_val = 0;
@@ -108,7 +112,6 @@ pub async fn doctor_diagnose(
         for r in &rows {
             if let Some(t_str) = r.get("time") {
                 received += 1;
-                // Parse "15ms" or "12ms250us"
                 let num: u32 = t_str.trim_end_matches("ms").split("ms").next().and_then(|s| s.parse().ok()).unwrap_or(15);
                 total_time_ms += num;
             }
@@ -162,13 +165,21 @@ pub async fn doctor_diagnose(
 
     // 4. FastTrack Acceleration Audit
     let mut has_fasttrack = false;
-    if let Ok(fw_rows) = fw_res {
+    let mut has_dns_input_drop = false;
+    if let Ok(ref fw_rows) = fw_res {
         for r in fw_rows {
             let action = r.get("action").unwrap_or("");
             let disabled = r.get("disabled").map(|v| v == "true").unwrap_or(false);
             if action == "fasttrack-connection" && !disabled {
                 has_fasttrack = true;
-                break;
+            }
+            if action == "drop" && !disabled {
+                let chain = r.get("chain").unwrap_or("");
+                let dst_port = r.get("dst-port").unwrap_or("");
+                let port = r.get("port").unwrap_or("");
+                if chain == "input" && (dst_port.contains("53") || port.contains("53")) {
+                    has_dns_input_drop = true;
+                }
             }
         }
     }
@@ -207,6 +218,90 @@ pub async fn doctor_diagnose(
         }
     }
 
+    // 6. DNS Health & Open Resolver Exposure Audit
+    let mut dns_configured = true;
+    let mut open_dns_risk = false;
+    let mut dns_servers = String::new();
+    if let Ok(dns_rows) = dns_res {
+        if let Some(d) = dns_rows.first() {
+            dns_servers = d.get("servers").unwrap_or("").to_string();
+            let allow_remote = d.get("allow-remote-requests").map(|v| v == "yes" || v == "true").unwrap_or(false);
+
+            if dns_servers.trim().is_empty() {
+                dns_configured = false;
+                score -= 25;
+                issues.push(DiagnosticIssue {
+                    category: "DNS".into(),
+                    severity: "CRITICAL".into(),
+                    title: "Upstream DNS Belum Dikonfigurasi".into(),
+                    description_id: "Router belum memiliki upstream DNS (1.1.1.1 / 8.8.8.8). Pelanggan tidak dapat membuka website menggunakan nama domain.".into(),
+                    description_en: "No upstream DNS servers configured on router. Clients will experience domain name resolution failures.".into(),
+                    recommendation: "Konfigurasikan DNS server via POST /api/v1/ip/dns atau periksa DHCP Client setting use-peer-dns=yes.".into(),
+                });
+            }
+
+            if allow_remote && !has_dns_input_drop {
+                open_dns_risk = true;
+                score -= 15;
+                issues.push(DiagnosticIssue {
+                    category: "Security".into(),
+                    severity: "WARNING".into(),
+                    title: "Potensi Celah Open DNS Resolver Terbuka".into(),
+                    description_id: "Fitur 'allow-remote-requests=yes' aktif tanpa aturan drop UDP port 53 pada firewall input WAN. Router rentan disalahgunakan untuk serangan DNS Amplification DDoS.".into(),
+                    description_en: "Router has allow-remote-requests enabled without a WAN firewall filter rule blocking port 53 UDP, leaving it vulnerable to Open DNS Resolver abuse.".into(),
+                    recommendation: "Tambahkan filter rule drop chain=input dst-port=53 protocol=udp in-interface-list=WAN via POST /api/v1/hardening/quick-secure.".into(),
+                });
+            }
+        }
+    }
+
+    // 7. DHCP Pool Saturation & IP Exhaustion Audit
+    let mut pool_used_count = 0usize;
+    if let Ok(used_rows) = pool_used_res {
+        pool_used_count = used_rows.len();
+        if pool_used_count >= 220 {
+            score -= 15;
+            issues.push(DiagnosticIssue {
+                category: "DHCP Pool".into(),
+                severity: "WARNING".into(),
+                title: format!("Alokasi IP Address Pool Sangat Tinggi ({} aktif)", pool_used_count),
+                description_id: "Jumlah alokasi IP di pool aktif mendekati batas kapasitas subnet /24. Klien baru berisiko gagal memperoleh IP (Obtaining IP address loop).".into(),
+                description_en: "Active IP allocations in pool are high. New DHCP clients may fail to acquire IP leases if the pool is exhausted.".into(),
+                recommendation: "Perbesar rentang IP Pool via POST /api/v1/ip/pools atau perpendek lease-time DHCP server.".into(),
+            });
+        }
+    }
+
+    // 8. Insecure Management Services Audit
+    let mut insecure_services = Vec::new();
+    if let Ok(svc_rows) = svc_res {
+        for s in svc_rows {
+            let name = s.get("name").unwrap_or("");
+            let disabled = s.get("disabled").map(|v| v == "true" || v == "yes").unwrap_or(false);
+            let address = s.get("address").unwrap_or("").trim();
+
+            if !disabled {
+                if name == "telnet" && (address.is_empty() || address == "0.0.0.0/0") {
+                    insecure_services.push("telnet (port 23)");
+                }
+                if name == "api" && (address.is_empty() || address == "0.0.0.0/0") {
+                    insecure_services.push("api-plaintext (port 8728)");
+                }
+            }
+        }
+        if !insecure_services.is_empty() {
+            score -= 5;
+            issues.push(DiagnosticIssue {
+                category: "Security".into(),
+                severity: "INFO".into(),
+                title: format!("Layanan Manajemen Tanpa Enkripsi Aktif: {}", insecure_services.join(", ")),
+                description_id: "Layanan seperti Telnet atau API plaintext aktif tanpa pembatasan source IP. Kredensial dapat disadap jika berada di jaringan publik.".into(),
+                description_en: "Plaintext management services are exposed without IP address restrictions.".into(),
+                recommendation: "Nonaktifkan Telnet via POST /api/v1/system/service/toggle atau batasi address subnet admin terpercaya.".into(),
+            });
+        }
+    }
+
     let final_score = score.clamp(0, 100);
     let overall_status = if final_score >= 85 {
         "EXCELLENT"
@@ -229,6 +324,11 @@ pub async fn doctor_diagnose(
             "packet_loss_percent": packet_loss_pct,
             "fasttrack_enabled": has_fasttrack,
             "throttled_queues_count": throttled_count,
+            "dns_upstream_configured": dns_configured,
+            "dns_upstream_servers": dns_servers,
+            "open_dns_resolver_risk": open_dns_risk,
+            "active_pool_leases": pool_used_count,
+            "insecure_services_exposed": insecure_services
         },
         "total_issues_found": issues.len(),
         "issues": issues,

@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::ApiError;
+use crate::routes::topology::detect_device_vendor;
 use crate::state::{AppState, RouterTarget};
 
 #[derive(Deserialize, Debug, Default)]
@@ -46,11 +47,17 @@ struct DeviceAggregation {
     has_binding: bool,
     binding_type: String,
 
-    // Wireless info
+    // Wireless info (Interface Wireless + CAPsMAN)
     is_wireless: bool,
     signal_strength: String,
     tx_rate: String,
     rx_rate: String,
+    ssid: String,
+
+    // PPPoE ISP session info
+    is_pppoe: bool,
+    pppoe_user: String,
+    pppoe_uptime: String,
 
     // ARP info
     has_arp: bool,
@@ -58,10 +65,10 @@ struct DeviceAggregation {
 }
 
 /// Unified Connected Devices & Cross-Layer Correlator:
-/// Simultanously queries DHCP leases, Hotspot hosts, Hotspot active users,
-/// IP bindings, ARP tables, and Wireless registrations across the single pooled socket.
+/// Simultaneously queries DHCP leases, Hotspot hosts, Hotspot active users,
+/// IP bindings, ARP tables, Wireless & CAPsMAN registrations, and PPPoE active tunnels.
 /// Stitches all layers together by MAC and IP address, giving an instant, comprehensive
-/// relationship map of every connected device.
+/// relationship map of every connected device with automatic brand/vendor recognition.
 pub async fn connected_devices(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -72,16 +79,18 @@ pub async fn connected_devices(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    // 1. Dispatch 6 concurrent queries over the multiplexed TCP socket
+    // 1. Dispatch 8 concurrent queries over the multiplexed TCP socket
     let dhcp_fut = client.run(build_command("/ip/dhcp-server/lease/print", std::iter::empty::<(&str, &str)>()));
     let hs_host_fut = client.run(build_command("/ip/hotspot/host/print", std::iter::empty::<(&str, &str)>()));
     let hs_active_fut = client.run(build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>()));
     let hs_bind_fut = client.run(build_command("/ip/hotspot/ip-binding/print", std::iter::empty::<(&str, &str)>()));
     let arp_fut = client.run(build_command("/ip/arp/print", std::iter::empty::<(&str, &str)>()));
     let wlan_fut = client.run(build_command("/interface/wireless/registration-table/print", std::iter::empty::<(&str, &str)>()));
+    let caps_fut = client.run(build_command("/capsman/registration-table/print", std::iter::empty::<(&str, &str)>()));
+    let ppp_fut = client.run(build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>()));
 
-    let (dhcp_res, hs_host_res, hs_active_res, hs_bind_res, arp_res, wlan_res) =
-        tokio::join!(dhcp_fut, hs_host_fut, hs_active_fut, hs_bind_fut, arp_fut, wlan_fut);
+    let (dhcp_res, hs_host_res, hs_active_res, hs_bind_res, arp_res, wlan_res, caps_res, ppp_res) =
+        tokio::join!(dhcp_fut, hs_host_fut, hs_active_fut, hs_bind_fut, arp_fut, wlan_fut, caps_fut, ppp_fut);
 
     let dhcp_rows = dhcp_res.ok().unwrap_or_default();
     let hs_host_rows = hs_host_res.ok().unwrap_or_default();
@@ -89,8 +98,10 @@ pub async fn connected_devices(
     let hs_bind_rows = hs_bind_res.ok().unwrap_or_default();
     let arp_rows = arp_res.ok().unwrap_or_default();
     let wlan_rows = wlan_res.ok().unwrap_or_default();
+    let caps_rows = caps_res.ok().unwrap_or_default();
+    let ppp_rows = ppp_res.ok().unwrap_or_default();
 
-    // Key = MAC address in UPPERCASE
+    // Key = MAC address in UPPERCASE (or IP fallback)
     let mut map: HashMap<String, DeviceAggregation> = HashMap::new();
 
     let normalize_mac = |m: &str| -> String {
@@ -239,7 +250,62 @@ pub async fn connected_devices(
         }
     }
 
-    // 7. Process ARP Table
+    // 7. Process CAPsMAN Centralized Wireless AP Registrations
+    for row in caps_rows {
+        if let Some(raw_mac) = row.get("mac-address") {
+            let mac = normalize_mac(raw_mac);
+            if mac.is_empty() { continue; }
+            let entry = map.entry(mac.clone()).or_insert_with(|| DeviceAggregation {
+                mac: mac.clone(),
+                ..Default::default()
+            });
+            entry.is_wireless = true;
+            if let Some(sig) = row.get("rx-signal").or_else(|| row.get("signal-strength")) {
+                entry.signal_strength = sig.to_string();
+            }
+            if let Some(tx) = row.get("tx-rate") {
+                entry.tx_rate = tx.to_string();
+            }
+            if let Some(rx) = row.get("rx-rate") {
+                entry.rx_rate = rx.to_string();
+            }
+            if let Some(iface) = row.get("interface") {
+                entry.interface = iface.to_string();
+            }
+            if let Some(ssid) = row.get("ssid") {
+                entry.ssid = ssid.to_string();
+                if entry.hostname.is_empty() {
+                    entry.hostname = format!("CAPsMAN ({})", ssid);
+                }
+            }
+        }
+    }
+
+    // 8. Process Active PPPoE Sessions
+    for row in ppp_rows {
+        let caller = row.get("caller-id").map(|m| normalize_mac(m)).unwrap_or_default();
+        let ip = row.get("address").unwrap_or("").to_string();
+        let name = row.get("name").unwrap_or("").to_string();
+        let uptime = row.get("uptime").unwrap_or("").to_string();
+
+        let key = if !caller.is_empty() { caller } else if !ip.is_empty() { ip.clone() } else { continue };
+        let entry = map.entry(key.clone()).or_insert_with(|| DeviceAggregation {
+            mac: if key.contains(':') { key.clone() } else { "".into() },
+            ip: ip.clone(),
+            ..Default::default()
+        });
+        entry.is_pppoe = true;
+        entry.pppoe_user = name.clone();
+        entry.pppoe_uptime = uptime;
+        if entry.hostname.is_empty() {
+            entry.hostname = format!("PPPoE: {}", name);
+        }
+        if entry.interface.is_empty() {
+            entry.interface = "<pppoe>".into();
+        }
+    }
+
+    // 9. Process ARP Table
     for row in arp_rows {
         if let Some(raw_mac) = row.get("mac-address") {
             let mac = normalize_mac(raw_mac);
@@ -263,7 +329,7 @@ pub async fn connected_devices(
         }
     }
 
-    // 8. Compile and determine Unified Summary Badges
+    // 10. Compile and determine Unified Summary Badges with Brand / Vendor Detection
     let search_lower = req.search.as_deref().unwrap_or("").to_lowercase();
     let filter_status = req.filter_status.as_deref().unwrap_or("all");
 
@@ -273,10 +339,16 @@ pub async fn connected_devices(
     let mut total_bypassed = 0;
     let mut total_dhcp_only = 0;
     let mut total_wireless = 0;
+    let mut total_pppoe = 0;
 
     for (_, dev) in map {
+        let vendor = detect_device_vendor(&dev.mac, &dev.hostname);
+
         // Classify status
-        let (status_badge, status_label) = if dev.hotspot_authorized || !dev.hotspot_user.is_empty() {
+        let (status_badge, status_label) = if dev.is_pppoe {
+            total_pppoe += 1;
+            ("PPPOE_ACTIVE", "PPPoE ISP Client")
+        } else if dev.hotspot_authorized || !dev.hotspot_user.is_empty() {
             total_authorized += 1;
             ("AUTHORIZED_VOUCHER", "Hotspot Login Aktif")
         } else if dev.hotspot_bypassed || dev.binding_type == "bypassed" {
@@ -302,7 +374,8 @@ pub async fn connected_devices(
             let m_ip = dev.ip.to_lowercase().contains(&search_lower);
             let m_host = dev.hostname.to_lowercase().contains(&search_lower);
             let m_user = dev.hotspot_user.to_lowercase().contains(&search_lower);
-            if !m_mac && !m_ip && !m_host && !m_user {
+            let m_ven = vendor.to_lowercase().contains(&search_lower);
+            if !m_mac && !m_ip && !m_host && !m_user && !m_ven {
                 continue;
             }
         }
@@ -319,11 +392,15 @@ pub async fn connected_devices(
         if filter_status == "dhcp_only" && status_badge != "DHCP_ONLY" {
             continue;
         }
+        if filter_status == "pppoe" && status_badge != "PPPOE_ACTIVE" {
+            continue;
+        }
 
         device_list.push(json!({
             "mac_address": dev.mac,
             "ip_address": dev.ip,
             "hostname": if dev.hostname.is_empty() { "Unknown Device".into() } else { dev.hostname },
+            "vendor": vendor,
             "interface": dev.interface,
             "status": {
                 "badge": status_badge,
@@ -345,6 +422,11 @@ pub async fn connected_devices(
                 "bytes_in": dev.hotspot_bytes_in,
                 "bytes_out": dev.hotspot_bytes_out,
             },
+            "pppoe": {
+                "detected": dev.is_pppoe,
+                "username": dev.pppoe_user,
+                "uptime": dev.pppoe_uptime,
+            },
             "binding": {
                 "has_binding": dev.has_binding,
                 "type": dev.binding_type,
@@ -354,6 +436,7 @@ pub async fn connected_devices(
                 "signal_strength": dev.signal_strength,
                 "tx_rate": dev.tx_rate,
                 "rx_rate": dev.rx_rate,
+                "ssid": dev.ssid,
             },
             "arp": {
                 "detected": dev.has_arp,
@@ -374,6 +457,7 @@ pub async fn connected_devices(
             "bypassed_devices": total_bypassed,
             "dhcp_only_devices": total_dhcp_only,
             "wireless_clients": total_wireless,
+            "pppoe_active_clients": total_pppoe,
         },
         "devices": device_list
     })))
