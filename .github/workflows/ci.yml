@@ -1,0 +1,44 @@
+name: CI Quality & Security Gate
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Build, Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+        continue-on-error: true
+
+      - name: Static Analysis & Compilation Check
+        run: cargo check --all-targets --workspace
+
+      - name: Execute Workspace Unit Tests
+        run: cargo test --workspace --verbose
+
+      - name: Clippy Linter
+        run: cargo clippy --workspace -- -D warnings
+        continue-on-error: true
+
+      - name: Build Release Binary
+        run: cargo build --release -p routeros-gateway

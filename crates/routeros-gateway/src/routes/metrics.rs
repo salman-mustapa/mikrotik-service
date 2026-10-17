@@ -47,6 +47,22 @@ pub async fn prometheus_metrics(
     headers: HeaderMap,
     Query(query): Query<MetricsQuery>,
 ) -> impl IntoResponse {
+    // Authenticate Prometheus scraper via Bearer header or ?token= query param (constant-time)
+    let header_token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
+    let auth_ok = header_token.is_some_and(|t| crate::state::ct_eq(t, &st.token))
+        || query.token.as_ref().is_some_and(|t| crate::state::ct_eq(t, &st.token));
+
+    if !auth_ok {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+            "# UNAUTHORIZED: Valid Bearer token or ?token= required to scrape metrics\n".to_string(),
+        );
+    }
+
     let target = if let Some(h) = query.host {
         Some(RouterTarget {
             host: Some(h),

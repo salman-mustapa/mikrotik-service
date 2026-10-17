@@ -13,10 +13,6 @@ use axum::{Json, Router};
 use serde_json::json;
 use state::{AppState, Config};
 
-fn ct_eq(a: &str, b: &str) -> bool {
-    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
-}
-
 fn percent_decode(s: &str) -> String {
     let mut bytes = Vec::with_capacity(s.len());
     let mut chars = s.bytes();
@@ -73,7 +69,7 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .is_some_and(|t| ct_eq(t, &st.token));
+        .is_some_and(|t| state::ct_eq(t, &st.token));
 
     let mut query_params = std::collections::HashMap::new();
     if let Some(q) = req.uri().query() {
@@ -84,8 +80,10 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
         }
     }
 
-    let query_ok = if !header_ok {
-        query_params.get("token").is_some_and(|t| ct_eq(t, &st.token))
+    // Token via query string is strictly restricted to streaming/SSE endpoints (where EventSource cannot set headers)
+    let is_streaming_endpoint = req.uri().path().starts_with("/api/v1/listen") || req.uri().path() == "/ws";
+    let query_ok = if !header_ok && is_streaming_endpoint {
+        query_params.get("token").is_some_and(|t| state::ct_eq(t, &st.token))
     } else {
         false
     };
@@ -194,9 +192,33 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
 
         resp
     } else {
+        // Record unauthorized request to audit log ring buffer
+        let client_ip = req
+            .headers()
+            .get("x-forwarded-for")
+            .or_else(|| req.headers().get("x-real-ip"))
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let endpoint = req.uri().path().to_string();
+        let method = req.method().to_string();
+        let log_id = format!("{:016x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+        let entry = state::AuditLogEntry {
+            id: log_id,
+            timestamp: current_iso_timestamp(),
+            tenant_hash: "unauthorized".into(),
+            router_target: "none".into(),
+            method,
+            endpoint,
+            duration_ms: 0.0,
+            status_code: 401,
+            success: false,
+            client_ip,
+        };
+        st.record_audit_log(entry).await;
+
         (
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "success": false, "error": "unauthorized: invalid or missing Bearer token" })),
+            Json(json!({ "success": false, "error": "unauthorized: invalid or missing Bearer token in Authorization header" })),
         )
             .into_response()
     }
@@ -239,6 +261,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Ok(env_token) = std::env::var("GATEWAY_TOKEN") {
         cfg.api_token = env_token;
+    }
+
+    if cfg.api_token == "change-me-to-a-long-random-string" || cfg.api_token.trim().len() < 16 {
+        tracing::warn!(
+            "⚠️ SECURITY WARNING: Gateway is running with default or weak api_token! Please configure GATEWAY_TOKEN or update config.toml for production environments."
+        );
     }
 
     let listen_addr = cfg.listen.clone();
@@ -298,5 +326,34 @@ mod tests {
             .route("/ws", get(routes::ws::ws_handler))
             .route("/metrics", get(routes::metrics::prometheus_metrics))
             .merge(protected);
+    }
+
+    #[test]
+    fn test_constant_time_equality() {
+        assert!(state::ct_eq("secure_token_123", "secure_token_123"));
+        assert!(!state::ct_eq("secure_token_123", "secure_token_124"));
+        assert!(!state::ct_eq("short", "longer_token"));
+        assert!(!state::ct_eq("", "token"));
+        assert!(state::ct_eq("", ""));
+    }
+
+    #[test]
+    fn test_tenant_hash_isolation() {
+        let h1 = state::compute_tenant_hash("token_a", Some("tenant_1"));
+        let h2 = state::compute_tenant_hash("token_a", Some("tenant_2"));
+        let h3 = state::compute_tenant_hash("token_b", Some("tenant_1"));
+        let h1_again = state::compute_tenant_hash("token_a", Some("tenant_1"));
+
+        assert_eq!(h1, h1_again);
+        assert_ne!(h1, h2);
+        assert_ne!(h1, h3);
+        assert_eq!(h1.len(), 16);
+    }
+
+    #[test]
+    fn test_percent_decoding() {
+        assert_eq!(percent_decode("hello%20world"), "hello world");
+        assert_eq!(percent_decode("user%2Bpass"), "user+pass");
+        assert_eq!(percent_decode("clean_token_123"), "clean_token_123");
     }
 }

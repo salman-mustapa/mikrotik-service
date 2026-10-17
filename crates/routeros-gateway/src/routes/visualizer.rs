@@ -551,6 +551,25 @@ pub async fn visualizer_page() -> Html<&'static str> {
   </div>
 
   <script>
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function sanitizeUrl(url) {
+      if (!url) return '';
+      const trimmed = String(url).trim();
+      if (/^https?:\/\//i.test(trimmed)) {
+        return encodeURI(trimmed);
+      }
+      return '';
+    }
+
     let currentFilter = 'all';
     let graphData = { nodes: [], edges: [] };
     let selectedNode = null;
@@ -1185,7 +1204,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
             const row = document.createElement('div');
             row.className = 'detail-row';
             const cleanLabel = k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            row.innerHTML = `<span class="detail-label">${cleanLabel}:</span><span class="detail-val">${node.extra[k]}</span>`;
+            row.innerHTML = `<span class="detail-label">${escapeHtml(cleanLabel)}:</span><span class="detail-val">${escapeHtml(node.extra[k])}</span>`;
             extraDiv.appendChild(row);
           }
         });
@@ -1194,7 +1213,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
       const extraCard = document.getElementById('extra-card');
       extraCard.style.display = hasExtra ? 'block' : 'none';
 
-      // AP Web Management button
+      // AP Web Management button (sanitized url)
       let webBtnContainer = document.getElementById('ap-web-btn-container');
       if (!webBtnContainer) {
         webBtnContainer = document.createElement('div');
@@ -1203,13 +1222,16 @@ pub async fn visualizer_page() -> Html<&'static str> {
       }
       webBtnContainer.innerHTML = '';
       if (node.extra && node.extra.web_url) {
-        webBtnContainer.innerHTML = `
-          <div style="margin-bottom: 14px;">
-            <a href="${node.extra.web_url}" target="_blank" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-weight:700; font-size:0.82rem; border-radius:8px; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
-              <span>🌐</span>
-              <span>Buka Web GUI AP (${node.extra.web_url})</span>
-            </a>
-          </div>`;
+        const safeUrl = sanitizeUrl(node.extra.web_url);
+        if (safeUrl) {
+          webBtnContainer.innerHTML = `
+            <div style="margin-bottom: 14px;">
+              <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-weight:700; font-size:0.82rem; border-radius:8px; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                <span>🌐</span>
+                <span>Buka Web GUI AP (${escapeHtml(node.extra.web_url)})</span>
+              </a>
+            </div>`;
+        }
       }
 
       // Scrollable Connected Children list for interface or AP node
@@ -1232,10 +1254,10 @@ pub async fn visualizer_page() -> Html<&'static str> {
             </div>
             <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 8px; padding: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;" class="scrollable-device-list">
               ${children.map(c => `
-                <div style="padding: 8px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.12s;" onmouseover="this.style.borderColor='#93c5fd';this.style.background='#eff6ff';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#ffffff';" onclick="event.stopPropagation(); openDrawerById('${c.id}')">
+                <div style="padding: 8px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.12s;" onmouseover="this.style.borderColor='#93c5fd';this.style.background='#eff6ff';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#ffffff';" onclick="event.stopPropagation(); openDrawerById('${escapeHtml(c.id)}')">
                   <div>
-                    <div style="font-weight: 700; color: #1e293b;">${c.label}</div>
-                    <div style="color: #64748b; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">${c.ip || 'No IP'} | ${c.mac || 'No MAC'}</div>
+                    <div style="font-weight: 700; color: #1e293b;">${escapeHtml(c.label)}</div>
+                    <div style="color: #64748b; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">${escapeHtml(c.ip || 'No IP')} | ${escapeHtml(c.mac || 'No MAC')}</div>
                   </div>
                   <span style="font-size: 0.72rem; color: #4f46e5; font-weight: 700;">Lihat →</span>
                 </div>
@@ -1263,7 +1285,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
         return;
       }
       const pingResult = document.getElementById('ping-result');
-      pingResult.innerHTML = `<span style="color: var(--accent-blue);">Mengirim 3 ICMP ping ke ${selectedNode.ip}...</span>`;
+      pingResult.innerHTML = `<span style="color: var(--accent-blue);">Mengirim 3 ICMP ping ke ${escapeHtml(selectedNode.ip)}...</span>`;
 
       const host = document.getElementById('target-host').value;
       const port = document.getElementById('target-port').value;
@@ -1304,7 +1326,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
           if (loss === 100 || (!avgRtt && json.received === 0)) {
             pingResult.innerHTML = `<span style="color: #dc2626; font-weight: 700;">Host Unreachable (Timeout)</span><br><span style="font-size: 0.72rem; color: #dc2626;">Packet Loss: 100% (0/${json.transmitted || 3} Packets)</span>`;
           } else {
-            pingResult.innerHTML = `<strong style="color: #059669;">RTT Min/Avg/Max:</strong> ${minRtt || '-'} / <strong>${avgRtt || '-'}</strong> / ${maxRtt || '-'}<br><span style="color: ${loss > 0 ? '#d97706' : '#059669'}; font-weight: 600;">Packet Loss: ${loss}% (${json.received || 3}/${json.transmitted || 3} Packets)</span>`;
+            pingResult.innerHTML = `<strong style="color: #059669;">RTT Min/Avg/Max:</strong> ${escapeHtml(minRtt || '-')} / <strong>${escapeHtml(avgRtt || '-')}</strong> / ${escapeHtml(maxRtt || '-')}<br><span style="color: ${loss > 0 ? '#d97706' : '#059669'}; font-weight: 600;">Packet Loss: ${loss}% (${json.received || 3}/${json.transmitted || 3} Packets)</span>`;
           }
         } else {
           pingResult.textContent = "Ping gagal: " + (json.error || "Host unreachable");

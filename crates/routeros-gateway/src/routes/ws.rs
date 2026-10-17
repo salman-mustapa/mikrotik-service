@@ -57,7 +57,7 @@ pub async fn ws_handler(
     Query(query): Query<WsQuery>,
     State(st): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let pre_auth = query.token.as_ref().is_some_and(|t| t == &st.token);
+    let pre_auth = query.token.as_ref().is_some_and(|t| crate::state::ct_eq(t, &st.token));
     ws.on_upgrade(move |socket| handle_ws(socket, st, pre_auth))
 }
 
@@ -110,7 +110,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
         // Action: auth
         if req.action == "auth" {
             if let Some(t) = req.token {
-                if t == st.token {
+                if crate::state::ct_eq(&t, &st.token) {
                     authenticated = true;
                     let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag }).to_string());
                 } else {
@@ -143,6 +143,11 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         continue;
                     }
                 };
+
+                if !cmd_str.starts_with('/') {
+                    let _ = out_tx.send(json!({ "event": "error", "tag": tag, "error": "command must start with '/'" }).to_string());
+                    continue;
+                }
 
                 let target_clone = target.clone();
                 let router_id_clone = router_id.clone();
@@ -182,6 +187,17 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                         }
                     }
                 });
+            }
+
+            "subscribe_traffic" | "subscribe_overview" | "subscribe_ping" | "listen_logs"
+                if active_streams.len() >= 10 && !active_streams.contains_key(&tag) =>
+            {
+                let _ = out_tx.send(json!({
+                    "event": "stream_error",
+                    "tag": tag,
+                    "error": "Maximum 10 concurrent active streams reached for this WebSocket session"
+                }).to_string());
+                continue;
             }
 
             "subscribe_traffic" => {

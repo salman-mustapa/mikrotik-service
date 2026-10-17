@@ -1,9 +1,9 @@
 use std::collections::{HashMap, VecDeque};
-use std::hash::{Hash, Hasher};
 use axum::http::HeaderMap;
 use routeros_core::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use md5::{Digest, Md5};
 
 use crate::error::ApiError;
 
@@ -21,14 +21,22 @@ pub struct AuditLogEntry {
     pub client_ip: Option<String>,
 }
 
-/// Compute a cryptographic-style deterministic 16-hex hash from API token + optional tenant context
+/// Constant-time string equality check to prevent timing attacks on tokens
+pub fn ct_eq(a: &str, b: &str) -> bool {
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Compute a salted one-way 16-hex hash from API token + optional tenant context
 pub fn compute_tenant_hash(token: &str, tenant_context: Option<&str>) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    token.hash(&mut hasher);
+    let mut hasher = Md5::new();
+    hasher.update(b"ros-gw-salt-v1:");
+    hasher.update(token.as_bytes());
     if let Some(ctx) = tenant_context {
-        ctx.hash(&mut hasher);
+        hasher.update(b":tenant:");
+        hasher.update(ctx.as_bytes());
     }
-    format!("{:016x}", hasher.finish())
+    let res = hex::encode(hasher.finalize());
+    res[..16].to_string()
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -73,7 +81,7 @@ pub struct Slot {
 pub struct AppState {
     pub token: String,
     pub configured_routers: HashMap<String, Slot>,
-    /// Global persistent connection pool: key = "user@host:port:password"
+    /// Global persistent connection pool: key = "user@host:port:pass_hash"
     pub dynamic_pool: Mutex<HashMap<String, Client>>,
     /// Multi-tenant segregated ring buffer audit log (max 5,000 entries)
     pub audit_logs: Mutex<VecDeque<AuditLogEntry>>,
@@ -123,17 +131,37 @@ impl AppState {
             if let (Some(host), Some(user)) = (&t.host, &t.user) {
                 let port = t.port.unwrap_or(8728);
                 let password = t.password.as_deref().unwrap_or_default();
-                let key = format!("{user}@{host}:{port}:{password}");
+                let mut pass_hasher = Md5::new();
+                pass_hasher.update(password.as_bytes());
+                let pass_hash = hex::encode(pass_hasher.finalize());
+                let key = format!("{user}@{host}:{port}:{pass_hash}");
 
-                let mut pool = self.dynamic_pool.lock().await;
-                if let Some(c) = pool.get(&key).filter(|c| !c.is_closed()) {
-                    return Ok(c.clone());
+                // 1.1 Fast check without holding lock during network connect
+                {
+                    let pool = self.dynamic_pool.lock().await;
+                    if let Some(c) = pool.get(&key).filter(|c| !c.is_closed()) {
+                        return Ok(c.clone());
+                    }
                 }
 
+                // 1.2 Connect outside lock (has 10s connect & login timeout)
                 let addr = format!("{host}:{port}");
                 tracing::info!(addr = %addr, user = %user, "establishing dynamic connection");
                 let client = Client::connect(&addr, user, password).await?;
-                pool.insert(key, client.clone());
+
+                // 1.3 Cache in pool with max capacity of 256
+                {
+                    let mut pool = self.dynamic_pool.lock().await;
+                    if pool.len() >= 256 {
+                        pool.retain(|_, c| !c.is_closed());
+                        if pool.len() >= 256 {
+                            if let Some(first_key) = pool.keys().next().cloned() {
+                                pool.remove(&first_key);
+                            }
+                        }
+                    }
+                    pool.insert(key, client.clone());
+                }
                 return Ok(client);
             }
         }

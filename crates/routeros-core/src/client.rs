@@ -127,9 +127,13 @@ pub struct Client {
 }
 
 impl Client {
-    /// Connect and log in. Supports RouterOS >= 6.43 (plain) and older (MD5 challenge).
+    /// Connect and log in with timeouts. Supports RouterOS >= 6.43 (plain) and older (MD5 challenge).
     pub async fn connect(addr: impl ToSocketAddrs, user: &str, password: &str) -> Result<Self> {
-        let tcp = TcpStream::connect(addr).await?;
+        let connect_fut = TcpStream::connect(addr);
+        let tcp = tokio::time::timeout(std::time::Duration::from_secs(10), connect_fut)
+            .await
+            .map_err(|_| Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "TCP connection to router timed out after 10s")))?
+            .map_err(Error::Io)?;
         tcp.set_nodelay(true)?;
         let (sink, stream) = Framed::new(tcp, Codec).split();
         let inner = Arc::new(Inner {
@@ -141,7 +145,10 @@ impl Client {
         tokio::spawn(read_loop(stream, Arc::downgrade(&inner)));
 
         let client = Client { inner };
-        client.login(user, password).await?;
+        let login_fut = client.login(user, password);
+        tokio::time::timeout(std::time::Duration::from_secs(10), login_fut)
+            .await
+            .map_err(|_| Error::Login("router login handshake timed out after 10s".into()))??;
         Ok(client)
     }
 
