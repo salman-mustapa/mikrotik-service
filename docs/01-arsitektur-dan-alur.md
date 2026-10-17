@@ -149,6 +149,21 @@ Gateway mengekstraksi data lintas tabel: **DHCP Leases, Hotspot Hosts, ARP Table
 - Client leaf yang terhubung di balik Access Point tersebut.
 - Eksekusi langsung live ICMP ping dari router ke host tujuan untuk mendiagnosa latensi link.
 
+### D. Network Map Siap Pakai (`/map`, `<mikrotik-map>`)
+Lapisan di atas korelasi perangkat: gateway menggabungkan **data router (nyata)** + **layout tersimpan (posisi, ikon, waypoint)** menjadi *scene* realtime. Alur:
+
+```
+RouterOS --API--> build_topology + counter interface + simple queue
+                         |
+                  compose_scene (hitung rate dari selisih counter, status warna,
+                         |       deteksi limit queue, relay/estafet, ikon otomatis)
+  MapStore (JSON per-tenant) --+--> scene --> REST /api/v1/map/scene
+                                         \-> WebSocket subscribe_map (event map_frame)
+                                                   |
+                                       <mikrotik-map> / halaman /map
+```
+Akses dibagi dua peran: **admin token** (penuh) dan **viewer token** (read-only, aman ditaruh di frontend). Detail: [`07-network-map-visualizer.md`](07-network-map-visualizer.md).
+
 ---
 
 ## 5. Struktur Crate di Workspace
@@ -195,8 +210,8 @@ Bagi arsitek sistem, tim audit keamanan, dan operator jaringan yang mengutamakan
 
 ### A. 100% Stateless & Zero Persistent Storage
 * **Tidak Ada Database**: Codebase tidak memiliki dependensi SQLite, MySQL, PostgreSQL, MongoDB, atau Redis.
-* **Tidak Ada Penyimpanan Disk**: Gateway tidak pernah menulis file ke hard disk (`std::fs::write` / `File::create`). Seluruh aliran data dari klien ke MikroTik bersifat murni *passthrough* di memori RAM.
-* **Sifat Volatile**: Begitu proses gateway dimatikan atau di-restart, seluruh jejak komputasi di RAM terhapus bersih seketika.
+* **Satu-satunya penyimpanan disk = layout Network Map** (opsional, hanya jika fitur map dipakai): file JSON posisi alat/waypoint dan gambar latar di `GATEWAY_DATA_DIR` (default `./data`, Docker `/data`), dipisah per-tenant (nama folder = hash tenant). **Tidak ada kredensial router, password, maupun data trafik yang ditulis ke disk.** Perintah router lain tetap murni *passthrough* di RAM.
+* **Sifat Volatile**: Selain layout map di atas, begitu proses gateway dimatikan atau di-restart seluruh jejak komputasi di RAM terhapus bersih. Hapus folder data untuk menghapus layout.
 
 ### B. Perlindungan Kredensial & Sanitasi Logging
 * **Kredensial Dinamis di Header**: Pengembang dapat mengirimkan host, user, dan password per-request melalui header HTTP (`X-Router-Host`, `X-Router-User`, `X-Router-Pass`).

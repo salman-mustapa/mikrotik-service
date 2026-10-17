@@ -5,6 +5,14 @@
 listen = "0.0.0.0:8080"
 api_token = "change-me-to-a-long-random-string"
 
+# Opsional: token READ-ONLY untuk browser/aplikasi yang hanya menampilkan peta (/map, <mikrotik-map>).
+# Hanya bisa GET /api/v1/map/* dan subscribe_map di /ws; tidak bisa edit/command. Min. 16 karakter, harus beda dari api_token.
+# Bisa juga lewat env GATEWAY_VIEWER_TOKEN.
+# viewer_token = "ganti-dengan-token-viewer-acak-panjang"
+
+# Folder penyimpanan layout peta jaringan & gambar denah (env: GATEWAY_DATA_DIR). Default ./data
+# data_dir = "./data"
+
 # Opsional: Daftarkan router tetap jika diperlukan
 # [[router]]
 # id = "main"

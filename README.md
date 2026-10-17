@@ -25,6 +25,7 @@ Service ini dirancang dari perspektif **Network Operations Center (NOC) Engineer
 * 📖 **Dokumentasi API & Interactive Explorer**: [`http://127.0.0.1:8080/docs`](http://127.0.0.1:8080/docs) (atau `https://gateway.example.com/docs`)
 * 🎮 **Live Web Management Portal**: [`http://127.0.0.1:8080/`](http://127.0.0.1:8080/)
 * 🌐 **Interactive Topology & Relational Visualizer**: [`http://127.0.0.1:8080/topology`](http://127.0.0.1:8080/topology)
+* 🗺️ **Network Map siap embed (denah, paket animasi, status, limit queue)**: [`http://127.0.0.1:8080/map`](http://127.0.0.1:8080/map)
 * 🩺 **Healthcheck Service**: [`http://127.0.0.1:8080/health`](http://127.0.0.1:8080/health)
 * 📋 **OpenAPI Specification (JSON)**: [`http://127.0.0.1:8080/api/v1/spec`](http://127.0.0.1:8080/api/v1/spec)
 
@@ -293,6 +294,14 @@ graph TB
 * **3-Mode Expiry Setup**: Injeksi mode *Remove* (hapus voucher), *Notice* (alihkan ke web peringatan habis), atau *Record* (catat transaksi kasir).
 * **Hotspot Trial Users Controller**: Pengaturan durasi uji coba internet gratisan (misal 15 menit per hari) dan reset cookie perangkat.
 
+### 41. 🗺️ Network Map Siap Pakai (`/map`, `<mikrotik-map>`, `/api/v1/map/*`)
+* **Tinggal pakai**: tambahkan `<script src="https://gateway/sdk/mikrotik-map.js">` lalu `<mikrotik-map>` di halaman Anda, atau buka langsung `/map`.
+* **Letakkan alat di titik tertentu** pada denah/satelit (upload background), ikon alat **terdeteksi otomatis** namun bisa diubah, jalur kabel dengan *waypoint* (mengikuti jalan/atap).
+* **Realtime**: paket animasi berjalan, hijau = terhubung, merah = gagal / limit queue tercapai, kuning = warning; kecepatan download/upload dalam KB/s–MB/s.
+* **Relay/estafet** (AP → AP 2 → banyak klien) dan **limit queue** terdeteksi otomatis dari data router.
+* **Aman untuk embed**: *viewer token* read-only (`GATEWAY_VIEWER_TOKEN`) terpisah dari admin token; layout tersimpan per-tenant di `GATEWAY_DATA_DIR`.
+* Panduan lengkap: [`docs/07-network-map-visualizer.md`](docs/07-network-map-visualizer.md).
+
 ---
 
 ## ⚡ Fleksibilitas Pemanggilan: Dual Transport (GET & POST)
@@ -342,6 +351,8 @@ docker run -d \
   -p 8080:8080 \
   -e GATEWAY_LISTEN=0.0.0.0:8080 \
   -e GATEWAY_TOKEN=change-me-to-a-long-random-string \
+  -e GATEWAY_VIEWER_TOKEN=token-read-only-untuk-embed-min-16-karakter \
+  -e GATEWAY_DATA_DIR=/data -v gateway-data:/data \
   -e RUST_LOG=info \
   salmanmustapa/mikrotik-universal-gateway:latest
 ```
@@ -350,6 +361,7 @@ Server langsung aktif di `http://localhost:8080`:
 * 📖 **API Docs Explorer**: `http://localhost:8080/docs`
 * 🎮 **Live Management Portal**: `http://localhost:8080/`
 * 🌐 **Topology Visualizer**: `http://localhost:8080/topology`
+* 🗺️ **Network Map (siap embed)**: `http://localhost:8080/map`
 * 🩺 **Health Check**: `http://localhost:8080/health`
 
 ---
@@ -479,6 +491,8 @@ Folder [`docs/`](docs/) memuat rincian arsitektur dan kamus API:
 * **[04. Referensi Lengkap Universal API (240+ Enterprise Endpoints)](docs/04-universal-api-reference.md)**
 * **[05. Panduan Arsitektur & Relasi Antar Entitas Jaringan (Entity Relationship Guide)](docs/05-network-entity-relationships-guide.md)**
 * **[06. Katalog Lengkap Command MikroTik](docs/06-katalog-command-mikrotik.md)**
+* **[07. Network Map Siap Pakai (`/map`, `<mikrotik-map>`, `/api/v1/map/*`)](docs/07-network-map-visualizer.md)**
+* **[00. Outline & Peta Dokumentasi](docs/00-outline-dokumentasi.md)** · **[CHANGELOG](CHANGELOG.md)**
 
 ---
 

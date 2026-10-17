@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, RouterTarget};
+use crate::state::{AppState, Role, RouterTarget};
 
 #[derive(Deserialize, Debug)]
 pub struct WsQuery {
@@ -33,6 +33,12 @@ struct WsIncoming {
     pub interface: Option<String>,
     pub address: Option<String>,
     pub interval_ms: Option<u64>,
+    /// `subscribe_map`: which saved layout to merge (default `default`).
+    pub layout_id: Option<String>,
+    /// `subscribe_map`: optional tenant context (same meaning as the `X-Tenant-Id` header).
+    pub tenant_id: Option<String>,
+    /// `subscribe_map`: topology filter (`all`, `hotspot`, `pppoe`, `dhcp`, `wifi`, `infra`).
+    pub filter_type: Option<String>,
 }
 
 impl WsIncoming {
@@ -57,11 +63,11 @@ pub async fn ws_handler(
     Query(query): Query<WsQuery>,
     State(st): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let pre_auth = query.token.as_ref().is_some_and(|t| crate::state::ct_eq(t, &st.token));
-    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_auth))
+    let pre_role = query.token.as_deref().and_then(|t| st.role_for_token(t));
+    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_role))
 }
 
-async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool) {
+async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>) {
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Channel for outbound messages to ws_sink
@@ -83,7 +89,8 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
     let _ = out_tx.send(json!({
         "event": "connected",
         "service": "mikrotik-universal-rust-gateway",
-        "authenticated": authenticated
+        "authenticated": role.is_some(),
+        "role": role.map(Role::as_str)
     }).to_string());
 
     while let Some(Ok(msg)) = ws_stream.next().await {
@@ -110,9 +117,9 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
         // Action: auth
         if req.action == "auth" {
             if let Some(t) = req.token {
-                if crate::state::ct_eq(&t, &st.token) {
-                    authenticated = true;
-                    let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag }).to_string());
+                if let Some(r) = st.role_for_token(&t) {
+                    role = Some(r);
+                    let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": r.as_str() }).to_string());
                 } else {
                     let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": "Invalid token" }).to_string());
                 }
@@ -126,12 +133,19 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
             continue;
         }
 
-        if !authenticated {
+        let Some(role_now) = role else {
             let _ = out_tx.send(json!({ "event": "unauthorized", "tag": tag, "error": "Please authenticate via query ?token= or action 'auth'" }).to_string());
+            continue;
+        };
+
+        // Read-only viewer sessions: only the map stream. No commands, no other streams.
+        if role_now == Role::Viewer && !matches!(req.action.as_str(), "subscribe_map" | "unsubscribe") {
+            let _ = out_tx.send(json!({ "event": "forbidden", "tag": tag, "error": "read-only viewer token: only subscribe_map is allowed" }).to_string());
             continue;
         }
 
-        let target = req.resolved_target();
+        // A viewer may select a router only by the router_id configured on the gateway.
+        let target = if role_now == Role::Viewer { None } else { req.resolved_target() };
         let router_id = req.router_id;
 
         match req.action.as_str() {
@@ -189,7 +203,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                 });
             }
 
-            "subscribe_traffic" | "subscribe_overview" | "subscribe_ping" | "listen_logs"
+            "subscribe_traffic" | "subscribe_overview" | "subscribe_ping" | "listen_logs" | "subscribe_map"
                 if active_streams.len() >= 10 && !active_streams.contains_key(&tag) =>
             {
                 let _ = out_tx.send(json!({
@@ -405,6 +419,76 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut authenticated: bool
                             break;
                         }
 
+                        tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
+                    }
+                });
+
+                active_streams.insert(stream_tag, handle);
+            }
+
+            "subscribe_map" => {
+                let interval = req.interval_ms.unwrap_or(2000).clamp(1000, 60000);
+                let layout_id = req.layout_id.clone().unwrap_or_else(|| "default".into());
+                if !crate::map_store::valid_layout_id(&layout_id) {
+                    let _ = out_tx.send(json!({
+                        "event": "stream_error",
+                        "tag": tag,
+                        "error": "layout_id must be 1-64 characters of a-z 0-9 _ -"
+                    }).to_string());
+                    continue;
+                }
+                let filter = req.filter_type.clone().unwrap_or_else(|| "all".into());
+                let tenant = crate::state::compute_tenant_hash(&st.token, req.tenant_id.as_deref());
+                let router_key = crate::routes::map::router_key(&target, &router_id);
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let stream_tag = tag.clone();
+
+                if let Some(old) = active_streams.remove(&stream_tag) {
+                    old.abort();
+                }
+
+                let stream_tag_task = stream_tag.clone();
+                let handle = tokio::spawn(async move {
+                    let mut cache: crate::routes::map::StructCache = None;
+                    loop {
+                        // Resolve every tick: the pool hands back the cached client, and after a router
+                        // reboot this transparently reconnects instead of ending the stream.
+                        match st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await {
+                            Ok(client) => {
+                                match crate::routes::map::fetch_scene(&st_clone, &tenant, &client, &router_key, &layout_id, &filter, &mut cache).await {
+                                    Ok(scene) => {
+                                        let sent = out_tx_clone.send(json!({
+                                            "event": "map_frame",
+                                            "tag": stream_tag_task,
+                                            "timestamp": chrono_now_ms(),
+                                            "data": scene
+                                        }).to_string());
+                                        if sent.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let _ = out_tx_clone.send(json!({
+                                            "event": "stream_error",
+                                            "tag": stream_tag_task,
+                                            "retrying": true,
+                                            "error": e.to_string()
+                                        }).to_string());
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let _ = out_tx_clone.send(json!({
+                                    "event": "stream_error",
+                                    "tag": stream_tag_task,
+                                    "retrying": true,
+                                    "error": e.to_string()
+                                }).to_string());
+                            }
+                        }
                         tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
                     }
                 });

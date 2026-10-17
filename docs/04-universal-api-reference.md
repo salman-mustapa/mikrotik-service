@@ -1070,3 +1070,23 @@ Manajemen routing skala operator dan Multi-WAN Policy Based Routing (PBR) efisie
 | `GET` / `POST` | `/api/v1/routing/rules` | **Daftar Routing Rules**: Melihat daftar aturan kebijakan lookup routing | `{}` |
 | `POST` | `/api/v1/routing/rule/add` | **Tambah Policy Routing Rule**: Mengarahkan trafik IP tertentu langsung ke tabel routing tanpa Mangle | `{"src_address": "192.168.88.100/32", "table": "to-WAN2", "action": "lookup-only-in-table"}` |
 
+---
+
+### AAA. 🗺️ Network Map Siap Pakai (`/map` & `/api/v1/map/*`)
+Peta jaringan realtime yang siap di-embed. Panduan lengkap, skema scene, dan batas: [`07-network-map-visualizer.md`](07-network-map-visualizer.md). Semua endpoint `/api/v1/map/*` memakai `Authorization: Bearer <token>`; **viewer token** (`GATEWAY_VIEWER_TOKEN`) hanya boleh `GET`.
+
+| Method | Endpoint | Kegunaan | Peran |
+|---|---|---|---|
+| `GET` | `/map` | Halaman map siap pakai (publik, tanpa data) | publik |
+| `GET` | `/sdk/mikrotik-map.js` | Web component `<mikrotik-map>` | publik |
+| `GET` / `POST` | `/api/v1/map/scene` | Scene realtime (node, edge, status, rate, alert) digabung dengan layout | admin, viewer (GET) |
+| `GET` | `/api/v1/map/icons` | Katalog ikon alat | admin, viewer |
+| `GET` | `/api/v1/map/layouts` | Daftar layout | admin, viewer |
+| `GET` / `PUT` / `DELETE` | `/api/v1/map/layouts/:id` | Baca / **buat atau ganti** (PUT) / hapus layout | GET: admin, viewer |
+| `PUT` / `DELETE` | `/api/v1/map/layouts/:id/nodes/:node_id` | Posisi, ikon, label, kunci, parent override satu node | admin |
+| `PUT` / `DELETE` | `/api/v1/map/layouts/:id/paths/:edge_id` | Waypoint & gaya jalur kabel | admin |
+| `POST` | `/api/v1/map/layouts/:id/auto-place` | Tata letak otomatis node yang belum ditempatkan | admin |
+| `PUT` / `GET` / `DELETE` | `/api/v1/map/layouts/:id/background` | Upload (PNG/JPEG/WebP, maks 4 MB; SVG ditolak) / ambil / hapus gambar latar | GET: admin, viewer |
+
+WebSocket: kirim `{"action":"auth","token":"..."}` lalu `{"action":"subscribe_map","layout_id":"...","router_id":"...","interval_ms":3000}`; server mengirim event `map_frame` (dan `stream_error` dengan `retrying:true` bila router gagal). Viewer hanya boleh `subscribe_map` / `unsubscribe`.
+

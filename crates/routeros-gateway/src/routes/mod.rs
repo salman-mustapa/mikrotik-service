@@ -25,6 +25,7 @@ pub mod maintenance;
 pub mod metrics;
 pub mod nat_wizard;
 pub mod neighbors;
+pub mod map;
 pub mod network_map;
 pub mod noc_tools;
 pub mod overview;
@@ -59,7 +60,7 @@ pub mod packet_sniffer;
 pub mod port_knocking;
 
 use std::sync::Arc;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::Router;
 
 use crate::state::AppState;
@@ -70,6 +71,19 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/overview", get(overview::get_overview).post(overview::get_overview))
         .route("/api/v1/network/connected-devices", get(network_map::connected_devices).post(network_map::connected_devices))
         .route("/api/v1/network/topology-graph", get(topology::topology_graph).post(topology::topology_graph))
+
+        // --- Network Map: ready-to-embed floor-plan / satellite map with live traffic, queues & alerts ---
+        .route("/api/v1/map/scene", get(map::scene).post(map::scene))
+        .route("/api/v1/map/icons", get(map::icons))
+        .route("/api/v1/map/layouts", get(map::list_layouts))
+        .route("/api/v1/map/layouts/:id", get(map::get_layout).put(map::put_layout).delete(map::delete_layout))
+        .route("/api/v1/map/layouts/:id/nodes/:node_id", put(map::patch_node).delete(map::delete_node))
+        .route("/api/v1/map/layouts/:id/paths/:edge_id", put(map::set_path).delete(map::delete_path))
+        .route("/api/v1/map/layouts/:id/auto-place", post(map::auto_place))
+        .route(
+            "/api/v1/map/layouts/:id/background",
+            put(map::put_background).layer(map::body_limit_layer()).get(map::get_background).delete(map::delete_background),
+        )
 
         // --- Expert Network Diagnostics & Macros ---
         .route("/api/v1/expert/quick-diagnose", post(expert::quick_diagnose))

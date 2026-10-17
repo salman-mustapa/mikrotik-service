@@ -1,4 +1,5 @@
 pub mod error;
+pub mod map_store;
 pub mod routes;
 pub mod state;
 
@@ -63,13 +64,27 @@ fn current_iso_timestamp() -> String {
     format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z", y, m, d, hours, mins, seconds, millis)
 }
 
+/// Paths a read-only viewer token may GET. Mirrors the allow-list enforced for `/ws` in `routes::ws`.
+fn viewer_may_access(method: &axum::http::Method, path: &str) -> bool {
+    if path == "/ws" {
+        return method == axum::http::Method::GET;
+    }
+    if method != axum::http::Method::GET {
+        return false;
+    }
+    path == "/api/v1/map/scene"
+        || path == "/api/v1/map/icons"
+        || path == "/api/v1/map/layouts"
+        || path.starts_with("/api/v1/map/layouts/")
+}
+
 async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> Response {
-    let header_ok = req
+    let header_role = req
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .is_some_and(|t| state::ct_eq(t, &st.token));
+        .and_then(|t| st.role_for_token(t));
 
     let mut query_params = std::collections::HashMap::new();
     if let Some(q) = req.uri().query() {
@@ -82,13 +97,24 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
 
     // Token via query string is strictly restricted to streaming/SSE endpoints (where EventSource cannot set headers)
     let is_streaming_endpoint = req.uri().path().starts_with("/api/v1/listen") || req.uri().path() == "/ws";
-    let query_ok = if !header_ok && is_streaming_endpoint {
-        query_params.get("token").is_some_and(|t| state::ct_eq(t, &st.token))
+    let query_role = if header_role.is_none() && is_streaming_endpoint {
+        query_params.get("token").and_then(|t| st.role_for_token(t))
     } else {
-        false
+        None
     };
+    let role = header_role.or(query_role);
 
-    if header_ok || query_ok {
+    // A viewer token is read-only: GET on the map read endpoints (or the /ws upgrade, which enforces
+    // its own per-action allow-list). Everything else is refused before it reaches any handler.
+    if role == Some(state::Role::Viewer) && !viewer_may_access(req.method(), req.uri().path()) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "success": false, "error": "forbidden: this read-only viewer token can only read the network map", "code": "FORBIDDEN" })),
+        )
+            .into_response();
+    }
+
+    if role.is_some() {
         let headers = req.headers_mut();
         if !headers.contains_key("x-router-host") {
             if let Some(h) = query_params.get("host").or_else(|| query_params.get("router_host")) {
@@ -116,6 +142,12 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
                 if let Ok(val) = header::HeaderValue::from_str(p) {
                     headers.insert(header::HeaderName::from_static("x-router-pass"), val);
                 }
+            }
+        }
+        if role == Some(state::Role::Viewer) {
+            // A viewer may only use routers defined in config.toml (router_id), never ad-hoc host + credentials.
+            for name in ["x-router-host", "x-router-port", "x-router-user", "x-router-pass"] {
+                headers.remove(name);
             }
         }
         if !headers.contains_key("x-router-id") {
@@ -252,12 +284,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Config {
             listen: "0.0.0.0:8080".into(),
             api_token: "change-me-to-a-long-random-string".into(),
+            data_dir: state::default_data_dir(),
+            viewer_token: None,
             routers: vec![],
         }
     };
 
     if let Ok(env_listen) = std::env::var("GATEWAY_LISTEN") {
         cfg.listen = env_listen;
+    }
+    if let Ok(env_data) = std::env::var("GATEWAY_DATA_DIR") {
+        if !env_data.trim().is_empty() {
+            cfg.data_dir = env_data;
+        }
+    }
+    if let Ok(env_viewer) = std::env::var("GATEWAY_VIEWER_TOKEN") {
+        if !env_viewer.trim().is_empty() {
+            cfg.viewer_token = Some(env_viewer);
+        }
     }
     if let Ok(env_token) = std::env::var("GATEWAY_TOKEN") {
         cfg.api_token = env_token;
@@ -267,6 +311,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!(
             "⚠️ SECURITY WARNING: Gateway is running with default or weak api_token! Please configure GATEWAY_TOKEN or update config.toml for production environments."
         );
+    }
+
+    if let Some(v) = &cfg.viewer_token {
+        if v.trim().len() < 16 || v.trim() == cfg.api_token {
+            tracing::warn!("viewer_token ignored: it must be at least 16 characters and different from api_token");
+        } else {
+            tracing::info!("read-only viewer_token enabled (network map GET + /ws subscribe_map only)");
+        }
     }
 
     let listen_addr = cfg.listen.clone();
@@ -288,6 +340,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/topology", get(routes::visualizer::visualizer_page))
         .route("/visualizer", get(routes::visualizer::visualizer_page))
         .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
+        .route("/map", get(routes::map::page))
+        .route("/sdk/mikrotik-map.js", get(routes::map::widget_js))
+        .route("/sdk/map-page.js", get(routes::map::page_js))
         .route("/ws", get(routes::ws::ws_handler))
         .route("/metrics", get(routes::metrics::prometheus_metrics))
         .merge(protected)
@@ -309,6 +364,8 @@ mod tests {
         let cfg = Config {
             listen: "0.0.0.0:8080".into(),
             api_token: "test-token".into(),
+            data_dir: std::env::temp_dir().join("ros-gw-main-test").to_string_lossy().into_owned(),
+            viewer_token: None,
             routers: vec![],
         };
         let state = Arc::new(AppState::new(cfg));
@@ -323,6 +380,9 @@ mod tests {
             .route("/topology", get(routes::visualizer::visualizer_page))
             .route("/visualizer", get(routes::visualizer::visualizer_page))
             .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
+        .route("/map", get(routes::map::page))
+        .route("/sdk/mikrotik-map.js", get(routes::map::widget_js))
+        .route("/sdk/map-page.js", get(routes::map::page_js))
             .route("/ws", get(routes::ws::ws_handler))
             .route("/metrics", get(routes::metrics::prometheus_metrics))
             .merge(protected);
@@ -348,6 +408,42 @@ mod tests {
         assert_ne!(h1, h2);
         assert_ne!(h1, h3);
         assert_eq!(h1.len(), 16);
+    }
+
+    #[test]
+    fn test_viewer_role_is_read_only() {
+        use axum::http::Method;
+        let mk = |viewer: Option<&str>| {
+            AppState::new(Config {
+                listen: "0.0.0.0:8080".into(),
+                api_token: "admin-token-0123456789".into(),
+                data_dir: std::env::temp_dir().join("ros-gw-role-test").to_string_lossy().into_owned(),
+                viewer_token: viewer.map(|s| s.to_string()),
+                routers: vec![],
+            })
+        };
+        let st = mk(Some("viewer-token-0123456789"));
+        assert_eq!(st.role_for_token("admin-token-0123456789"), Some(state::Role::Admin));
+        assert_eq!(st.role_for_token("viewer-token-0123456789"), Some(state::Role::Viewer));
+        assert_eq!(st.role_for_token("nope"), None);
+        assert_eq!(st.role_for_token(""), None);
+
+        // unusable viewer tokens are ignored instead of weakening security
+        assert!(mk(Some("short")).viewer_token.is_none());
+        assert!(mk(Some("admin-token-0123456789")).viewer_token.is_none());
+        assert!(mk(None).role_for_token("viewer-token-0123456789").is_none());
+
+        assert!(viewer_may_access(&Method::GET, "/api/v1/map/scene"));
+        assert!(viewer_may_access(&Method::GET, "/api/v1/map/layouts/home"));
+        assert!(viewer_may_access(&Method::GET, "/api/v1/map/layouts/home/background"));
+        assert!(viewer_may_access(&Method::GET, "/ws"));
+        assert!(!viewer_may_access(&Method::POST, "/api/v1/map/scene"));
+        assert!(!viewer_may_access(&Method::PUT, "/api/v1/map/layouts/home"));
+        assert!(!viewer_may_access(&Method::DELETE, "/api/v1/map/layouts/home"));
+        assert!(!viewer_may_access(&Method::POST, "/api/v1/command"));
+        assert!(!viewer_may_access(&Method::GET, "/api/v1/system/reboot"));
+        assert!(!viewer_may_access(&Method::GET, "/api/v1/audit/logs"));
+        assert!(!viewer_may_access(&Method::GET, "/api/v1/map/scene-evil"));
     }
 
     #[test]

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Network Map - MikroTik Universal Gateway</title>
+  <meta name="description" content="Live network map with auto-detected device icons, animated traffic, queue-limit alerts and a floor-plan / satellite editor.">
+  <style>
+    :root { color-scheme: dark; --bg:#070d19; --panel:#0f172a; --line:rgba(148,163,184,.22); --fg:#e2e8f0; --mut:#94a3b8; --acc:#38bdf8; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #0b1220, #0f1b33); flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+    header h1 span { color: var(--acc); }
+    header .sp { flex: 1; }
+    header a { color: var(--mut); text-decoration: none; font-size: 13px; }
+    header a:hover { color: var(--acc); }
+    main { flex: 1; min-height: 0; position: relative; padding: 12px; }
+    mikrotik-map { height: 100%; min-height: 360px; }
+    button, input, select { font: inherit; color: var(--fg); background: rgba(148,163,184,.12); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; }
+    button { cursor: pointer; } button:hover { border-color: var(--acc); }
+    button.primary { background: var(--acc); color: #04111d; font-weight: 700; border-color: var(--acc); }
+    dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; width: min(560px, 94vw); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+    dialog::backdrop { background: rgba(2,6,23,.72); backdrop-filter: blur(3px); }
+    dialog h2 { margin: 0 0 4px; font-size: 18px; }
+    dialog p.lead { margin: 0 0 14px; color: var(--mut); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .grid .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 12px; color: var(--mut); margin-bottom: 3px; }
+    .grid input, .grid select { width: 100%; }
+    fieldset { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px 12px; margin: 12px 0 0; }
+    legend { color: var(--mut); font-size: 12px; padding: 0 6px; }
+    .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap; }
+    .note { color: var(--mut); font-size: 12px; margin-top: 10px; }
+    pre { background: #060b16; border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto; font-size: 12px; max-height: 240px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MikroTik <span>Network Map</span></h1>
+    <span class="sp"></span>
+    <button id="btn-connect" type="button">Connection&hellip;</button>
+    <button id="btn-embed" type="button">Embed code</button>
+    <a href="/docs">API docs</a>
+    <a href="/topology">Topology</a>
+  </header>
+  <main id="stage"></main>
+
+  <dialog id="dlg-connect">
+    <form method="dialog" id="frm-connect">
+      <h2>Connect to a router</h2>
+      <p class="lead">The map is served by this gateway. Enter the gateway token and pick the router to draw.</p>
+      <div class="grid">
+        <div class="full"><label for="f-token">Gateway token (Bearer)</label><input id="f-token" type="password" autocomplete="off" required></div>
+        <div><label for="f-layout">Layout id</label><input id="f-layout" value="default" pattern="[a-z0-9_\-]{1,64}" title="a-z 0-9 _ - (max 64)"></div>
+        <div><label for="f-interval">Refresh (ms)</label><input id="f-interval" type="number" min="1000" max="60000" step="500" value="2000"></div>
+        <div class="full"><label for="f-router-id">Router id from config.toml (leave empty to use host below)</label><input id="f-router-id" placeholder="main"></div>
+      </div>
+      <fieldset>
+        <legend>or a router given directly</legend>
+        <div class="grid">
+          <div><label for="f-host">Host / IP</label><input id="f-host" placeholder="192.168.88.1"></div>
+          <div><label for="f-port">API port</label><input id="f-port" type="number" min="1" max="65535" placeholder="8728"></div>
+          <div><label for="f-user">User</label><input id="f-user" autocomplete="off"></div>
+          <div><label for="f-pass">Password</label><input id="f-pass" type="password" autocomplete="off"></div>
+        </div>
+      </fieldset>
+      <p class="note">Token and password are kept in this tab's session storage only and are never written to the URL.</p>
+      <div class="actions">
+        <button type="button" id="btn-demo">Try with sample data</button>
+        <button type="button" id="btn-cancel">Cancel</button>
+        <button type="submit" class="primary" id="btn-go">Connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-embed">
+    <h2>Embed in your app</h2>
+    <p class="lead">Paste this into any web page (React, Vue, Flutter WebView, plain HTML).</p>
+    <pre id="embed-code"></pre>
+    <div class="actions"><button type="button" id="btn-copy">Copy</button><button type="button" id="btn-embed-close" class="primary">Close</button></div>
+  </dialog>
+
+  <script src="/sdk/mikrotik-map.js"></script>
+  <script src="/sdk/map-page.js"></script>
+</body>
+</html>

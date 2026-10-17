@@ -179,6 +179,25 @@ pub async fn topology_graph(
         .unwrap_or_else(|| "all".into())
         .to_lowercase();
 
+    let (nodes, edges) = build_topology(&client, &filter).await;
+    let total_nodes = nodes.len();
+    let total_edges = edges.len();
+
+    Ok(Json(json!({
+        "success": true,
+        "nodes_count": total_nodes,
+        "edges_count": total_edges,
+        "nodes": nodes,
+        "edges": edges
+    })))
+}
+
+/// Builds the hierarchical topology (nodes + edges) from a live RouterOS client.
+/// Shared by `/network/topology-graph` and the map scene (`/map/scene`).
+/// Only reports what the router actually returned - nothing is invented.
+pub async fn build_topology(client: &routeros_core::Client, filter_in: &str) -> (Vec<TopologyNode>, Vec<TopologyEdge>) {
+    let filter: String = filter_in.to_lowercase();
+
     // Concurrently fetch core relational tables in parallel using persistent connection
     let ident_fut = client.run(build_command("/system/identity/print", std::iter::empty::<(&str, &str)>()));
     let res_fut = client.run(build_command("/system/resource/print", std::iter::empty::<(&str, &str)>()));
@@ -350,10 +369,11 @@ pub async fn topology_graph(
                     wan_gateway = Some(gw);
                 }
                 if wan_iface.is_none() {
-                    for cand in &["ether1", "ether2", "sfp1", "wan", "pppoe-out1"] {
-                        if gw_status.contains(cand) {
-                            wan_iface = Some(cand.to_string());
-                            break;
+                    // gateway-status looks like "192.168.1.1 reachable via  ether1" -> take the interface name after "via"
+                    if let Some(idx) = gw_status.rfind("via") {
+                        let name = gw_status[idx + 3..].trim().split([' ', ',']).next().unwrap_or("");
+                        if !name.is_empty() {
+                            wan_iface = Some(name.to_string());
                         }
                     }
                 }
@@ -372,10 +392,9 @@ pub async fn topology_graph(
         }
     }
 
-    // Heuristic: ether1 is universally used as the ISP WAN port in MikroTik RouterOS
+    // Last-resort heuristic: ether1 is the conventional WAN port. The gateway is NOT invented.
     if wan_iface.is_none() && iface_ip_map.contains_key("ether1") {
         wan_iface = Some("ether1".into());
-        wan_gateway = Some("192.168.1.1".into());
     }
 
     // 5. Interface Nodes & Router-to-Interface Connections
@@ -466,7 +485,7 @@ pub async fn topology_graph(
     // 6. Upstream Internet (ISP Cloud) Source Node feeding into WAN Interface
     if let Some(ref wan_name) = wan_iface {
         if let Some(wan_node_id) = iface_nodes_map.get(wan_name) {
-            let gw_str = wan_gateway.as_deref().unwrap_or("192.168.1.1");
+            let gw_str = wan_gateway.as_deref().unwrap_or("");
             let mut inet_extra = HashMap::new();
             inet_extra.insert("role".into(), "ISP / Source Internet Feed".into());
             inet_extra.insert("gateway_ip".into(), gw_str.to_string());
@@ -482,14 +501,14 @@ pub async fn topology_graph(
             }
             inet_extra.insert("source".into(), "DHCP Client (Dynamic ISP IP)".into());
 
-            let inet_mac = ip_to_mac_map.get(gw_str).cloned();
+            let inet_mac = if gw_str.is_empty() { None } else { ip_to_mac_map.get(gw_str).cloned() };
 
             nodes.push(TopologyNode {
                 id: "node_internet".into(),
-                label: format!("🌐 Internet (ISP: {})", gw_str),
+                label: if gw_str.is_empty() { "🌐 Internet (ISP)".to_string() } else { format!("🌐 Internet (ISP: {})", gw_str) },
                 node_type: "internet".into(),
                 sub_type: "wan_cloud".into(),
-                ip: Some(gw_str.to_string()),
+                ip: if gw_str.is_empty() { None } else { Some(gw_str.to_string()) },
                 mac: inet_mac,
                 vendor: Some("ISP / Global Internet".into()),
                 interface: Some(wan_name.clone()),
@@ -570,55 +589,9 @@ pub async fn topology_graph(
         }
     }
 
-    // Auto-detect dedicated AP on ether5 (e.g. Access Point on Port 5 with 192.168.100.x subnet)
-    if !ap_iface_map.contains_key("ether5") {
-        if let Some(if_node) = iface_nodes_map.get("ether5") {
-            let ap_id = "ap_ether5_wlan".to_string();
-            let ap_ip = "192.168.100.3".to_string();
-            ap_ips.insert(ap_ip.clone());
-            ap_subnet_map.push(("192.168.100.".into(), ap_id.clone()));
-
-            let real_mac = ip_to_mac_map.get("192.168.100.3").cloned();
-            let vendor = if let Some(ref m) = real_mac {
-                detect_device_vendor(m, "Access Point")
-            } else {
-                "Access Point (WiFi Hub)".into()
-            };
-
-            let mut extra = HashMap::new();
-            extra.insert("device_type".into(), "Access Point (WiFi Hub)".into());
-            extra.insert("port".into(), "ether5".into());
-            extra.insert("ip".into(), ap_ip.clone());
-            extra.insert("web_url".into(), format!("http://{}", ap_ip));
-            if let Some(assigned) = iface_ip_map.get("ether5") {
-                extra.insert("gateway_ip".into(), assigned.clone());
-            }
-
-            nodes.push(TopologyNode {
-                id: ap_id.clone(),
-                label: format!("📡 AP: {} ({})", vendor, ap_ip),
-                node_type: "ap".into(),
-                sub_type: "ap".into(),
-                ip: Some(ap_ip),
-                mac: real_mac,
-                vendor: Some(vendor),
-                interface: Some("ether5".into()),
-                parent_id: Some(if_node.clone()),
-                status: "online".into(),
-                extra,
-            });
-
-            edges.push(TopologyEdge {
-                id: "edge_ether5_ap".into(),
-                source: if_node.clone(),
-                target: ap_id.clone(),
-                edge_type: "physical".into(),
-                speed: Some("LAN Cable (Port 5)".into()),
-            });
-
-            ap_iface_map.insert("ether5".into(), ap_id);
-        }
-    }
+    // NOTE: a previous version fabricated an AP on "ether5" with IP 192.168.100.3 when none was
+    // discovered. That invented data for routers that have no such device, so it was removed.
+    // APs are now only reported when discovered via neighbor discovery (MNDP/CDP/LLDP).
 
     // Helper closure to resolve parent node (either Access Point or Interface) from client IP
     let resolve_parent = |client_ip: &str, direct_if: Option<&str>| -> String {
@@ -957,14 +930,5 @@ pub async fn topology_graph(
         }
     }
 
-    let total_nodes = nodes.len();
-    let total_edges = edges.len();
-
-    Ok(Json(json!({
-        "success": true,
-        "nodes_count": total_nodes,
-        "edges_count": total_edges,
-        "nodes": nodes,
-        "edges": edges
-    })))
+    (nodes, edges)
 }

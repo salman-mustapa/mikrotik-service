@@ -47,7 +47,8 @@ COPY --from=builder /app/target/release/routeros-gateway /usr/local/bin/routeros
 
 # Copy default config and set permissions
 COPY config.example.toml /app/config.toml
-RUN chown -R appuser:appgroup /app
+# Persistent storage for network-map layouts and uploaded floor plans (mount a volume here)
+RUN mkdir -p /data && chown -R appuser:appgroup /app /data
 
 USER appuser
 
@@ -55,7 +56,10 @@ EXPOSE 8080
 
 ENV GATEWAY_LISTEN="0.0.0.0:8080" \
     GATEWAY_TOKEN="change-me-to-a-long-random-string" \
+    GATEWAY_DATA_DIR="/data" \
     RUST_LOG="info"
+
+VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget -qO- http://127.0.0.1:8080/health || exit 1

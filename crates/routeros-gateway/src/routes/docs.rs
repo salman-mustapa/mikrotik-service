@@ -708,6 +708,7 @@ pub async fn console_page() -> Html<&'static str> {
     <div class="nav-links">
       <a href="/" class="nav-btn active">🎮 Console &amp; Playground</a>
       <a href="/topology" class="nav-btn nav-btn-highlight">🗺️ Visualizer Topologi</a>
+      <a href="/map" class="nav-btn nav-btn-highlight">📍 Network Map</a>
       <a href="/docs" class="nav-btn">📖 API Docs &amp; Schema</a>
     </div>
   </header>
@@ -1212,6 +1213,9 @@ pub async fn console_page() -> Html<&'static str> {
 
       // --- Network Topology & Discovery (cat: net) ---
       { id: "topology", path: "/api/v1/network/topology-graph", method: "GET", cat: "net", desc: "Data graf relasi simpul (Nodes & Edges) jaringan berjenjang untuk visualizer topologi.", defaultPayload: "{}" },
+      { id: "map_scene", path: "/api/v1/map/scene", method: "GET", cat: "net", desc: "Network Map: scene realtime (node, edge, status, laju KB/MB, limit queue, relay) digabung dengan layout tersimpan. Panduan: docs/07.", defaultPayload: "{}" },
+      { id: "map_icons", path: "/api/v1/map/icons", method: "GET", cat: "net", desc: "Network Map: katalog ikon alat yang bisa dipilih/diganti.", defaultPayload: "{}" },
+      { id: "map_layouts", path: "/api/v1/map/layouts", method: "GET", cat: "net", desc: "Network Map: daftar layout (denah/satelit) yang tersimpan untuk tenant ini.", defaultPayload: "{}" },
       { id: "if_all", path: "/api/v1/interfaces/all", method: "GET", cat: "net", desc: "Daftar seluruh interface jaringan (ether, bridge, wlan, pppoe, vlan) dan statistik trafik.", defaultPayload: "{}" },
       { id: "bridge_all", path: "/api/v1/bridge/all", method: "GET", cat: "net", desc: "Daftar seluruh bridge interface di router.", defaultPayload: "{}" },
       { id: "bridge_ports", path: "/api/v1/bridge/ports", method: "GET", cat: "net", desc: "Daftar port interface fisik yang tergabung dalam bridge.", defaultPayload: "{}" },
@@ -2324,6 +2328,7 @@ pub async fn docs_page() -> Html<&'static str> {
     <div class="nav-links">
       <a href="/" class="nav-btn">🎮 Live Console &amp; Playground</a>
       <a href="/topology" class="nav-btn">🗺️ Visualizer Topologi</a>
+      <a href="/map" class="nav-btn">📍 Network Map</a>
       <a href="/docs" class="nav-btn active">📖 API Documentation</a>
     </div>
   </header>

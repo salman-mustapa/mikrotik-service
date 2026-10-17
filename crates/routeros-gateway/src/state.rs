@@ -6,6 +6,8 @@ use tokio::sync::Mutex;
 use md5::{Digest, Md5};
 
 use crate::error::ApiError;
+use crate::map_store::MapStore;
+use crate::routes::map::RateSnapshot;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AuditLogEntry {
@@ -26,6 +28,23 @@ pub fn ct_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// What a presented token is allowed to do.
+/// `Admin` = the full gateway API. `Viewer` = read-only network map (see `viewer_token`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Role {
+    Admin,
+    Viewer,
+}
+
+impl Role {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Role::Admin => "admin",
+            Role::Viewer => "viewer",
+        }
+    }
+}
+
 /// Compute a salted one-way 16-hex hash from API token + optional tenant context
 pub fn compute_tenant_hash(token: &str, tenant_context: Option<&str>) -> String {
     let mut hasher = Md5::new();
@@ -44,12 +63,26 @@ pub struct Config {
     #[serde(default = "default_listen")]
     pub listen: String,
     pub api_token: String,
+    /// Optional read-only token for browsers / dashboards. It can only call the *GET* map endpoints
+    /// (`/api/v1/map/scene|icons|layouts`) and `subscribe_map` over `/ws`, can never choose a router
+    /// by host/credentials (only by `router_id` from this file) and cannot edit or run commands.
+    /// Override with `GATEWAY_VIEWER_TOKEN`. Must be >= 16 chars and different from `api_token`.
+    #[serde(default)]
+    pub viewer_token: Option<String>,
+    /// Directory where network-map layouts (and uploaded floor-plan images) are persisted.
+    /// Override with `GATEWAY_DATA_DIR`. Mount it as a volume in Docker to keep layouts.
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
     #[serde(default, rename = "router")]
     pub routers: Vec<RouterCfg>,
 }
 
 fn default_listen() -> String {
     "127.0.0.1:8080".into()
+}
+
+pub fn default_data_dir() -> String {
+    "./data".into()
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -80,11 +113,17 @@ pub struct Slot {
 
 pub struct AppState {
     pub token: String,
+    /// Validated read-only token (see [`Config::viewer_token`]); `None` when disabled.
+    pub viewer_token: Option<String>,
     pub configured_routers: HashMap<String, Slot>,
     /// Global persistent connection pool: key = "user@host:port:pass_hash"
     pub dynamic_pool: Mutex<HashMap<String, Client>>,
     /// Multi-tenant segregated ring buffer audit log (max 5,000 entries)
     pub audit_logs: Mutex<VecDeque<AuditLogEntry>>,
+    /// Persistent network-map layouts (positions, icons, road waypoints, thresholds).
+    pub maps: MapStore,
+    /// Last interface/queue counter sample per `tenant|router`, used to turn counters into rates.
+    pub rates: Mutex<HashMap<String, RateSnapshot>>,
 }
 
 impl AppState {
@@ -103,11 +142,31 @@ impl AppState {
             })
             .collect();
 
+        let viewer_token = cfg
+            .viewer_token
+            .clone()
+            .map(|t| t.trim().to_string())
+            .filter(|t| t.len() >= 16 && !ct_eq(t, &cfg.api_token));
+
         Self {
             token: cfg.api_token,
+            viewer_token,
             configured_routers: configured,
             dynamic_pool: Mutex::new(HashMap::new()),
             audit_logs: Mutex::new(VecDeque::with_capacity(5000)),
+            maps: MapStore::new(cfg.data_dir),
+            rates: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Resolve a presented bearer token to a role, in constant time. `None` = unknown token.
+    pub fn role_for_token(&self, presented: &str) -> Option<Role> {
+        if ct_eq(presented, &self.token) {
+            return Some(Role::Admin);
+        }
+        match &self.viewer_token {
+            Some(v) if ct_eq(presented, v) => Some(Role::Viewer),
+            _ => None,
         }
     }
 

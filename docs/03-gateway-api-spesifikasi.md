@@ -6,7 +6,7 @@ Gateway daemon (`routeros-gateway`) berjalan sebagai HTTP REST, WebSocket & SSE 
 
 ## 1. Autentikasi Gateway
 
-Semua endpoint dilindungi oleh autentikasi Bearer Token atau Query Token (kecuali `/health`, `/topology`, dan portal dokumentasi `/docs` & `/`):
+Semua endpoint dilindungi oleh autentikasi Bearer Token atau Query Token (kecuali `/health`, `/topology`, `/map`, `/sdk/*`, dan portal dokumentasi `/docs` & `/` yang hanya menyajikan halaman/skrip statis tanpa data jaringan):
 
 ### Cara A: Header RFC Standar
 ```http
@@ -19,6 +19,14 @@ GET /api/v1/overview?token=<API_TOKEN_ANDA>
 ```
 
 Untuk WebSocket (`/ws`), autentikasi dapat dilewatkan via URL parameter `?token=<API_TOKEN_ANDA>` atau frame JSON pertama: `{"action": "auth", "token": "..."}`.
+
+### Peran token: Admin vs Viewer
+| Token | Env / config | Boleh |
+|---|---|---|
+| **Admin** | `GATEWAY_TOKEN` / `api_token` | Semua endpoint (termasuk `/api/v1/command`) |
+| **Viewer** (opsional) | `GATEWAY_VIEWER_TOKEN` / `viewer_token` (min. 16 karakter, tidak boleh sama dengan admin) | Hanya `GET` `/api/v1/map/scene`, `/icons`, `/layouts[/…]` dan WebSocket `subscribe_map`/`unsubscribe`. Selain itu → `403 FORBIDDEN`. Header `X-Router-*` dari viewer diabaikan (hanya `router_id` terdaftar). |
+
+Gunakan viewer token untuk frontend/embed agar admin token tidak pernah sampai ke browser pengguna akhir. Greeting WebSocket `auth_ok` menyertakan field `role`.
 
 ---
 
@@ -245,6 +253,13 @@ Streaming log RouterOS saat kejadian berlangsung (`/log/print follow-only`):
   "tag": "hotspot-logs"
 }
 ```
+
+### Action 7: Subscribe Network Map (`subscribe_map`)
+Stream *scene* peta (node, edge, status, rate, alert) — dipakai oleh `<mikrotik-map>`. Interval dibatasi 1000–60000 ms; masuk hitungan maksimal 10 stream per koneksi:
+```json
+{ "action": "subscribe_map", "layout_id": "lantai-1", "router_id": "core", "interval_ms": 3000, "tag": "map" }
+```
+Server mengirim `{"event":"map_frame", ...scene}`; bila router gagal: `{"event":"stream_error","retrying":true,...}` dan stream tetap mencoba lagi. Batalkan dengan `{"action":"unsubscribe","tag":"map"}`. Lihat [07](07-network-map-visualizer.md).
 
 ### 💻 Contoh Implementasi WebSocket untuk Developer (Frontend & Mobile)
 

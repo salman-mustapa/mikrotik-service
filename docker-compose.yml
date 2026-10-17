@@ -12,9 +12,14 @@ services:
       - GATEWAY_LISTEN=0.0.0.0:8080
       - GATEWAY_TOKEN=change-me-to-a-long-random-string
       - RUST_LOG=info
+      # Opsional: token READ-ONLY (>=16 karakter, beda dari GATEWAY_TOKEN) untuk browser/aplikasi yang hanya menampilkan peta.
+      # - GATEWAY_VIEWER_TOKEN=ganti-dengan-token-viewer-acak-panjang
+    volumes:
+      # Layout peta jaringan & gambar denah (hilang jika volume ini dihapus)
+      - gateway-data:/data
     # Opsional: Uncomment jika ingin mapping file config statis dari host.
     # PENTING: Pastikan config.toml berupa file di host (`cp config.example.toml config.toml`), bukan folder.
-    # volumes:
+    # Opsional: tambahkan mapping config statis dari host ke daftar volumes di atas:
     #   - ./config.toml:/app/config.toml:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
@@ -22,3 +27,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+volumes:
+  gateway-data:

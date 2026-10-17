@@ -15,6 +15,11 @@ pub enum ApiError {
     RouterLogin(String),
     RouterFatal(String),
     Internal(String),
+    NotFound(String),
+    Conflict(String),
+    PayloadTooLarge(String),
+    UnsupportedMedia(String),
+    Forbidden(String),
 }
 
 impl std::fmt::Display for ApiError {
@@ -26,6 +31,11 @@ impl std::fmt::Display for ApiError {
             ApiError::RouterLogin(m) => write!(f, "Router login error: {m}"),
             ApiError::RouterFatal(m) => write!(f, "Router fatal error: {m}"),
             ApiError::Internal(m) => write!(f, "Internal error: {m}"),
+            ApiError::NotFound(m) => write!(f, "Not found: {m}"),
+            ApiError::Conflict(m) => write!(f, "Conflict: {m}"),
+            ApiError::PayloadTooLarge(m) => write!(f, "Payload too large: {m}"),
+            ApiError::UnsupportedMedia(m) => write!(f, "Unsupported media: {m}"),
+            ApiError::Forbidden(m) => write!(f, "Forbidden: {m}"),
         }
     }
 }
@@ -88,6 +98,26 @@ impl IntoResponse for ApiError {
             ApiError::Internal(m) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json!({ "success": false, "error": m, "code": "INTERNAL_ERROR" }),
+            ),
+            ApiError::NotFound(m) => (
+                StatusCode::NOT_FOUND,
+                json!({ "success": false, "error": m, "code": "NOT_FOUND" }),
+            ),
+            ApiError::Conflict(m) => (
+                StatusCode::CONFLICT,
+                json!({ "success": false, "error": m, "code": "VERSION_CONFLICT" }),
+            ),
+            ApiError::PayloadTooLarge(m) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                json!({ "success": false, "error": m, "code": "PAYLOAD_TOO_LARGE" }),
+            ),
+            ApiError::UnsupportedMedia(m) => (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                json!({ "success": false, "error": m, "code": "UNSUPPORTED_MEDIA" }),
+            ),
+            ApiError::Forbidden(m) => (
+                StatusCode::FORBIDDEN,
+                json!({ "success": false, "error": m, "code": "FORBIDDEN" }),
             ),
         };
         (status, Json(body)).into_response()

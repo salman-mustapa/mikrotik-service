@@ -11,6 +11,9 @@ config.toml
 *.log
 scratch/
 
+# Runtime storage of network-map layouts / uploaded floor plans
+/data/
+
 # OS and Editor
 .DS_Store
 Thumbs.db
