@@ -62,6 +62,7 @@ pub mod security_cve;
 pub mod allowlist;
 pub mod layer7;
 pub mod provisioning;
+pub mod quick_actions;
 
 use std::sync::Arc;
 use axum::routing::{get, post, put};
@@ -607,10 +608,13 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/firewall/quarantine", get(firewall::list_quarantine).post(firewall::list_quarantine))
         .route("/api/v1/firewall/quarantine/release", post(firewall::release_quarantine))
 
-        // --- Firewall Quick Actions Engine (Pre-built Templates, Step Checklist Loader & State History) ---
-        .route("/api/v1/firewall/quick-actions/presets", get(firewall::quick_action_presets))
-        .route("/api/v1/firewall/quick-actions/execute", post(firewall::execute_quick_action))
-        .route("/api/v1/firewall/quick-actions/history", get(firewall::quick_actions_history))
+        // --- Universal Quick Actions Engine (Firewall, Hotspot, PPPoE, Bandwidth & System) ---
+        .route("/api/v1/quick-actions/presets", get(quick_actions::quick_action_presets))
+        .route("/api/v1/quick-actions/execute", post(quick_actions::execute_quick_action))
+        .route("/api/v1/quick-actions/history", get(quick_actions::quick_actions_history))
+        .route("/api/v1/firewall/quick-actions/presets", get(quick_actions::quick_action_presets))
+        .route("/api/v1/firewall/quick-actions/execute", post(quick_actions::execute_quick_action))
+        .route("/api/v1/firewall/quick-actions/history", get(quick_actions::quick_actions_history))
 
         // --- Layer 7 Protocols & Service Ports (Winbox Tabs) ---
         .route("/api/v1/firewall/layer7", get(layer7::list_layer7).post(layer7::list_layer7))
