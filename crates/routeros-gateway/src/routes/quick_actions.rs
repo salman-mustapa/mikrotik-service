@@ -64,6 +64,71 @@ pub struct QuickActionExecReq {
     pub params: HashMap<String, Value>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PipelineStepItem {
+    #[serde(default = "default_step_type")]
+    pub step_type: String, // "preset" or "command"
+    pub preset_id: Option<String>,
+    pub command: Option<String>,
+    pub stage: Option<String>,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub params: HashMap<String, Value>,
+}
+
+fn default_step_type() -> String {
+    "preset".into()
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PipelineExecReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub title: Option<String>,
+    pub category: Option<String>,
+    pub steps: Vec<PipelineStepItem>,
+}
+
+pub struct StepCollector<'a> {
+    pub items: Vec<QuickActionStep>,
+    pub progress_tx: Option<&'a tokio::sync::mpsc::UnboundedSender<String>>,
+    pub tag: Option<&'a str>,
+}
+
+impl<'a> StepCollector<'a> {
+    pub fn new(progress_tx: Option<&'a tokio::sync::mpsc::UnboundedSender<String>>, tag: Option<&'a str>) -> Self {
+        Self {
+            items: Vec::new(),
+            progress_tx,
+            tag,
+        }
+    }
+
+    pub fn push(&mut self, step: QuickActionStep) {
+        if let (Some(tx), Some(t)) = (self.progress_tx, self.tag) {
+            let _ = tx.send(serde_json::json!({
+                "event": "step_progress",
+                "tag": t,
+                "step": &step
+            }).to_string());
+        }
+        self.items.push(step);
+    }
+
+    pub fn to_vec(&self) -> Vec<QuickActionStep> {
+        self.items.clone()
+    }
+}
+
+impl<'a> std::ops::Deref for StepCollector<'a> {
+    type Target = [QuickActionStep];
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+
 #[derive(Deserialize, Debug, Default)]
 pub struct QuickActionQuery {
     pub category: Option<String>,
@@ -336,42 +401,55 @@ pub async fn quick_actions_history(Query(q): Query<QuickActionQuery>) -> Json<Va
     }))
 }
 
-/// POST /api/v1/quick-actions/execute - Universal Quick Action Executor dengan Checklist Loader & Live MikroTik Verification
-pub async fn execute_quick_action(
-    State(st): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(req): Json<QuickActionExecReq>,
-) -> Result<Json<Value>, ApiError> {
-    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
-    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
-
+pub async fn run_preset_internal(
+    st: &Arc<AppState>,
+    client: &routeros_core::Client,
+    preset_id: &str,
+    params: &HashMap<String, Value>,
+    headers: Option<&HeaderMap>,
+    progress_tx: Option<&tokio::sync::mpsc::UnboundedSender<String>>,
+    tag: Option<&str>,
+) -> Result<(String, String, Vec<QuickActionStep>, Value), ApiError> {
     let started_at = now_epoch_ms();
-    let job_id = format!("job_qa_{}_{:04x}", started_at, (started_at % 0xFFFF) as u16);
-    let mut steps: Vec<QuickActionStep> = Vec::new();
-    let overall_start = Instant::now();
+    let mut steps = StepCollector::new(progress_tx, tag);
 
-    match req.preset_id.as_str() {
+    match preset_id {
         // --- CATEGORY 1: FIREWALL ---
         "block_malicious_ip" | "isolate_host" | "protect_winbox_bruteforce" | "block_port_scanner_psd" |
         "anti_syn_flood_ddos" | "dns_hijack_prevention" | "block_doh_vpn_circumvention" | "whitelist_admin_ip" => {
-            // Forward directly to firewall's implementation to maintain consistency
             let fw_req = crate::routes::firewall::QuickActionExecReq {
                 router: None,
                 router_id: None,
-                preset_id: req.preset_id.clone(),
-                params: req.params.clone(),
+                preset_id: preset_id.to_string(),
+                params: params.clone(),
             };
-            crate::routes::firewall::execute_quick_action(State(st), headers, Json(fw_req)).await
+            let fw_res = crate::routes::firewall::execute_quick_action(
+                State(st.clone()),
+                headers.cloned().unwrap_or_default(),
+                Json(fw_req),
+            ).await?;
+            let fw_val = fw_res.0;
+            let title = fw_val.get("title").and_then(|v| v.as_str()).unwrap_or("Firewall Quick Action").to_string();
+            let category = "firewall".to_string();
+            let verif = fw_val.get("router_verification").cloned().unwrap_or(json!({}));
+            if let Some(arr) = fw_val.get("steps").and_then(|v| v.as_array()) {
+                for s_val in arr {
+                    if let Ok(s) = serde_json::from_value::<QuickActionStep>(s_val.clone()) {
+                        steps.push(s);
+                    }
+                }
+            }
+            Ok((category, title, steps.to_vec(), verif))
         }
 
         // --- CATEGORY 2: HOTSPOT ---
         "quick_hotspot_package_and_vouchers" => {
-            let pkg_name = req.params.get("package_name").and_then(|v| v.as_str()).unwrap_or("1JAM-3RB").trim().to_string();
-            let rate_limit = req.params.get("rate_limit").and_then(|v| v.as_str()).unwrap_or("2M/5M").trim().to_string();
-            let validity = req.params.get("validity").and_then(|v| v.as_str()).unwrap_or("2h").trim().to_string();
-            let price = req.params.get("price").and_then(|v| v.as_f64()).unwrap_or(3000.0);
-            let voucher_count = req.params.get("voucher_count").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
-            let prefix = req.params.get("prefix").and_then(|v| v.as_str()).unwrap_or("HOT-").trim().to_string();
+            let pkg_name = params.get("package_name").and_then(|v| v.as_str()).unwrap_or("1JAM-3RB").trim().to_string();
+            let rate_limit = params.get("rate_limit").and_then(|v| v.as_str()).unwrap_or("2M/5M").trim().to_string();
+            let validity = params.get("validity").and_then(|v| v.as_str()).unwrap_or("2h").trim().to_string();
+            let price = params.get("price").and_then(|v| v.as_f64()).unwrap_or(3000.0);
+            let voucher_count = params.get("voucher_count").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+            let prefix = params.get("prefix").and_then(|v| v.as_str()).unwrap_or("HOT-").trim().to_string();
 
             // Step 1: Validation
             let s1_start = Instant::now();
@@ -456,40 +534,16 @@ pub async fn execute_quick_action(
                 details: format!("Terverifikasi {} akun voucher terdaftar di router", check.len()),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_hotspot_package_and_vouchers".into(),
-                category: "hotspot".into(),
-                title: format!("Buat Paket '{}' + {} Voucher", pkg_name, created_users.len()),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({
+            Ok(("hotspot".into(), format!("Buat Paket '{}' + {} Voucher", pkg_name, created_users.len()), steps.to_vec(), json!({
                     "verified": verified,
                     "package_name": pkg_name,
                     "vouchers_generated": created_users,
                     "total_in_router": check.len()
-                }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+                })))
         }
 
         "quick_kick_hotspot_user" => {
-            let user = req.params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let user = params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
             if user.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'username' wajib diisi".into()));
             }
@@ -544,39 +598,15 @@ pub async fn execute_quick_action(
                 });
             }
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_kick_hotspot_user".into(),
-                category: "hotspot".into(),
-                title: format!("Kick Sesi User Hotspot '{}'", user),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "kicked_user": user, "removed_active_sessions": removed_count }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("hotspot".into(), format!("Kick Sesi User Hotspot '{}'", user), steps.to_vec(), json!({ "kicked_user": user, "removed_active_sessions": removed_count })))
         }
 
         "quick_walled_garden_bypass" => {
-            let host = req.params.get("dst_host").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let host = params.get("dst_host").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
             if host.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'dst_host' wajib diisi".into()));
             }
-            let comment = req.params.get("comment").and_then(|v| v.as_str()).unwrap_or("Quick-Action QRIS Bypass").trim().to_string();
+            let comment = params.get("comment").and_then(|v| v.as_str()).unwrap_or("Quick-Action QRIS Bypass").trim().to_string();
 
             let s1_start = Instant::now();
             client.run(build_command(
@@ -608,31 +638,7 @@ pub async fn execute_quick_action(
                 details: "Aturan terverifikasi aktif di RouterOS".into(),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_walled_garden_bypass".into(),
-                category: "hotspot".into(),
-                title: format!("Bypass Walled Garden '{}'", host),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "verified": verified, "bypassed_host": host }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("hotspot".into(), format!("Bypass Walled Garden '{}'", host), steps.to_vec(), json!({ "verified": verified, "bypassed_host": host })))
         }
 
         "quick_reset_hotspot_cookies" => {
@@ -655,40 +661,16 @@ pub async fn execute_quick_action(
                 details: format!("{} cookie dihapus, seluruh klien dipaksa re-login", total_cookies),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_reset_hotspot_cookies".into(),
-                category: "hotspot".into(),
-                title: "Bersihkan Seluruh Cookie Hotspot".into(),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "cleaned_cookies_count": total_cookies }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("hotspot".into(), "Bersihkan Seluruh Cookie Hotspot".into(), steps.to_vec(), json!({ "cleaned_cookies_count": total_cookies })))
         }
 
         // --- CATEGORY 3: PPPOE ---
         "quick_create_pppoe_client" => {
-            let user = req.params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-            let pass = req.params.get("password").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-            let profile = req.params.get("profile").and_then(|v| v.as_str()).unwrap_or("Home-10M").trim().to_string();
-            let service = req.params.get("service").and_then(|v| v.as_str()).unwrap_or("pppoe").trim().to_string();
-            let comment = req.params.get("comment").and_then(|v| v.as_str()).unwrap_or("Pelanggan Baru").trim().to_string();
+            let user = params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let pass = params.get("password").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let profile = params.get("profile").and_then(|v| v.as_str()).unwrap_or("Home-10M").trim().to_string();
+            let service = params.get("service").and_then(|v| v.as_str()).unwrap_or("pppoe").trim().to_string();
+            let comment = params.get("comment").and_then(|v| v.as_str()).unwrap_or("Pelanggan Baru").trim().to_string();
 
             if user.is_empty() || pass.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'username' dan 'password' wajib diisi".into()));
@@ -743,35 +725,11 @@ pub async fn execute_quick_action(
                 details: format!("Akun terverifikasi aktif di RouterOS (ID: {})", check.first().and_then(|r| r.get(".id")).unwrap_or("*none")),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_create_pppoe_client".into(),
-                category: "pppoe".into(),
-                title: format!("Registrasi Pelanggan PPPoE '{}'", user),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "verified": verified, "username": user, "profile": profile }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("pppoe".into(), format!("Registrasi Pelanggan PPPoE '{}'", user), steps.to_vec(), json!({ "verified": verified, "username": user, "profile": profile })))
         }
 
         "quick_isolate_overdue_pppoe" => {
-            let user = req.params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let user = params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
             if user.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'username' wajib diisi".into()));
             }
@@ -832,36 +790,12 @@ pub async fn execute_quick_action(
                 details: "Terverifikasi berstatus ISOLIR di RouterOS".into(),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_isolate_overdue_pppoe".into(),
-                category: "pppoe".into(),
-                title: format!("Isolir Pelanggan PPPoE '{}'", user),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "verified": verified, "username": user, "isolated": true }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("pppoe".into(), format!("Isolir Pelanggan PPPoE '{}'", user), steps.to_vec(), json!({ "verified": verified, "username": user, "isolated": true })))
         }
 
         "quick_restore_paid_pppoe" => {
-            let user = req.params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-            let regular_profile = req.params.get("regular_profile").and_then(|v| v.as_str()).unwrap_or("Home-10M").trim().to_string();
+            let user = params.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let regular_profile = params.get("regular_profile").and_then(|v| v.as_str()).unwrap_or("Home-10M").trim().to_string();
             if user.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'username' wajib diisi".into()));
             }
@@ -902,38 +836,14 @@ pub async fn execute_quick_action(
                 details: "Sesi isolir diputus, pelanggan siap re-dial akses normal".into(),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_restore_paid_pppoe".into(),
-                category: "pppoe".into(),
-                title: format!("Pulihkan Pelanggan PPPoE '{}'", user),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "username": user, "restored_profile": regular_profile }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("pppoe".into(), format!("Pulihkan Pelanggan PPPoE '{}'", user), steps.to_vec(), json!({ "username": user, "restored_profile": regular_profile })))
         }
 
         // --- CATEGORY 4: BANDWIDTH ---
         "quick_prioritize_vip" => {
-            let target_ip = req.params.get("target_ip").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-            let max_limit = req.params.get("max_limit").and_then(|v| v.as_str()).unwrap_or("20M/50M").trim().to_string();
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("VIP-Priority").trim().to_string();
+            let target_ip = params.get("target_ip").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let max_limit = params.get("max_limit").and_then(|v| v.as_str()).unwrap_or("20M/50M").trim().to_string();
+            let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("VIP-Priority").trim().to_string();
 
             if target_ip.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'target_ip' wajib diisi".into()));
@@ -988,36 +898,12 @@ pub async fn execute_quick_action(
                 details: format!("Terverifikasi aktif di RouterOS (ID: {})", check.first().and_then(|r| r.get(".id")).unwrap_or("*none")),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_prioritize_vip".into(),
-                category: "bandwidth".into(),
-                title: format!("Prioritas Bandwidth VIP '{}'", target_ip),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "verified": verified, "target_ip": target_ip, "priority": "1/1", "max_limit": max_limit }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("bandwidth".into(), format!("Prioritas Bandwidth VIP '{}'", target_ip), steps.to_vec(), json!({ "verified": verified, "target_ip": target_ip, "priority": "1/1", "max_limit": max_limit })))
         }
 
         "quick_throttle_bandwidth_hog" => {
-            let target_ip = req.params.get("target_ip").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-            let max_limit = req.params.get("max_limit").and_then(|v| v.as_str()).unwrap_or("512k/1M").trim().to_string();
+            let target_ip = params.get("target_ip").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let max_limit = params.get("max_limit").and_then(|v| v.as_str()).unwrap_or("512k/1M").trim().to_string();
 
             if target_ip.is_empty() {
                 return Err(ApiError::BadRequest("Parameter 'target_ip' wajib diisi".into()));
@@ -1047,31 +933,7 @@ pub async fn execute_quick_action(
                 details: "Aturan pembatasan berhasil diinjeksi ke router".into(),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_throttle_bandwidth_hog".into(),
-                category: "bandwidth".into(),
-                title: format!("Pangkas Bandwidth Host '{}'", target_ip),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "target_ip": target_ip, "throttled_to": max_limit }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("bandwidth".into(), format!("Pangkas Bandwidth Host '{}'", target_ip), steps.to_vec(), json!({ "target_ip": target_ip, "throttled_to": max_limit })))
         }
 
         // --- CATEGORY 5: SYSTEM & MAINTENANCE ---
@@ -1110,35 +972,11 @@ pub async fn execute_quick_action(
                 details: format!("{} entri ARP lama dibersihkan", removed_arp),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_flush_dns_and_arp".into(),
-                category: "system".into(),
-                title: "Bersihkan Cache DNS & ARP Dinamis".into(),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "dns_flushed": true, "cleaned_arp_count": removed_arp }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("system".into(), "Bersihkan Cache DNS & ARP Dinamis".into(), steps.to_vec(), json!({ "dns_flushed": true, "cleaned_arp_count": removed_arp })))
         }
 
         "quick_system_backup_export" => {
-            let prefix = req.params.get("prefix").and_then(|v| v.as_str()).unwrap_or("AUTO-SNAPSHOT").trim().to_string();
+            let prefix = params.get("prefix").and_then(|v| v.as_str()).unwrap_or("AUTO-SNAPSHOT").trim().to_string();
             let filename = format!("{}_{}", prefix, started_at);
 
             let s1_start = Instant::now();
@@ -1167,33 +1005,229 @@ pub async fn execute_quick_action(
                 details: format!("File script export '{}.rsc' dibuat", filename),
             });
 
-            let job_record = QuickActionJobRecord {
-                job_id: job_id.clone(),
-                preset_id: "quick_system_backup_export".into(),
-                category: "system".into(),
-                title: format!("Backup Sistem & Export Script '{}'", filename),
-                status: "completed".into(),
-                started_at_ms: started_at,
-                total_duration_ms: overall_start.elapsed().as_millis() as u64,
-                total_steps: steps.len(),
-                steps: steps.clone(),
-                router_verification: json!({ "binary_backup_file": format!("{}.backup", filename), "script_export_file": format!("{}.rsc", filename) }),
-            };
-            record_quick_action(job_record.clone());
-
-            Ok(Json(json!({
-                "success": true,
-                "job_id": job_id,
-                "preset_id": job_record.preset_id,
-                "category": job_record.category,
-                "title": job_record.title,
-                "status": job_record.status,
-                "total_duration_ms": job_record.total_duration_ms,
-                "steps": steps,
-                "router_verification": job_record.router_verification
-            })))
+            Ok(("system".into(), format!("Backup Sistem & Export Script '{}'", filename), steps.to_vec(), json!({ "binary_backup_file": format!("{}.backup", filename), "script_export_file": format!("{}.rsc", filename) })))
         }
 
         other => Err(ApiError::BadRequest(format!("Preset ID '{}' tidak dikenali. Gunakan /api/v1/quick-actions/presets untuk melihat seluruh preset yang tersedia.", other))),
     }
+}
+
+/// POST /api/v1/quick-actions/execute - Universal Quick Action Executor dengan Checklist Loader & Live MikroTik Verification
+pub async fn execute_quick_action(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<QuickActionExecReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let started_at = now_epoch_ms();
+    let job_id = format!("job_qa_{}_{:04x}", started_at, (started_at % 0xFFFF) as u16);
+    let overall_start = Instant::now();
+
+    let (category, title, steps, router_verification) = run_preset_internal(
+        &st,
+        &client,
+        &req.preset_id,
+        &req.params,
+        Some(&headers),
+        None,
+        None,
+    ).await?;
+
+    let total_dur = overall_start.elapsed().as_millis() as u64;
+    let has_failed = steps.iter().any(|s| s.status == "failed");
+
+    let job_record = QuickActionJobRecord {
+        job_id: job_id.clone(),
+        preset_id: req.preset_id.clone(),
+        category: category.clone(),
+        title: title.clone(),
+        status: if has_failed { "partial_failed".into() } else { "completed".into() },
+        started_at_ms: started_at,
+        total_duration_ms: total_dur,
+        total_steps: steps.len(),
+        steps: steps.clone(),
+        router_verification: router_verification.clone(),
+    };
+    record_quick_action(job_record.clone());
+
+    Ok(Json(json!({
+        "success": true,
+        "job_id": job_id,
+        "preset_id": req.preset_id,
+        "category": category,
+        "title": title,
+        "status": job_record.status,
+        "total_duration_ms": total_dur,
+        "steps": steps,
+        "router_verification": router_verification
+    })))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn run_pipeline_internal(
+    st: &Arc<AppState>,
+    client: &routeros_core::Client,
+    job_id: &str,
+    title: &str,
+    category: &str,
+    pipeline_steps: Vec<PipelineStepItem>,
+    headers: Option<&HeaderMap>,
+    progress_tx: Option<&tokio::sync::mpsc::UnboundedSender<String>>,
+    tag: Option<&str>,
+) -> Result<QuickActionJobRecord, ApiError> {
+    let started_at = now_epoch_ms();
+    let overall_start = Instant::now();
+    let mut all_steps: Vec<QuickActionStep> = Vec::new();
+    let mut sub_verifications = Vec::new();
+
+    for (item_idx, item) in pipeline_steps.into_iter().enumerate() {
+        match item.step_type.to_lowercase().as_str() {
+            "preset" => {
+                let pid = item.preset_id.as_deref().unwrap_or("").trim();
+                if pid.is_empty() {
+                    return Err(ApiError::BadRequest(format!("Step #{} bertipe 'preset' membutuhkan 'preset_id'", item_idx + 1)));
+                }
+                let (_cat, _p_title, p_steps, p_verif) = run_preset_internal(
+                    st,
+                    client,
+                    pid,
+                    &item.params,
+                    headers,
+                    progress_tx,
+                    tag,
+                ).await?;
+
+                for mut s in p_steps {
+                    s.step_number = all_steps.len() + 1;
+                    if let Some(custom_name) = &item.name {
+                        s.name = format!("{}: {}", custom_name, s.name);
+                    }
+                    all_steps.push(s);
+                }
+                sub_verifications.push(json!({ "preset_id": pid, "result": p_verif }));
+            }
+
+            "command" => {
+                let cmd_str = item.command.as_deref().unwrap_or("").trim();
+                if cmd_str.is_empty() {
+                    return Err(ApiError::BadRequest(format!("Step #{} bertipe 'command' membutuhkan 'command'", item_idx + 1)));
+                }
+                if !cmd_str.starts_with('/') {
+                    return Err(ApiError::BadRequest(format!("Step #{} command harus diawali dengan '/' (contoh: /ip/firewall/filter/add)", item_idx + 1)));
+                }
+
+                let cmd_start = Instant::now();
+                let params_vec: Vec<(&str, String)> = item.params.iter().map(|(k, v)| {
+                    let v_str = match v {
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    (k.as_str(), v_str)
+                }).collect();
+
+                let words = build_command(cmd_str, params_vec.iter().map(|(k, v)| (*k, v.as_str())));
+                let cmd_res = client.run(words).await;
+                let dur = cmd_start.elapsed().as_millis() as u64;
+
+                let (status, details, count) = match &cmd_res {
+                    Ok(rows) => ("success".to_string(), format!("Perintah RouterOS berhasil dieksekusi ({} rows)", rows.len()), rows.len()),
+                    Err(e) => ("failed".to_string(), format!("Error eksekusi RouterOS: {}", e), 0),
+                };
+
+                let step = QuickActionStep {
+                    step_number: all_steps.len() + 1,
+                    stage: item.stage.unwrap_or_else(|| "CUSTOM_COMMAND".into()),
+                    name: item.name.unwrap_or_else(|| format!("Eksekusi {}", cmd_str)),
+                    description: item.description.unwrap_or_else(|| format!("Jalankan CLI: {}", cmd_str)),
+                    command: cmd_str.to_string(),
+                    status,
+                    duration_ms: dur,
+                    details,
+                };
+
+                if let (Some(tx), Some(t)) = (progress_tx, tag) {
+                    let _ = tx.send(serde_json::json!({
+                        "event": "step_progress",
+                        "tag": t,
+                        "step": &step
+                    }).to_string());
+                }
+
+                all_steps.push(step);
+                sub_verifications.push(json!({ "command": cmd_str, "rows_count": count }));
+            }
+
+            other => {
+                return Err(ApiError::BadRequest(format!("Tipe step '{}' tidak valid. Gunakan 'preset' atau 'command'", other)));
+            }
+        }
+    }
+
+    let total_dur = overall_start.elapsed().as_millis() as u64;
+    let has_failed = all_steps.iter().any(|s| s.status == "failed");
+
+    let record = QuickActionJobRecord {
+        job_id: job_id.to_string(),
+        preset_id: "custom_pipeline".into(),
+        category: category.to_string(),
+        title: title.to_string(),
+        status: if has_failed { "partial_failed".into() } else { "completed".into() },
+        started_at_ms: started_at,
+        total_duration_ms: total_dur,
+        total_steps: all_steps.len(),
+        steps: all_steps,
+        router_verification: json!({ "pipeline_results": sub_verifications }),
+    };
+
+    record_quick_action(record.clone());
+    Ok(record)
+}
+
+/// POST /api/v1/quick-actions/pipeline - Dynamic Workflow Pipeline Executor (Gabungan Multi-Step & Custom Commands)
+pub async fn execute_pipeline(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<PipelineExecReq>,
+) -> Result<Json<Value>, ApiError> {
+    if req.steps.is_empty() {
+        return Err(ApiError::BadRequest("Daftar 'steps' tidak boleh kosong".into()));
+    }
+    if req.steps.len() > 30 {
+        return Err(ApiError::BadRequest("Maksimal 30 steps dalam satu pipeline workflow".into()));
+    }
+
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let started_at = now_epoch_ms();
+    let job_id = format!("job_pipe_{}_{:04x}", started_at, (started_at % 0xFFFF) as u16);
+    let title = req.title.unwrap_or_else(|| "Custom Composite Pipeline".into());
+    let category = req.category.unwrap_or_else(|| "custom_pipeline".into());
+
+    let record = run_pipeline_internal(
+        &st,
+        &client,
+        &job_id,
+        &title,
+        &category,
+        req.steps,
+        Some(&headers),
+        None,
+        None,
+    ).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "job_id": record.job_id,
+        "preset_id": record.preset_id,
+        "category": record.category,
+        "title": record.title,
+        "status": record.status,
+        "total_duration_ms": record.total_duration_ms,
+        "total_steps": record.total_steps,
+        "steps": record.steps,
+        "router_verification": record.router_verification
+    })))
 }

@@ -39,9 +39,21 @@ struct WsIncoming {
     pub tenant_id: Option<String>,
     /// `subscribe_map`: topology filter (`all`, `hotspot`, `pppoe`, `dhcp`, `wifi`, `infra`).
     pub filter_type: Option<String>,
+    pub preset_id: Option<String>,
+    pub title: Option<String>,
+    pub category: Option<String>,
+    pub steps: Option<Vec<crate::routes::quick_actions::PipelineStepItem>>,
+    #[serde(default)]
+    pub json_params: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl WsIncoming {
+    pub fn get_json_params(&self) -> HashMap<String, serde_json::Value> {
+        if let Some(jp) = &self.json_params {
+            return jp.clone();
+        }
+        self.params.iter().map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone()))).collect()
+    }
     pub fn resolved_target(&self) -> Option<RouterTarget> {
         if let Some(r) = &self.router {
             return Some(r.clone());
@@ -194,7 +206,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
 
         // A viewer may select a router only by the router_id configured on the gateway.
         let target = if role_now == Role::Viewer { None } else { req.resolved_target() };
-        let router_id = req.router_id;
+        let router_id = req.router_id.clone();
 
         match req.action.as_str() {
             "command" => {
@@ -254,6 +266,175 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
                                 "event": "command_error",
                                 "tag": tag_clone,
                                 "error": e.to_string()
+                            }).to_string());
+                        }
+                    }
+                });
+            }
+
+            "quick_action" => {
+                let preset_id = match req.preset_id.as_deref() {
+                    Some(p) if !p.trim().is_empty() => p.to_string(),
+                    _ => {
+                        let _ = out_tx.send(json!({ "event": "error", "tag": tag, "error": "Missing 'preset_id' field" }).to_string());
+                        continue;
+                    }
+                };
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let tag_clone = tag.clone();
+                let params_val = req.get_json_params();
+
+                tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "quick_action_error", "tag": tag_clone, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let started_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis())
+                        .unwrap_or(0);
+                    let job_id = format!("job_ws_qa_{}_{:04x}", started_at, (started_at % 0xFFFF) as u16);
+                    let _ = out_tx_clone.send(json!({
+                        "event": "quick_action_started",
+                        "tag": tag_clone,
+                        "job_id": job_id,
+                        "preset_id": preset_id,
+                    }).to_string());
+
+                    let res = crate::routes::quick_actions::run_preset_internal(
+                        &st_clone,
+                        &client,
+                        &preset_id,
+                        &params_val,
+                        None,
+                        Some(&out_tx_clone),
+                        Some(&tag_clone),
+                    ).await;
+
+                    match res {
+                        Ok((category, title, steps, router_verification)) => {
+                            let dur = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis())
+                                .unwrap_or(0)
+                                .saturating_sub(started_at) as u64;
+                            let job_rec = crate::routes::quick_actions::QuickActionJobRecord {
+                                job_id: job_id.clone(),
+                                preset_id: preset_id.clone(),
+                                category: category.clone(),
+                                title: title.clone(),
+                                status: if steps.iter().any(|s| s.status == "failed") { "partial_failed".into() } else { "completed".into() },
+                                started_at_ms: started_at,
+                                total_duration_ms: dur,
+                                total_steps: steps.len(),
+                                steps: steps.clone(),
+                                router_verification: router_verification.clone(),
+                            };
+                            crate::routes::quick_actions::record_quick_action(job_rec);
+
+                            let _ = out_tx_clone.send(json!({
+                                "event": "quick_action_complete",
+                                "tag": tag_clone,
+                                "job_id": job_id,
+                                "preset_id": preset_id,
+                                "category": category,
+                                "title": title,
+                                "success": true,
+                                "total_duration_ms": dur,
+                                "steps": steps,
+                                "router_verification": router_verification,
+                            }).to_string());
+                        }
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({
+                                "event": "quick_action_error",
+                                "tag": tag_clone,
+                                "error": e.to_string(),
+                            }).to_string());
+                        }
+                    }
+                });
+            }
+
+            "execute_pipeline" => {
+                let pipeline_steps = match req.steps {
+                    Some(s) if !s.is_empty() => s,
+                    _ => {
+                        let _ = out_tx.send(json!({ "event": "error", "tag": tag, "error": "Missing or empty 'steps' field for execute_pipeline" }).to_string());
+                        continue;
+                    }
+                };
+                let title = req.title.unwrap_or_else(|| "Custom Composite Pipeline".into());
+                let category = req.category.unwrap_or_else(|| "custom_pipeline".into());
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let tag_clone = tag.clone();
+
+                tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "pipeline_error", "tag": tag_clone, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let started_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis())
+                        .unwrap_or(0);
+                    let job_id = format!("job_ws_pipe_{}_{:04x}", started_at, (started_at % 0xFFFF) as u16);
+                    let _ = out_tx_clone.send(json!({
+                        "event": "pipeline_started",
+                        "tag": tag_clone,
+                        "job_id": job_id,
+                        "title": title,
+                        "total_items": pipeline_steps.len(),
+                    }).to_string());
+
+                    let res = crate::routes::quick_actions::run_pipeline_internal(
+                        &st_clone,
+                        &client,
+                        &job_id,
+                        &title,
+                        &category,
+                        pipeline_steps,
+                        None,
+                        Some(&out_tx_clone),
+                        Some(&tag_clone),
+                    ).await;
+
+                    match res {
+                        Ok(job_rec) => {
+                            let _ = out_tx_clone.send(json!({
+                                "event": "pipeline_complete",
+                                "tag": tag_clone,
+                                "job_id": job_rec.job_id,
+                                "category": job_rec.category,
+                                "title": job_rec.title,
+                                "success": true,
+                                "total_duration_ms": job_rec.total_duration_ms,
+                                "total_steps": job_rec.total_steps,
+                                "steps": job_rec.steps,
+                                "router_verification": job_rec.router_verification,
+                            }).to_string());
+                        }
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({
+                                "event": "pipeline_error",
+                                "tag": tag_clone,
+                                "error": e.to_string(),
                             }).to_string());
                         }
                     }

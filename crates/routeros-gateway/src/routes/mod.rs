@@ -611,9 +611,11 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Universal Quick Actions Engine (Firewall, Hotspot, PPPoE, Bandwidth & System) ---
         .route("/api/v1/quick-actions/presets", get(quick_actions::quick_action_presets))
         .route("/api/v1/quick-actions/execute", post(quick_actions::execute_quick_action))
+        .route("/api/v1/quick-actions/pipeline", post(quick_actions::execute_pipeline))
         .route("/api/v1/quick-actions/history", get(quick_actions::quick_actions_history))
         .route("/api/v1/firewall/quick-actions/presets", get(quick_actions::quick_action_presets))
         .route("/api/v1/firewall/quick-actions/execute", post(quick_actions::execute_quick_action))
+        .route("/api/v1/firewall/quick-actions/pipeline", post(quick_actions::execute_pipeline))
         .route("/api/v1/firewall/quick-actions/history", get(quick_actions::quick_actions_history))
 
         // --- Layer 7 Protocols & Service Ports (Winbox Tabs) ---
