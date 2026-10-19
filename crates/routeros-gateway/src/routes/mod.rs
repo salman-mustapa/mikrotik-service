@@ -75,6 +75,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         // --- Fast-Path Aggregated Snapshot & Cross-Layer Correlator ---
         .route("/api/v1/overview", get(overview::get_overview).post(overview::get_overview))
         .route("/api/v1/network/connected-devices", get(network_map::connected_devices).post(network_map::connected_devices))
+        .route("/api/v1/devices", get(network_map::connected_devices).post(network_map::connected_devices))
+        .route("/api/v1/connected-devices", get(network_map::connected_devices).post(network_map::connected_devices))
         .route("/api/v1/network/topology-graph", get(topology::topology_graph).post(topology::topology_graph))
 
         // --- Network Map: ready-to-embed floor-plan / satellite map with live traffic, queues & alerts ---

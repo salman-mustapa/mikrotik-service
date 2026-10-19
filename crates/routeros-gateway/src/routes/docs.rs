@@ -949,6 +949,7 @@ pub async fn console_page() -> Response {
       // --- Fast-Path & Performance (cat: fast) ---
       { id: "overview", path: "/api/v1/overview", method: "GET", cat: "fast", desc: "Snapshot agregasi cepat: CPU, memory, uptime, total user hotspot, ppp, dan leases dalam <2ms.", defaultPayload: "{}" },
       { id: "connected_devices", path: "/api/v1/network/connected-devices", method: "GET", cat: "fast", desc: "Korelasikan perangkat terhubung dari seluruh layer (DHCP, ARP, Hotspot, WiFi, PPPoE).", defaultPayload: "{}" },
+      { id: "devices", path: "/api/v1/devices", method: "GET", cat: "fast", desc: "Daftar seluruh perangkat terhubung (korelasi lintas layer DHCP, ARP, Hotspot, WiFi, PPPoE) dengan deteksi vendor otomatis.", defaultPayload: "{}" },
       { id: "fasttrack_status", path: "/api/v1/system/fasttrack/status", method: "GET", cat: "fast", desc: "Status aturan FastTrack Hardware Acceleration RouterOS, packet counter, dan status bypass.", defaultPayload: "{}" },
       { id: "fasttrack_deploy", path: "/api/v1/system/fasttrack/deploy", method: "POST", cat: "fast", desc: "1-Klik Deploy Rule FastTrack IPv4 Connection Tracking: Bypass firewall untuk established/related packets, memangkas CPU load hingga 80%.", defaultPayload: "{}" },
       { id: "cpu_profiler", path: "/api/v1/system/cpu-profiler", method: "GET", cat: "fast", desc: "Pemeriksa profil CPU live & pendeteksi bottleneck proses RouterOS (networking, firewall, profiling).", defaultPayload: "{}" },

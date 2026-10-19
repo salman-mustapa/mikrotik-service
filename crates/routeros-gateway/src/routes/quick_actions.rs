@@ -1110,6 +1110,11 @@ pub async fn run_pipeline_internal(
             }
 
             "command" => {
+                if !st.allow_raw_command {
+                    return Err(ApiError::Forbidden(
+                        "Eksekusi raw command dinonaktifkan oleh gateway security policy. Set GATEWAY_ALLOW_RAW_COMMAND=true untuk mengaktifkan, atau gunakan step bertipe 'preset'.".into()
+                    ));
+                }
                 let cmd_str = item.command.as_deref().unwrap_or("").trim();
                 if cmd_str.is_empty() {
                     return Err(ApiError::BadRequest(format!("Step #{} bertipe 'command' membutuhkan 'command'", item_idx + 1)));
