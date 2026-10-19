@@ -36,6 +36,12 @@ pub async fn run_raw_command(
     headers: HeaderMap,
     Json(req): Json<RawCommandReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_raw_command {
+        return Err(ApiError::Forbidden(
+            "Raw command execution is disabled by gateway security policy. Set GATEWAY_ALLOW_RAW_COMMAND=true to enable.".into()
+        ));
+    }
+
     if !req.command.starts_with('/') {
         return Err(ApiError::BadRequest("command must start with '/'".into()));
     }
@@ -63,6 +69,12 @@ pub async fn run_raw_listen(
     State(st): State<Arc<AppState>>,
     Query(mut q): Query<Vec<(String, String)>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    if !st.allow_raw_command {
+        return Err(ApiError::Forbidden(
+            "Raw command streaming is disabled by gateway security policy. Set GATEWAY_ALLOW_RAW_COMMAND=true to enable.".into()
+        ));
+    }
+
     let extract = |key: &str, q: &mut Vec<(String, String)>| {
         q.iter().position(|(k, _)| k == key).map(|pos| q.remove(pos).1)
     };
@@ -70,7 +82,7 @@ pub async fn run_raw_listen(
     let host = extract("host", &mut q);
     let port = extract("port", &mut q).and_then(|p| p.parse::<u16>().ok());
     let user = extract("user", &mut q);
-    let pass = extract("password", &mut q);
+    let _ = extract("password", &mut q); // Deprecated: passwords must not be passed in query strings
     let router_id = extract("router_id", &mut q);
 
     let pos = q
@@ -88,7 +100,7 @@ pub async fn run_raw_listen(
             host: Some(h),
             port,
             user: Some(u),
-            password: pass,
+            password: None,
         }),
         _ => None,
     };

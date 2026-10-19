@@ -66,8 +66,15 @@ pub async fn send_message(
     headers: HeaderMap,
     Json(req): Json<TelegramSendReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if req.message.len() > 4096 {
+        return Err(ApiError::BadRequest("message exceeds Telegram limit of 4096 characters".into()));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_telegram_bot_token(&req.bot_token)?;
+    crate::routes::sanitize::validate_telegram_chat_id(&req.chat_id)?;
 
     let clean_msg = url_encode(&req.message);
     let fetch_url = format!(
@@ -97,12 +104,40 @@ pub async fn setup_netwatch(
     headers: HeaderMap,
     Json(req): Json<SetupNetwatchReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Netwatch script setup is disabled (allow_terminal_exec is false)".to_string(),
+        ));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_telegram_bot_token(&req.bot_token)?;
+    crate::routes::sanitize::validate_telegram_chat_id(&req.chat_id)?;
+
+    // Validate monitored host (must be valid IP/CIDR or safe hostname)
+    if crate::routes::sanitize::validate_ip_or_cidr(&req.host).is_err()
+        && !req.host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+        return Err(ApiError::BadRequest("Monitored host must be a valid IP address or hostname".into()));
+    }
+
+    if let Some(ref dev) = req.device_name {
+        if dev.contains(['\r', '\n', '"', ';']) {
+            return Err(ApiError::BadRequest("device_name contains invalid characters".into()));
+        }
+    }
 
     let dev_label = req.device_name.as_deref().unwrap_or(req.host.as_str());
     let interval = req.interval.as_deref().unwrap_or("10s");
     let timeout = req.timeout.as_deref().unwrap_or("1000ms");
+    crate::routes::sanitize::validate_validity(interval)?;
+    crate::routes::sanitize::validate_validity(timeout)?;
+    if let Some(ref c) = req.comment {
+        if c.contains(['\r', '\n', '"', ';']) {
+            return Err(ApiError::BadRequest("comment contains invalid characters".into()));
+        }
+    }
     let comment = req.comment.unwrap_or_else(|| format!("[Telegram-Netwatch] {}", dev_label));
 
     // Construct RouterOS Netwatch UP & DOWN scripts
@@ -165,6 +200,8 @@ pub async fn remove_monitor(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

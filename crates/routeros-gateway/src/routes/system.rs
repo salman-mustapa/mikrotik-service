@@ -101,6 +101,12 @@ pub async fn reboot(
     headers: HeaderMap,
     Json(req): Json<BaseReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_system_reboot {
+        return Err(ApiError::Forbidden(
+            "System reboot is disabled by gateway security policy. Set GATEWAY_ALLOW_SYSTEM_REBOOT=true to permit.".into()
+        ));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/system/reboot", std::iter::empty::<(&str, &str)>())).await?;
@@ -113,6 +119,12 @@ pub async fn shutdown(
     headers: HeaderMap,
     Json(req): Json<BaseReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_system_reboot {
+        return Err(ApiError::Forbidden(
+            "System shutdown is disabled by gateway security policy. Set GATEWAY_ALLOW_SYSTEM_REBOOT=true to permit.".into()
+        ));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/system/shutdown", std::iter::empty::<(&str, &str)>())).await?;

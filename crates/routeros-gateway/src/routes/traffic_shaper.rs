@@ -79,6 +79,10 @@ pub async fn add_mangle(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    if let Some(dp) = req.dst_port.as_deref() {
+        crate::routes::sanitize::validate_ports_list(dp)?;
+    }
+
     let mut args = vec![
         ("chain", req.chain.as_str()),
         ("action", req.action.as_str()),
@@ -87,7 +91,7 @@ pub async fn add_mangle(
     if let Some(cm) = req.new_connection_mark.as_deref() { args.push(("new-connection-mark", cm)); }
     if let Some(pm) = req.new_packet_mark.as_deref() { args.push(("new-packet-mark", pm)); }
     let pass_str = req.passthrough.map(|p| if p { "yes" } else { "no" });
-    if let Some(p) = pass_str.as_deref() { args.push(("passthrough", p)); }
+    if let Some(p) = pass_str { args.push(("passthrough", p)); }
     if let Some(proto) = req.protocol.as_deref() { args.push(("protocol", proto)); }
     if let Some(dp) = req.dst_port.as_deref() { args.push(("dst-port", dp)); }
     if let Some(c) = req.comment.as_deref() { args.push(("comment", c)); }
@@ -129,6 +133,20 @@ pub async fn add_queue_tree(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.parent, "parent")?;
+    if let Some(la) = req.limit_at.as_deref() {
+        crate::routes::sanitize::validate_bandwidth_rate(la)?;
+    }
+    if let Some(ml) = req.max_limit.as_deref() {
+        crate::routes::sanitize::validate_bandwidth_rate(ml)?;
+    }
+    if let Some(p) = req.priority {
+        if !(1..=8).contains(&p) {
+            return Err(ApiError::BadRequest("Priority must be between 1 and 8".into()));
+        }
+    }
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("parent", req.parent.as_str()),
@@ -162,6 +180,9 @@ pub async fn deploy_game_social_separation(
 
     let total_bw = req.total_bandwidth.as_deref().unwrap_or("50M");
     let game_bw = req.game_reserved.as_deref().unwrap_or("10M");
+
+    crate::routes::sanitize::validate_bandwidth_rate(total_bw)?;
+    crate::routes::sanitize::validate_bandwidth_rate(game_bw)?;
 
     // 1. Mangle: Online Games Connection Mark (Mobile Legends, PUBG, Free Fire, Valorant ports)
     let _ = client.run(build_command("/ip/firewall/mangle/add", [

@@ -33,6 +33,8 @@ pub async fn enable_anti_tethering(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_safe_identifier(&req.hotspot_interface, "hotspot_interface")?;
+
     let comment = "[Anti-Tethering] Force TTL=1 to block Wi-Fi sharing & Bluetooth tethering";
 
     // 1. Injects TTL=1 rule on postrouting out-interface

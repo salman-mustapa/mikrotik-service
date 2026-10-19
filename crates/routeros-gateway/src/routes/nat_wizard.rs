@@ -66,6 +66,18 @@ pub async fn add_port_forward(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_ports_list(&req.dst_port)?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.to_addresses)?;
+    if let Some(tp) = req.to_ports.as_deref() {
+        crate::routes::sanitize::validate_ports_list(tp)?;
+    }
+    if let Some(in_if) = req.in_interface.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(in_if, "in_interface")?;
+    }
+    if let Some(ref lan) = req.lan_subnet {
+        crate::routes::sanitize::validate_ip_or_cidr(lan)?;
+    }
+
     let proto = req.protocol.as_deref().unwrap_or("tcp");
     let to_port = req.to_ports.as_deref().unwrap_or(&req.dst_port);
     let comment = req.comment.unwrap_or_else(|| {
@@ -160,6 +172,12 @@ pub async fn add_hairpin_nat(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_ip_or_cidr(&req.lan_subnet)?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.server_address)?;
+    if let Some(ref dp) = req.dst_port {
+        crate::routes::sanitize::validate_ports_list(dp)?;
+    }
+
     let proto = req.protocol.as_deref().unwrap_or("tcp");
     let comment = req.comment.unwrap_or_else(|| {
         format!("[Hairpin-NAT] Loopback NAT {} -> {}", req.lan_subnet, req.server_address)
@@ -215,6 +233,8 @@ pub async fn remove_port_forward(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -234,6 +254,8 @@ pub async fn add_masquerade(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.out_interface, "out_interface")?;
 
     let comment = req.comment.unwrap_or_else(|| format!("[Src-NAT] Masquerade WAN ({})", req.out_interface));
 

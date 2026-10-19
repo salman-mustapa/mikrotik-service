@@ -74,9 +74,12 @@ pub async fn add_bridge(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+
     let mut args = vec![("name", req.name.as_str())];
     let vlan_str = req.vlan_filtering.map(|v| if v { "yes" } else { "no" });
-    if let Some(v) = vlan_str.as_deref() {
+    if let Some(v) = vlan_str {
         args.push(("vlan-filtering", v));
     }
     if let Some(c) = req.comment.as_deref() {
@@ -117,6 +120,10 @@ pub async fn add_port(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.bridge, "bridge")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+
     let mut args = vec![
         ("bridge", req.bridge.as_str()),
         ("interface", req.interface.as_str()),
@@ -126,7 +133,7 @@ pub async fn add_port(
         args.push(("pvid", p));
     }
     let hw_str = req.hw.map(|h| if h { "yes" } else { "no" });
-    if let Some(h) = hw_str.as_deref() {
+    if let Some(h) = hw_str {
         args.push(("hw", h));
     }
     client.run(build_command("/interface/bridge/port/add", args)).await?;
@@ -164,6 +171,12 @@ pub async fn add_vlan(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.bridge, "bridge")?;
+    if !req.vlan_ids.chars().all(|c| c.is_ascii_digit() || matches!(c, ',' | '-')) {
+        return Err(ApiError::BadRequest("vlan_ids contains invalid characters. Only digits, comma, and hyphen are allowed".into()));
+    }
+
     let mut args = vec![
         ("bridge", req.bridge.as_str()),
         ("vlan-ids", req.vlan_ids.as_str()),

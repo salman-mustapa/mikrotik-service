@@ -8,7 +8,7 @@ use std::sync::Arc;
 use axum::extract::{Request, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::json;
@@ -78,7 +78,82 @@ fn viewer_may_access(method: &axum::http::Method, path: &str) -> bool {
         || path.starts_with("/api/v1/map/layouts/")
 }
 
+fn get_client_ip(req: &Request, trust_forwarded: bool) -> std::net::IpAddr {
+    if trust_forwarded {
+        if let Some(h) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+            if let Some(first) = h.split(',').next() {
+                if let Ok(ip) = first.trim().parse::<std::net::IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+        if let Some(h) = req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()) {
+            if let Ok(ip) = h.trim().parse::<std::net::IpAddr>() {
+                return ip;
+            }
+        }
+    }
+
+    req.extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|ci| ci.0.ip())
+        .unwrap_or_else(|| std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)))
+}
+
+async fn global_security_headers(req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_string();
+    let mut resp = next.run(req).await;
+    let headers = resp.headers_mut();
+
+    headers.insert(
+        header::HeaderName::from_static("x-content-type-options"),
+        header::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::HeaderName::from_static("x-frame-options"),
+        header::HeaderValue::from_static("SAMEORIGIN"),
+    );
+    headers.insert(
+        header::HeaderName::from_static("referrer-policy"),
+        header::HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    headers.insert(
+        header::HeaderName::from_static("permissions-policy"),
+        header::HeaderValue::from_static("accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"),
+    );
+
+    // Prevent caching of sensitive API responses and tokens
+    if path.starts_with("/api/") || path == "/metrics" || path == "/ws" {
+        headers.insert(
+            header::CACHE_CONTROL,
+            header::HeaderValue::from_static("no-store, no-cache, must-revalidate, private"),
+        );
+        headers.insert(
+            header::PRAGMA,
+            header::HeaderValue::from_static("no-cache"),
+        );
+    }
+
+    resp
+}
+
 async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> Response {
+    let client_ip = get_client_ip(&req, st.trust_forwarded_for);
+
+    // Rate-limit failed authentication attempts per IP (Finding 2)
+    if let Err(retry_after) = st.auth_rate_limiter.check(client_ip).await {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({
+                "success": false,
+                "error": format!("Too many failed authentication attempts from this IP. Please retry after {} seconds.", retry_after),
+                "code": "RATE_LIMITED",
+                "retry_after_secs": retry_after
+            })),
+        )
+            .into_response();
+    }
+
     let header_role = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -96,7 +171,11 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
     }
 
     // Token via query string is strictly restricted to streaming/SSE endpoints (where EventSource cannot set headers)
-    let is_streaming_endpoint = req.uri().path().starts_with("/api/v1/listen") || req.uri().path() == "/ws";
+    let path = req.uri().path();
+    let is_streaming_endpoint = path.starts_with("/api/v1/listen")
+        || path.starts_with("/api/v1/logs/stream")
+        || path.starts_with("/api/v1/interfaces/stream")
+        || path == "/ws";
     let query_role = if header_role.is_none() && is_streaming_endpoint {
         query_params.get("token").and_then(|t| st.role_for_token(t))
     } else {
@@ -114,7 +193,10 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
             .into_response();
     }
 
-    if role.is_some() {
+    if role.is_some() {
+        // Reset failure record on successful auth
+        st.auth_rate_limiter.record_success(client_ip).await;
+
         let headers = req.headers_mut();
         if !headers.contains_key("x-router-host") {
             if let Some(h) = query_params.get("host").or_else(|| query_params.get("router_host")) {
@@ -137,13 +219,9 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
                 }
             }
         }
-        if !headers.contains_key("x-router-pass") {
-            if let Some(p) = query_params.get("pass").or_else(|| query_params.get("password")).or_else(|| query_params.get("router_pass")) {
-                if let Ok(val) = header::HeaderValue::from_str(p) {
-                    headers.insert(header::HeaderName::from_static("x-router-pass"), val);
-                }
-            }
-        }
+        // NOTE: Finding 6: Query parameter router password injection is removed.
+        // Router passwords must be supplied via headers (X-Router-Pass) or request body.
+
         if role == Some(state::Role::Viewer) {
             // A viewer may only use routers defined in config.toml (router_id), never ad-hoc host + credentials.
             for name in ["x-router-host", "x-router-port", "x-router-user", "x-router-pass"] {
@@ -175,12 +253,7 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
                     .map(|s| s.to_string())
             })
             .unwrap_or_else(|| "main".to_string());
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .or_else(|| req.headers().get("x-real-ip"))
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+        let client_ip_str = Some(client_ip.to_string());
 
         let mut resp = next.run(req).await;
         let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
@@ -194,14 +267,6 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
         resp.headers_mut().insert(
             header::HeaderName::from_static("x-tenant-scope"),
             header::HeaderValue::from_str(&tenant_hash).unwrap_or_else(|_| header::HeaderValue::from_static("unknown")),
-        );
-        resp.headers_mut().insert(
-            header::HeaderName::from_static("x-content-type-options"),
-            header::HeaderValue::from_static("nosniff"),
-        );
-        resp.headers_mut().insert(
-            header::HeaderName::from_static("x-frame-options"),
-            header::HeaderValue::from_static("SAMEORIGIN"),
         );
 
         // Record audit log entry in segregated ring buffer if not the audit inspection endpoint itself
@@ -217,20 +282,17 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
                 duration_ms: elapsed_ms,
                 status_code,
                 success,
-                client_ip,
+                client_ip: client_ip_str,
             };
             st.record_audit_log(entry).await;
         }
 
         resp
     } else {
-        // Record unauthorized request to audit log ring buffer
-        let client_ip = req
-            .headers()
-            .get("x-forwarded-for")
-            .or_else(|| req.headers().get("x-real-ip"))
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+        // Record failed authentication attempt for rate limiting (Finding 2)
+        st.auth_rate_limiter.record_failure(client_ip).await;
+
+        let client_ip_str = Some(client_ip.to_string());
         let endpoint = req.uri().path().to_string();
         let method = req.method().to_string();
         let log_id = format!("{:016x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
@@ -244,7 +306,7 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
             duration_ms: 0.0,
             status_code: 401,
             success: false,
-            client_ip,
+            client_ip: client_ip_str,
         };
         st.record_audit_log(entry).await;
 
@@ -264,7 +326,7 @@ async fn health() -> Json<serde_json::Value> {
     }))
 }
 
-async fn playground() -> Html<&'static str> {
+async fn playground() -> Response {
     routes::docs::console_page().await
 }
 
@@ -282,11 +344,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         toml::from_str(&std::fs::read_to_string(&path)?)?
     } else {
         Config {
-            listen: "0.0.0.0:8080".into(),
+            listen: "127.0.0.1:8080".into(),
             api_token: "change-me-to-a-long-random-string".into(),
             data_dir: state::default_data_dir(),
             viewer_token: None,
             routers: vec![],
+            allow_dynamic_routers: false,
+            allow_raw_command: false,
+            allow_terminal_exec: false,
+            allow_audit_clear: false,
+            trust_forwarded_for: false,
+            cors_allowed_origins: vec![],
+            protect_docs: false,
+            allow_system_reset: false,
+            allow_system_reboot: true,
         }
     };
 
@@ -307,10 +378,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.api_token = env_token;
     }
 
-    if cfg.api_token == "change-me-to-a-long-random-string" || cfg.api_token.trim().len() < 16 {
-        tracing::warn!(
-            "⚠️ SECURITY WARNING: Gateway is running with default or weak api_token! Please configure GATEWAY_TOKEN or update config.toml for production environments."
-        );
+    if let Ok(env_dyn) = std::env::var("GATEWAY_ALLOW_DYNAMIC_ROUTERS") {
+        cfg.allow_dynamic_routers = env_dyn == "1" || env_dyn == "true";
+    }
+    if let Ok(env_raw) = std::env::var("GATEWAY_ALLOW_RAW_COMMAND") {
+        cfg.allow_raw_command = env_raw == "1" || env_raw == "true";
+    }
+    if let Ok(env_term) = std::env::var("GATEWAY_ALLOW_TERMINAL_EXEC") {
+        cfg.allow_terminal_exec = env_term == "1" || env_term == "true";
+    }
+    if let Ok(env_clear) = std::env::var("GATEWAY_ALLOW_AUDIT_CLEAR") {
+        cfg.allow_audit_clear = env_clear == "1" || env_clear == "true";
+    }
+    if let Ok(env_fwd) = std::env::var("GATEWAY_TRUST_FORWARDED_FOR") {
+        cfg.trust_forwarded_for = env_fwd == "1" || env_fwd == "true";
+    }
+    if let Ok(env_pdoc) = std::env::var("GATEWAY_PROTECT_DOCS") {
+        cfg.protect_docs = env_pdoc == "1" || env_pdoc == "true";
+    }
+    if let Ok(env_reset) = std::env::var("GATEWAY_ALLOW_SYSTEM_RESET") {
+        cfg.allow_system_reset = env_reset == "1" || env_reset == "true";
+    }
+    if let Ok(env_reboot) = std::env::var("GATEWAY_ALLOW_SYSTEM_REBOOT") {
+        cfg.allow_system_reboot = env_reboot == "1" || env_reboot == "true";
+    }
+
+    // Strict rejection of weak or default token (Finding 1)
+    let insecure_dev = std::env::var("GATEWAY_INSECURE_DEV")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
+
+    if cfg.api_token == "change-me-to-a-long-random-string" || cfg.api_token.trim().len() < 32 {
+        if !insecure_dev {
+            tracing::error!(
+                "FATAL: Insecure or default api_token detected! Token must be at least 32 characters and cannot be the default placeholder. Please configure a strong GATEWAY_TOKEN or update config.toml. For local development only, set GATEWAY_INSECURE_DEV=1."
+            );
+            std::process::exit(1);
+        } else {
+            tracing::warn!(
+                "⚠️ INSECURE DEV MODE: Gateway is running with default or weak api_token because GATEWAY_INSECURE_DEV=1 is set. DO NOT use this in production!"
+            );
+        }
     }
 
     if let Some(v) = &cfg.viewer_token {
@@ -323,20 +431,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listen_addr = cfg.listen.clone();
 
+    // CORS configuration (Finding 11)
+    let cors = if cfg.cors_allowed_origins.is_empty() {
+        tower_http::cors::CorsLayer::new()
+            .allow_origin([
+                "http://localhost:8080".parse().unwrap(),
+                "http://127.0.0.1:8080".parse().unwrap(),
+                "http://localhost:3000".parse().unwrap(),
+                "http://127.0.0.1:3000".parse().unwrap(),
+            ])
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                header::AUTHORIZATION,
+                header::CONTENT_TYPE,
+                axum::http::HeaderName::from_static("x-router-host"),
+                axum::http::HeaderName::from_static("x-router-port"),
+                axum::http::HeaderName::from_static("x-router-user"),
+                axum::http::HeaderName::from_static("x-router-pass"),
+                axum::http::HeaderName::from_static("x-router-id"),
+                axum::http::HeaderName::from_static("x-tenant-id"),
+            ])
+    } else if cfg.cors_allowed_origins.iter().any(|o| o == "*") {
+        tower_http::cors::CorsLayer::permissive()
+    } else {
+        let mut origins = Vec::new();
+        for o in &cfg.cors_allowed_origins {
+            if let Ok(hv) = o.parse::<axum::http::HeaderValue>() {
+                origins.push(hv);
+            }
+        }
+        tower_http::cors::CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ])
+            .allow_headers([
+                header::AUTHORIZATION,
+                header::CONTENT_TYPE,
+                axum::http::HeaderName::from_static("x-router-host"),
+                axum::http::HeaderName::from_static("x-router-port"),
+                axum::http::HeaderName::from_static("x-router-user"),
+                axum::http::HeaderName::from_static("x-router-pass"),
+                axum::http::HeaderName::from_static("x-router-id"),
+                axum::http::HeaderName::from_static("x-tenant-id"),
+            ])
+    };
+
+    let protect_docs = cfg.protect_docs;
     let state = Arc::new(AppState::new(cfg));
 
-    // Protected API router with bearer auth
-    let protected = routes::build_api_router(state.clone())
-        .layer(middleware::from_fn_with_state(state.clone(), auth));
+    // Base API router
+    let mut api_router = routes::build_api_router(state.clone());
+    if protect_docs {
+        api_router = api_router
+            .route("/docs", get(routes::docs::docs_page))
+            .route("/documentation", get(routes::docs::docs_page))
+            .route("/api/docs", get(routes::docs::docs_page))
+            .route("/api/v1/spec", get(routes::docs::api_spec_json));
+    }
 
-    // Combined router with web playground, health check, visualizer, websocket & permissive CORS
-    let app = Router::new()
+    // Protected API router with bearer auth
+    let protected = api_router.layer(middleware::from_fn_with_state(state.clone(), auth));
+
+    // Base combined router
+    let mut app = Router::new()
         .route("/", get(playground))
         .route("/health", get(health))
-        .route("/docs", get(routes::docs::docs_page))
-        .route("/documentation", get(routes::docs::docs_page))
-        .route("/api/docs", get(routes::docs::docs_page))
-        .route("/api/v1/spec", get(routes::docs::api_spec_json))
         .route("/topology", get(routes::visualizer::visualizer_page))
         .route("/visualizer", get(routes::visualizer::visualizer_page))
         .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
@@ -344,14 +514,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/sdk/mikrotik-map.js", get(routes::map::widget_js))
         .route("/sdk/map-page.js", get(routes::map::page_js))
         .route("/ws", get(routes::ws::ws_handler))
-        .route("/metrics", get(routes::metrics::prometheus_metrics))
+        .route("/metrics", get(routes::metrics::prometheus_metrics));
+
+    if !protect_docs {
+        app = app
+            .route("/docs", get(routes::docs::docs_page))
+            .route("/documentation", get(routes::docs::docs_page))
+            .route("/api/docs", get(routes::docs::docs_page))
+            .route("/api/v1/spec", get(routes::docs::api_spec_json));
+    }
+
+    let app = app
         .merge(protected)
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .layer(middleware::from_fn(global_security_headers))
+        .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
     tracing::info!("MikroTik Universal Gateway listening on http://{}", listen_addr);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await?;
     Ok(())
 }
 
@@ -362,11 +543,20 @@ mod tests {
     #[test]
     fn test_router_builds_without_panic() {
         let cfg = Config {
-            listen: "0.0.0.0:8080".into(),
-            api_token: "test-token".into(),
+            listen: "127.0.0.1:8080".into(),
+            api_token: "test-token-012345678901234567890123456789".into(),
             data_dir: std::env::temp_dir().join("ros-gw-main-test").to_string_lossy().into_owned(),
             viewer_token: None,
             routers: vec![],
+            allow_dynamic_routers: false,
+            allow_raw_command: false,
+            allow_terminal_exec: false,
+            allow_audit_clear: false,
+            trust_forwarded_for: false,
+            cors_allowed_origins: vec![],
+            protect_docs: false,
+            allow_system_reset: false,
+            allow_system_reboot: true,
         };
         let state = Arc::new(AppState::new(cfg));
         let protected = routes::build_api_router(state.clone());
@@ -380,9 +570,9 @@ mod tests {
             .route("/topology", get(routes::visualizer::visualizer_page))
             .route("/visualizer", get(routes::visualizer::visualizer_page))
             .route("/sdk/mikrotik-widget.js", get(routes::visualizer::sdk_script))
-        .route("/map", get(routes::map::page))
-        .route("/sdk/mikrotik-map.js", get(routes::map::widget_js))
-        .route("/sdk/map-page.js", get(routes::map::page_js))
+            .route("/map", get(routes::map::page))
+            .route("/sdk/mikrotik-map.js", get(routes::map::widget_js))
+            .route("/sdk/map-page.js", get(routes::map::page_js))
             .route("/ws", get(routes::ws::ws_handler))
             .route("/metrics", get(routes::metrics::prometheus_metrics))
             .merge(protected);
@@ -415,23 +605,32 @@ mod tests {
         use axum::http::Method;
         let mk = |viewer: Option<&str>| {
             AppState::new(Config {
-                listen: "0.0.0.0:8080".into(),
-                api_token: "admin-token-0123456789".into(),
+                listen: "127.0.0.1:8080".into(),
+                api_token: "admin-token-012345678901234567890123456789".into(),
                 data_dir: std::env::temp_dir().join("ros-gw-role-test").to_string_lossy().into_owned(),
                 viewer_token: viewer.map(|s| s.to_string()),
                 routers: vec![],
+                allow_dynamic_routers: false,
+                allow_raw_command: false,
+                allow_terminal_exec: false,
+                allow_audit_clear: false,
+                trust_forwarded_for: false,
+                cors_allowed_origins: vec![],
+                protect_docs: false,
+                allow_system_reset: false,
+                allow_system_reboot: true,
             })
         };
-        let st = mk(Some("viewer-token-0123456789"));
-        assert_eq!(st.role_for_token("admin-token-0123456789"), Some(state::Role::Admin));
-        assert_eq!(st.role_for_token("viewer-token-0123456789"), Some(state::Role::Viewer));
+        let st = mk(Some("viewer-token-01234567890123456789"));
+        assert_eq!(st.role_for_token("admin-token-012345678901234567890123456789"), Some(state::Role::Admin));
+        assert_eq!(st.role_for_token("viewer-token-01234567890123456789"), Some(state::Role::Viewer));
         assert_eq!(st.role_for_token("nope"), None);
         assert_eq!(st.role_for_token(""), None);
 
         // unusable viewer tokens are ignored instead of weakening security
         assert!(mk(Some("short")).viewer_token.is_none());
-        assert!(mk(Some("admin-token-0123456789")).viewer_token.is_none());
-        assert!(mk(None).role_for_token("viewer-token-0123456789").is_none());
+        assert!(mk(Some("admin-token-012345678901234567890123456789")).viewer_token.is_none());
+        assert!(mk(None).role_for_token("viewer-token-01234567890123456789").is_none());
 
         assert!(viewer_may_access(&Method::GET, "/api/v1/map/scene"));
         assert!(viewer_may_access(&Method::GET, "/api/v1/map/layouts/home"));
@@ -451,5 +650,63 @@ mod tests {
         assert_eq!(percent_decode("hello%20world"), "hello world");
         assert_eq!(percent_decode("user%2Bpass"), "user+pass");
         assert_eq!(percent_decode("clean_token_123"), "clean_token_123");
+    }
+
+    #[test]
+    fn test_ssrf_host_blocking() {
+        assert!(state::is_blocked_host("localhost"));
+        assert!(state::is_blocked_host("127.0.0.1"));
+        assert!(state::is_blocked_host("127.0.0.2"));
+        assert!(state::is_blocked_host("169.254.169.254"));
+        assert!(state::is_blocked_host("169.254.1.1"));
+        assert!(state::is_blocked_host("metadata.google.internal"));
+        assert!(state::is_blocked_host("instance-data"));
+        assert!(state::is_blocked_host("::1"));
+
+        // Normal private or public IP addresses must be allowed (when dynamic targets are enabled)
+        assert!(!state::is_blocked_host("192.168.88.1"));
+        assert!(!state::is_blocked_host("10.0.0.1"));
+        assert!(!state::is_blocked_host("172.16.0.1"));
+    }
+
+    #[tokio::test]
+    async fn test_auth_rate_limiter() {
+        let limiter = state::AuthRateLimiter::new();
+        let ip: std::net::IpAddr = "192.0.2.1".parse().unwrap();
+
+        // 4 failed attempts should still be allowed
+        for _ in 0..4 {
+            assert!(limiter.check(ip).await.is_ok());
+            limiter.record_failure(ip).await;
+        }
+
+        // 5th attempt: recorded failure
+        limiter.record_failure(ip).await;
+
+        // 6th attempt: should be blocked with rate limit error
+        assert!(limiter.check(ip).await.is_err());
+
+        // Successful auth resets the failure counter
+        limiter.record_success(ip).await;
+        assert!(limiter.check(ip).await.is_ok());
+    }
+
+    #[test]
+    fn test_streaming_endpoints_detection() {
+        let is_stream = |path: &str| {
+            path.starts_with("/api/v1/listen")
+                || path.starts_with("/api/v1/logs/stream")
+                || path.starts_with("/api/v1/interfaces/stream")
+                || path == "/ws"
+        };
+
+        assert!(is_stream("/api/v1/listen"));
+        assert!(is_stream("/api/v1/logs/stream"));
+        assert!(is_stream("/api/v1/interfaces/stream"));
+        assert!(is_stream("/ws"));
+        assert!(!is_stream("/api/v1/command"));
+        assert!(!is_stream("/api/v1/batch"));
+        assert!(!is_stream("/api/v1/system/reboot"));
+        assert!(!is_stream("/api/v1/hotspot/users"));
     }
 }

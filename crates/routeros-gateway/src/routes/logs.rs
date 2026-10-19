@@ -29,7 +29,6 @@ pub struct LogStreamQuery {
     pub host: Option<String>,
     pub port: Option<u16>,
     pub user: Option<String>,
-    pub password: Option<String>,
     pub router_id: Option<String>,
     pub topic: Option<String>,
 }
@@ -46,6 +45,7 @@ pub async fn all(
     
     let mut args = Vec::new();
     if let Some(t) = req.topic.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(t, "topic")?;
         args.push(("?topics", t));
     }
 
@@ -88,16 +88,20 @@ pub async fn stream_logs(
     State(st): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<LogStreamQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
-    let target = RouterTarget {
-        host: q.host,
-        port: q.port,
-        user: q.user,
-        password: q.password,
+    let target = match (q.host, q.user) {
+        (Some(host), Some(user)) => Some(RouterTarget {
+            host: Some(host),
+            port: q.port,
+            user: Some(user),
+            password: None,
+        }),
+        _ => None,
     };
-    let client = st.resolve_client(Some(&target), q.router_id.as_deref()).await?;
+    let client = st.resolve_client(target.as_ref(), q.router_id.as_deref()).await?;
     
     let mut args = vec![("follow-only", "")];
     if let Some(t) = q.topic.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(t, "topic")?;
         args.push(("topics", t));
     }
     let sub = client.listen(build_command("/log/print", args)).await?;

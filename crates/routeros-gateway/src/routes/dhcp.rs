@@ -72,6 +72,16 @@ pub async fn add_server(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    if let Some(pool) = req.address_pool.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(pool, "address_pool")?;
+    }
+    if let Some(lt) = req.lease_time.as_deref() {
+        crate::routes::sanitize::validate_validity(lt)?;
+    }
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("interface", req.interface.as_str()),
@@ -276,6 +286,13 @@ pub async fn add_lease(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_ip_or_cidr(&req.address)?;
+    crate::routes::sanitize::validate_mac_address(&req.mac_address)?;
+    if let Some(ref s) = req.server {
+        crate::routes::sanitize::validate_safe_identifier(s, "server")?;
+    }
+
     let mut args = vec![
         ("address", req.address.as_str()),
         ("mac-address", req.mac_address.as_str()),
@@ -298,6 +315,14 @@ pub async fn set_lease(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    if let Some(ref a) = req.address {
+        crate::routes::sanitize::validate_ip_or_cidr(a)?;
+    }
+    if let Some(ref m) = req.mac_address {
+        crate::routes::sanitize::validate_mac_address(m)?;
+    }
+
     let mut args = vec![(".id", req.id.as_str())];
     if let Some(ref a) = req.address {
         args.push(("address", a.as_str()));
@@ -348,6 +373,17 @@ pub async fn add_network(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_ip_or_cidr(&req.address)?;
+    if let Some(gw) = req.gateway.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(gw)?;
+    }
+    if let Some(dns) = req.dns_server.as_deref() {
+        for ip in dns.split(',') {
+            crate::routes::sanitize::validate_ip_or_cidr(ip.trim())?;
+        }
+    }
+
     let mut args = vec![("address", req.address.as_str())];
     if let Some(gw) = req.gateway.as_deref() {
         args.push(("gateway", gw));
@@ -476,6 +512,14 @@ pub async fn add_relay(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.dhcp_server)?;
+    if let Some(ref la) = req.local_address {
+        crate::routes::sanitize::validate_ip_or_cidr(la)?;
+    }
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("interface", req.interface.as_str()),
@@ -585,6 +629,9 @@ pub async fn add_client(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+
     let mut args = vec![("interface", req.interface.as_str())];
     if let Some(ref r) = req.add_default_route {
         args.push(("add-default-route", r.as_str()));

@@ -102,6 +102,8 @@ pub async fn export_db(
     headers: HeaderMap,
     Json(req): Json<ExportDbReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_filename(&req.backup_file)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -118,6 +120,8 @@ pub async fn import_db(
     headers: HeaderMap,
     Json(req): Json<ImportDbReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_filename(&req.backup_file)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -134,10 +138,12 @@ pub async fn vacuum(
     headers: HeaderMap,
     Json(req): Json<VacuumDbReq>,
 ) -> Result<Json<Value>, ApiError> {
+    let file_arg = req.file.as_deref().unwrap_or("dude.db");
+    crate::routes::sanitize::validate_safe_filename(file_arg)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let file_arg = req.file.as_deref().unwrap_or("dude.db");
     client.run(build_command("/dude/vacuum-db", [("file", file_arg)])).await?;
     Ok(Json(json!({
         "success": true,

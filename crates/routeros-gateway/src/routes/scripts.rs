@@ -70,6 +70,12 @@ pub async fn run_script(
     headers: HeaderMap,
     Json(req): Json<RunScriptReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Script execution is disabled by gateway security policy. Set GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()
+        ));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/system/script/run", [(".id", req.number_or_name.as_str())])).await?;
@@ -82,6 +88,13 @@ pub async fn add_script(
     headers: HeaderMap,
     Json(req): Json<AddScriptReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Adding scripts is disabled by gateway security policy. Set GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()
+        ));
+    }
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "script name")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![("name", req.name.as_str()), ("source", req.source.as_str())];
@@ -112,6 +125,17 @@ pub async fn add_scheduler(
     headers: HeaderMap,
     Json(req): Json<AddSchedulerReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Adding schedulers is disabled by gateway security policy. Set GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()
+        ));
+    }
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "scheduler name")?;
+    crate::routes::sanitize::validate_validity(&req.interval)?;
+    if let Some(s) = req.start_time.as_deref() {
+        crate::routes::sanitize::validate_time_format(s)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![

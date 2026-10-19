@@ -63,6 +63,15 @@ pub async fn add_static(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    if !req.name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+        return Err(ApiError::BadRequest("DNS name contains invalid characters".into()));
+    }
+    crate::routes::sanitize::validate_ip_or_cidr(&req.address)?;
+    if let Some(t) = req.ttl.as_deref() {
+        crate::routes::sanitize::validate_validity(t)?;
+    }
+
     let mut args = vec![("name", req.name.as_str()), ("address", req.address.as_str())];
     if let Some(t) = req.ttl.as_deref() {
         args.push(("ttl", t));
@@ -135,9 +144,22 @@ pub async fn add_adlist(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_url(&req.url)?;
+    let host_part = req.url
+        .strip_prefix("https://")
+        .or_else(|| req.url.strip_prefix("http://"))
+        .and_then(|s| s.split('/').next())
+        .and_then(|s| s.split(':').next());
+    if let Some(host_str) = host_part {
+        if crate::state::is_blocked_host(host_str) {
+            return Err(ApiError::BadRequest("Target host is in blocked SSRF network".into()));
+        }
+    }
+
     let mut args = vec![("url", req.url.as_str())];
     let ssl_str = req.ssl_verify.map(|s| if s { "yes" } else { "no" });
-    if let Some(s) = ssl_str.as_deref() {
+    if let Some(s) = ssl_str {
         args.push(("ssl-verify", s));
     }
     client.run(build_command("/ip/dns/adlist/add", args)).await?;

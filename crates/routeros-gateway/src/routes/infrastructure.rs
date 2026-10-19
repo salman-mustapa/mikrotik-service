@@ -365,11 +365,24 @@ pub async fn auto_bypass_ap(
     headers: HeaderMap,
     Json(req): Json<AutoBypassApReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_mac_address(&req.mac_address)?;
+    if let Some(addr) = req.address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(addr)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let clean_mac = req.mac_address.to_uppercase();
-    let comment = req.comment.unwrap_or_else(|| "[Auto-AP] Access Point Bypass".into());
+    let comment = match req.comment {
+        Some(ref c) => {
+            if c.len() > 128 || c.contains('\n') || c.contains('\r') {
+                return Err(ApiError::BadRequest("Comment contains invalid characters or exceeds 128 characters".into()));
+            }
+            c.clone()
+        }
+        None => "[Auto-AP] Access Point Bypass".into(),
+    };
 
     let mut args = vec![
         ("mac-address", clean_mac.as_str()),
@@ -421,11 +434,13 @@ pub async fn poe_power_cycle(
     headers: HeaderMap,
     Json(req): Json<PoeCycleReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let iface = req.interface.as_str();
-    let off_secs = req.off_seconds.unwrap_or(3);
+    let off_secs = req.off_seconds.unwrap_or(3).clamp(1, 30);
 
     // 1. Turn off PoE voltage
     client.run(build_command("/interface/ethernet/poe/set", [
@@ -456,11 +471,22 @@ pub async fn create_ap_tunnel(
     headers: HeaderMap,
     Json(req): Json<ApTunnelReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_ip_or_cidr(&req.ap_ip)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let ap_port = req.ap_port.unwrap_or(80).to_string();
-    let ext_port = req.external_port.unwrap_or(8083).to_string();
+    let ap_port_val = req.ap_port.unwrap_or(80);
+    if ap_port_val == 0 {
+        return Err(ApiError::BadRequest("ap_port cannot be 0".into()));
+    }
+    let ext_port_val = req.external_port.unwrap_or(8083);
+    if ext_port_val == 0 {
+        return Err(ApiError::BadRequest("external_port cannot be 0".into()));
+    }
+
+    let ap_port = ap_port_val.to_string();
+    let ext_port = ext_port_val.to_string();
     let comment = format!("[AP-Tunnel-{}]", req.ap_ip);
 
     let args = [
@@ -490,6 +516,8 @@ pub async fn remove_ap_tunnel(
     headers: HeaderMap,
     Json(req): Json<RemoveApTunnelReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_ip_or_cidr(&req.ap_ip)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

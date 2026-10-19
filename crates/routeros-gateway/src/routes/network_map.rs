@@ -283,7 +283,7 @@ pub async fn connected_devices(
 
     // 8. Process Active PPPoE Sessions
     for row in ppp_rows {
-        let caller = row.get("caller-id").map(|m| normalize_mac(m)).unwrap_or_default();
+        let caller = row.get("caller-id").map(normalize_mac).unwrap_or_default();
         let ip = row.get("address").unwrap_or("").to_string();
         let name = row.get("name").unwrap_or("").to_string();
         let uptime = row.get("uptime").unwrap_or("").to_string();

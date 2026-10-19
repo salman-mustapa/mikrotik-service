@@ -11,6 +11,12 @@ use crate::error::ApiError;
 use crate::state::{AppState, RouterTarget};
 
 #[derive(Deserialize, Debug, Default)]
+pub struct BaseReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Default)]
 pub struct FilterReq {
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
@@ -180,6 +186,186 @@ pub async fn remove_profile(
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/ip/hotspot/user/profile/remove", [(".id", req.id.as_str())])).await?;
     Ok(Json(json!({ "success": true, "message": "Hotspot user profile removed" })))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CreatePackageProfileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub name: String,
+    #[serde(default = "default_pkg_rate_limit")]
+    pub rate_limit: String,
+    #[serde(default = "default_pkg_shared_users")]
+    pub shared_users: String,
+    pub validity: Option<String>,
+    pub price: Option<String>,
+    pub selling_price: Option<String>,
+    #[serde(default = "default_pkg_expiry_mode")]
+    pub expiry_mode: String,
+    #[serde(default = "default_pkg_lock_mac")]
+    pub lock_mac: bool,
+    pub parent_queue: Option<String>,
+}
+
+fn default_pkg_rate_limit() -> String { "1M/2M".into() }
+fn default_pkg_shared_users() -> String { "1".into() }
+fn default_pkg_expiry_mode() -> String { "remove".into() }
+fn default_pkg_lock_mac() -> bool { true }
+
+/// POST /api/v1/hotspot/profiles/create-package - Wizard pembuatan profil paket hotspot lengkap (Rate Limit, Masa Aktif, Harga, Lock-MAC, Expiry Mode)
+pub async fn create_package_profile(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreatePackageProfileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "profile name")?;
+    crate::routes::sanitize::validate_bandwidth_rate(&req.rate_limit)?;
+
+    let val = req.validity.as_deref().unwrap_or("-");
+    let price_str = req.price.as_deref().unwrap_or("0");
+    let sell_str = req.selling_price.as_deref().unwrap_or(price_str);
+    let exp_mode = req.expiry_mode.to_lowercase();
+    let lock_str = if req.lock_mac { "yes" } else { "no" };
+
+    if price_str != "0" {
+        crate::routes::sanitize::validate_price(price_str)?;
+    }
+    if sell_str != "0" {
+        crate::routes::sanitize::validate_price(sell_str)?;
+    }
+
+    let structured_comment = format!(
+        "[PKG|VAL:{}|PRICE:Rp {}|SELL:Rp {}|LOCK:{}|EXP:{}]",
+        val, price_str, sell_str, lock_str, exp_mode
+    );
+
+    let mut args = vec![
+        ("name", req.name.as_str()),
+        ("rate-limit", req.rate_limit.as_str()),
+        ("shared-users", req.shared_users.as_str()),
+        ("comment", structured_comment.as_str()),
+    ];
+
+    if let Some(ref pq) = req.parent_queue {
+        args.push(("parent-queue", pq.as_str()));
+    }
+
+    // Auto-Lock MAC Address script on login
+    let lock_script = if req.lock_mac {
+        ":local uMac [/ip hotspot active get [find user=$user] mac-address];\n\
+         :local boundMac [/ip hotspot user get [find name=$user] mac-address];\n\
+         :if ($boundMac = \"\" and $uMac != \"\") do={\n\
+           /ip hotspot user set [find name=$user] mac-address=$uMac comment=([/ip hotspot user get [find name=$user] comment] . \" [LOCKED-MAC:\" . $uMac . \"]\");\n\
+         };"
+    } else {
+        ""
+    };
+
+    if !lock_script.is_empty() {
+        args.push(("on-login", lock_script));
+    }
+
+    client.run(build_command("/ip/hotspot/user/profile/add", args)).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "profile_name": req.name,
+        "rate_limit": req.rate_limit,
+        "shared_users": req.shared_users,
+        "validity": val,
+        "price": price_str,
+        "selling_price": sell_str,
+        "lock_mac": req.lock_mac,
+        "expiry_mode": exp_mode,
+        "message": format!("Profil paket hotspot '{}' berhasil dibuat lengkap dengan kebijakan tarif & keamanan!", req.name)
+    })))
+}
+
+/// GET or POST /api/v1/hotspot/profiles/packages - Daftar seluruh paket profil hotspot dengan rincian harga, validitas, dan jumlah user
+pub async fn list_package_profiles(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let profiles = client
+        .run(build_command("/ip/hotspot/user/profile/print", std::iter::empty::<(&str, &str)>()))
+        .await
+        .unwrap_or_default();
+
+    let users = client
+        .run(build_command("/ip/hotspot/user/print", std::iter::empty::<(&str, &str)>()))
+        .await
+        .unwrap_or_default();
+
+    // Hitung distribusi user per profil
+    let mut user_counts: HashMap<String, usize> = HashMap::new();
+    for u in &users {
+        let prof = u.get("profile").unwrap_or("default");
+        *user_counts.entry(prof.to_string()).or_insert(0) += 1;
+    }
+
+    let mut package_list = Vec::new();
+    for p in profiles {
+        let name = p.get("name").unwrap_or("").to_string();
+        let comment = p.get("comment").unwrap_or("");
+        let rate_limit = p.get("rate-limit").unwrap_or("-").to_string();
+        let shared_users = p.get("shared-users").unwrap_or("1").to_string();
+        let user_count = user_counts.get(&name).copied().unwrap_or(0);
+
+        // Parse structured metadata tag jika ada
+        let mut validity = "-".to_string();
+        let mut price = "0".to_string();
+        let mut selling_price = "0".to_string();
+        let mut lock_mac = false;
+        let mut expiry_mode = "remove".to_string();
+
+        if let Some(start) = comment.find("[PKG|") {
+            let rem = &comment[start + 5..];
+            if let Some(end) = rem.find(']') {
+                let inner = &rem[..end];
+                for part in inner.split('|') {
+                    if let Some(val_str) = part.strip_prefix("VAL:") {
+                        validity = val_str.to_string();
+                    } else if let Some(pr) = part.strip_prefix("PRICE:Rp ") {
+                        price = pr.to_string();
+                    } else if let Some(sl) = part.strip_prefix("SELL:Rp ") {
+                        selling_price = sl.to_string();
+                    } else if let Some(lk) = part.strip_prefix("LOCK:") {
+                        lock_mac = lk == "yes";
+                    } else if let Some(ex) = part.strip_prefix("EXP:") {
+                        expiry_mode = ex.to_string();
+                    }
+                }
+            }
+        }
+
+        package_list.push(json!({
+            "id": p.get(".id").unwrap_or(""),
+            "name": name,
+            "rate_limit": rate_limit,
+            "shared_users": shared_users,
+            "validity": validity,
+            "price": price,
+            "selling_price": selling_price,
+            "lock_mac": lock_mac,
+            "expiry_mode": expiry_mode,
+            "assigned_users_count": user_count,
+            "raw_comment": comment
+        }));
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "total_profiles": package_list.len(),
+        "packages": package_list
+    })))
 }
 
 pub async fn ip_bindings(
@@ -567,7 +753,7 @@ pub async fn reset_counters(
     })))
 }
 
-/// POST /api/v1/hotspot/profile/inject-expiry-script - Mikhmon-style automatic On-Login first login validity injector
+/// POST /api/v1/hotspot/profile/inject-expiry-script - Automatic On-Login first login validity policy injector
 pub async fn inject_expiry_script(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -588,7 +774,11 @@ pub async fn inject_expiry_script(
 
     let id = p_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID Profile tidak ditemukan".into()))?;
 
-    // Mikhmon-style on-login script: checks if user has no expiration date, then tags comment with expiry timestamp
+    // Validate validity format (e.g. 1d, 12h, 30m) and profile name to prevent RouterOS script injection
+    crate::routes::sanitize::validate_validity(&req.validity)?;
+    crate::routes::sanitize::validate_safe_identifier(&req.profile_name, "profile_name")?;
+
+    // On-login policy script: checks if user has no expiration date, then tags comment with expiry timestamp
     let on_login_script = format!(
         ":local validity \"{}\";\n\
          :local uComment [/ip hotspot user get [find name=$user] comment];\n\
@@ -706,6 +896,7 @@ pub struct MemberInfo {
     pub bytes_total: u64,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_member_comment(
     id: &str,
     username: &str,
@@ -1809,5 +2000,353 @@ pub async fn customize_login_page(
     })))
 }
 
+// ============================================================================
+// Hotspot User Profile Policy: Lock MAC, Anti-Tukar HP & Expiry Script Injection
+// ============================================================================
 
+#[derive(Deserialize, Debug)]
+pub struct LockMacProfileReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub profile_name: String,
+}
 
+#[derive(Deserialize, Debug)]
+pub struct BindUserMacReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub username: String,
+    pub mac_address: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ExpiryModeSetupReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub profile_name: String,
+    /// Mode expired: "remove", "notice", "remove_and_record"
+    pub expiry_mode: String,
+    /// Masa berlaku kuota/waktu voucher (misal: "1d", "7d", "30d", "3h")
+    pub validity: String,
+    /// Profile isolir tujuan jika menggunakan mode "notice" (default: "EXPIRED_NOTICE")
+    pub notice_profile: Option<String>,
+    /// Harga voucher untuk pencatatan log jika mode "remove_and_record"
+    pub price: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetupTrialReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    /// Nama hotspot server profile (default: "hsprof1" atau cari yang aktif)
+    pub server_profile: Option<String>,
+    /// Aktifkan login trial gratisan
+    pub enable_trial: bool,
+    /// Batas durasi trial (default: "15m", misal "30m", "1h")
+    #[serde(default = "default_trial_uptime")]
+    pub trial_uptime_limit: String,
+    /// Waktu reset uji coba per MAC (default: "1d")
+    #[serde(default = "default_trial_reset")]
+    pub trial_uptime_reset: String,
+    /// User profile yang digunakan trial
+    pub trial_user_profile: Option<String>,
+}
+
+fn default_trial_uptime() -> String { "15m".into() }
+fn default_trial_reset() -> String { "1d".into() }
+
+/// POST /api/v1/hotspot/profile/lock-mac - Mengaktifkan Auto-Lock MAC Address pada User Profile Hotspot
+/// Mencegah pembeli voucher membagikan voucher ke teman/perangkat lain setelah login pertama (Anti-Tukar HP)
+pub async fn enable_lock_mac(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<LockMacProfileReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let profiles = client.run(build_command(
+        "/ip/hotspot/user/profile/print",
+        [("name", req.profile_name.as_str())],
+    )).await?;
+
+    let p_row = profiles.into_iter().next().ok_or_else(|| {
+        ApiError::BadRequest(format!("Profile '{}' tidak ditemukan pada router", req.profile_name))
+    })?;
+
+    let id = p_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID Profile tidak ditemukan".into()))?;
+
+    // Skrip On-Login MikroTik: Saat login pertama, otomatis ikat MAC Address klien ke akun voucher
+    let lock_mac_script = 
+        ":local uMac [/ip hotspot active get [find user=$user] mac-address];\n\
+         :local boundMac [/ip hotspot user get [find name=$user] mac-address];\n\
+         :if ($boundMac = \"\" and $uMac != \"\") do={\n\
+           /ip hotspot user set [find name=$user] mac-address=$uMac comment=([/ip hotspot user get [find name=$user] comment] . \" [LOCKED-MAC:\" . $uMac . \"]\");\n\
+           :log info (\"[HOTSPOT-POLICY] User \" . $user . \" dikunci ke MAC \" . $uMac);\n\
+         };";
+
+    client.run(build_command(
+        "/ip/hotspot/user/profile/set",
+        [
+            (".id", id),
+            ("on-login", lock_mac_script),
+            ("shared-users", "1"),
+        ],
+    )).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "profile": req.profile_name,
+        "shared_users": 1,
+        "message": format!("Fitur Lock MAC (Anti-Tukar HP) berhasil disuntikkan ke Profile '{}'!", req.profile_name)
+    })))
+}
+
+/// POST /api/v1/hotspot/profile/bind-mac - Manual bind MAC address ke voucher tertentu
+pub async fn bind_user_mac_now(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<BindUserMacReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let users = client.run(build_command(
+        "/ip/hotspot/user/print",
+        [("name", req.username.as_str())],
+    )).await?;
+
+    let u_row = users.into_iter().next().ok_or_else(|| {
+        ApiError::BadRequest(format!("User '{}' tidak ditemukan di database Hotspot", req.username))
+    })?;
+
+    let id = u_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID User tidak valid".into()))?;
+
+    client.run(build_command(
+        "/ip/hotspot/user/set",
+        [
+            (".id", id),
+            ("mac-address", req.mac_address.as_str()),
+        ],
+    )).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "username": req.username,
+        "mac_address": req.mac_address,
+        "message": format!("User '{}' berhasil dikunci ke MAC address '{}'", req.username, req.mac_address)
+    })))
+}
+
+/// POST /api/v1/hotspot/profile/expiry-mode - Mengonfigurasi 3-Mode Expiry Voucher (Remove / Notice / Record)
+/// Menyuntikkan policy masa aktif otomatis tanpa membuat ribuan scheduler individual yang membebani router
+pub async fn setup_expiry_mode(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<ExpiryModeSetupReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let profiles = client.run(build_command(
+        "/ip/hotspot/user/profile/print",
+        [("name", req.profile_name.as_str())],
+    )).await?;
+
+    let p_row = profiles.into_iter().next().ok_or_else(|| {
+        ApiError::BadRequest(format!("Profile '{}' tidak ditemukan", req.profile_name))
+    })?;
+
+    let id = p_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID Profile tidak valid".into()))?;
+    let mode_lower = req.expiry_mode.to_lowercase();
+    let notice_prof = req.notice_profile.as_deref().unwrap_or("EXPIRED_NOTICE");
+    let price_str = req.price.as_deref().unwrap_or("0");
+
+    // Security validation against RouterOS script injection
+    crate::routes::sanitize::validate_safe_identifier(&req.profile_name, "profile_name")?;
+    crate::routes::sanitize::validate_validity(&req.validity)?;
+    crate::routes::sanitize::validate_safe_identifier(notice_prof, "notice_profile")?;
+    crate::routes::sanitize::validate_price(price_str)?;
+
+    let on_login_script = match mode_lower.as_str() {
+        "notice" => {
+            // Mode Notice: Saat masa aktif habis, user dialihkan ke profile isolir
+            format!(
+                ":local validity \"{}\";\n\
+                 :local nProf \"{}\";\n\
+                 :local uComment [/ip hotspot user get [find name=$user] comment];\n\
+                 :if ([:find $uComment \"EXP:\"] = nil) do={{\n\
+                   :local date [/system clock get date];\n\
+                   :local time [/system clock get time];\n\
+                   /ip hotspot user set [find name=$user] comment=($uComment . \" [EXP:\" . $date . \" \" . $time . \"|VAL:\" . $validity . \"|NOTICE:\" . $nProf . \"|MODE:NOTICE]\");\n\
+                 }}",
+                req.validity, notice_prof
+            )
+        }
+        "remove_and_record" => {
+            // Mode Remove & Record: Rekam transaksi kasir ke log sebelum user dihapus
+            format!(
+                ":local validity \"{}\";\n\
+                 :local price \"{}\";\n\
+                 :local uComment [/ip hotspot user get [find name=$user] comment];\n\
+                 :if ([:find $uComment \"EXP:\"] = nil) do={{\n\
+                   :local date [/system clock get date];\n\
+                   :local time [/system clock get time];\n\
+                   :log info (\"[HOTSPOT-SALE] USER:\" . $user . \" | PRICE:\" . $price . \" | DATE:\" . $date);\n\
+                   /ip hotspot user set [find name=$user] comment=($uComment . \" [EXP:\" . $date . \" \" . $time . \"|VAL:\" . $validity . \"|REC:\" . $price . \"|MODE:REMOVE]\");\n\
+                 }}",
+                req.validity, price_str
+            )
+        }
+        _ => {
+            // Mode Remove (Standar)
+            format!(
+                ":local validity \"{}\";\n\
+                 :local uComment [/ip hotspot user get [find name=$user] comment];\n\
+                 :if ([:find $uComment \"EXP:\"] = nil) do={{\n\
+                   :local date [/system clock get date];\n\
+                   :local time [/system clock get time];\n\
+                   /ip hotspot user set [find name=$user] comment=($uComment . \" [EXP:\" . $date . \" \" . $time . \"|VAL:\" . $validity . \"|MODE:REMOVE]\");\n\
+                 }}",
+                req.validity
+            )
+        }
+    };
+
+    client.run(build_command(
+        "/ip/hotspot/user/profile/set",
+        [
+            (".id", id),
+            ("on-login", on_login_script.as_str()),
+        ],
+    )).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "profile": req.profile_name,
+        "expiry_mode": mode_lower,
+        "validity": req.validity,
+        "message": format!("Skrip Expiry Mode '{}' berhasil diinjeksikan ke Profile '{}'!", mode_lower, req.profile_name)
+    })))
+}
+
+// ============================================================================
+// Hotspot Free Trial Management (Tamu / Pengguna Gratisan)
+// ============================================================================
+
+/// GET or POST /api/v1/hotspot/trial/status - Cek status login gratisan (Trial) di Hotspot Server Profile
+pub async fn trial_status(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let profiles = client.run(build_command(
+        "/ip/hotspot/profile/print",
+        std::iter::empty::<(&str, &str)>(),
+    )).await?;
+
+    let data: Vec<HashMap<String, String>> = profiles.into_iter().map(|r| r.attrs).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "server_profiles": data
+    })))
+}
+
+/// POST /api/v1/hotspot/trial/setup - Mengonfigurasi parameter Trial Pengguna Gratisan
+pub async fn setup_trial(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetupTrialReq>,
+) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_validity(&req.trial_uptime_limit)?;
+    crate::routes::sanitize::validate_validity(&req.trial_uptime_reset)?;
+
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let profiles = client.run(build_command(
+        "/ip/hotspot/profile/print",
+        std::iter::empty::<(&str, &str)>(),
+    )).await?;
+
+    let target_row = if let Some(sp) = req.server_profile.as_deref() {
+        profiles.into_iter().find(|p| p.get("name").map(|n| n == sp).unwrap_or(false))
+    } else {
+        profiles.into_iter().next()
+    }.ok_or_else(|| ApiError::BadRequest("Hotspot Server Profile tidak ditemukan".into()))?;
+
+    let id = target_row.get(".id").ok_or_else(|| ApiError::BadRequest("ID Server Profile tidak valid".into()))?;
+    let trial_enabled_str = if req.enable_trial { "yes" } else { "no" };
+
+    let mut args = vec![
+        (".id", id),
+        ("trial-uptime-limit", req.trial_uptime_limit.as_str()),
+        ("trial-uptime-reset", req.trial_uptime_reset.as_str()),
+    ];
+
+    let current_login_by = target_row.get("login-by").unwrap_or("http-chap,cookie");
+    let updated_login_by = if req.enable_trial {
+        if !current_login_by.contains("trial") {
+            format!("{},trial", current_login_by)
+        } else {
+            current_login_by.to_string()
+        }
+    } else {
+        current_login_by.replace(",trial", "").replace("trial,", "").replace("trial", "")
+    };
+    args.push(("login-by", updated_login_by.as_str()));
+
+    if let Some(up) = req.trial_user_profile.as_deref() {
+        args.push(("trial-user-profile", up));
+    }
+
+    client.run(build_command("/ip/hotspot/profile/set", args)).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "trial_enabled": req.enable_trial,
+        "login_by": updated_login_by,
+        "trial_uptime_limit": req.trial_uptime_limit,
+        "trial_uptime_reset": req.trial_uptime_reset,
+        "message": format!("Hotspot Trial pengguna gratisan berhasil di-setting (Aktif: {})!", trial_enabled_str)
+    })))
+}
+
+/// POST /api/v1/hotspot/trial/reset-cookies - Reset daftar MAC trial agar pengguna bisa coba lagi
+pub async fn reset_trial_cookies(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let cookies = client.run(build_command(
+        "/ip/hotspot/cookie/print",
+        std::iter::empty::<(&str, &str)>(),
+    )).await.unwrap_or_default();
+
+    let mut removed = 0;
+    for c in cookies {
+        if let Some(user) = c.get("user") {
+            if user.starts_with("T-") || user.to_lowercase().contains("trial") {
+                if let Some(id) = c.get(".id") {
+                    let _ = client.run(build_command("/ip/hotspot/cookie/remove", [(".id", id)])).await;
+                    removed += 1;
+                }
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "cleared_trial_cookies": removed,
+        "message": format!("{} session cookie trial berhasil direset. Pengguna dapat mencoba paket trial kembali.", removed)
+    })))
+}

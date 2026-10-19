@@ -63,6 +63,23 @@ pub async fn pcc_setup(
     if req.wans.len() < 2 {
         return Err(ApiError::BadRequest("PCC Load Balancing membutuhkan minimal 2 interface WAN".into()));
     }
+    if req.wans.len() > 16 {
+        return Err(ApiError::BadRequest("PCC Load Balancing maksimal 16 interface WAN".into()));
+    }
+    crate::routes::sanitize::validate_safe_identifier(&req.lan_interface, "lan_interface")?;
+
+    match req.matcher.as_str() {
+        "both-addresses" | "both-addresses-and-ports" | "src-address" | "src-address-and-port" | "dst-address" | "dst-address-and-port" => {}
+        _ => return Err(ApiError::BadRequest("Invalid matcher value".into())),
+    }
+
+    for wan in &req.wans {
+        crate::routes::sanitize::validate_safe_identifier(&wan.interface, "wan.interface")?;
+        crate::routes::sanitize::validate_ip_or_cidr(&wan.gateway)?;
+        if let Some(ref name) = wan.name {
+            crate::routes::sanitize::validate_safe_identifier(name, "wan.name")?;
+        }
+    }
 
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
@@ -72,6 +89,9 @@ pub async fn pcc_setup(
 
     // 2. Hitung total slot classifier berdasarkan bobot (weights)
     let total_slots: u32 = req.wans.iter().map(|w| w.weight.max(1)).sum();
+    if total_slots > 64 {
+        return Err(ApiError::BadRequest("Total PCC weight slots cannot exceed 64".into()));
+    }
     let mut slot_assignments = Vec::new(); // (slot_index, wan_index, wan_alias)
 
     let mut current_slot = 0u32;

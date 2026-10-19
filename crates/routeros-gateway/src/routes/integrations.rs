@@ -318,6 +318,7 @@ pub async fn netwatch_setup(
 
     // Option A: Generic Decoupled Webhook to external backend (Laravel / Next.js / Custom Service)
     if let Some(ref wh) = req.webhook_url {
+        crate::routes::sanitize::validate_safe_url(wh)?;
         let sep = if wh.contains('?') { "&" } else { "?" };
         let down_wh = format!("{}{}host={}&device={}&status=down", wh, sep, req.host, url_encode(dev_label));
         let up_wh = format!("{}{}host={}&device={}&status=up", wh, sep, req.host, url_encode(dev_label));
@@ -327,6 +328,8 @@ pub async fn netwatch_setup(
 
     // Option B: Add Telegram alert action directly from router
     if let Some(ref tg) = req.telegram {
+        crate::routes::sanitize::validate_telegram_bot_token(&tg.bot_token)?;
+        crate::routes::sanitize::validate_telegram_chat_id(&tg.chat_id)?;
         let down_msg = url_encode(&format!("🚨 ALERT: Perangkat '{}' ({}) DOWN / Terputus!", dev_label, req.host));
         let up_msg = url_encode(&format!("✅ RECOVERED: Perangkat '{}' ({}) UP / Normal Kembali!", dev_label, req.host));
         down_scripts.push(format!(
@@ -341,7 +344,11 @@ pub async fn netwatch_setup(
 
     // Option C: Add WhatsApp alert action directly from router
     if let Some(ref wa) = req.whatsapp {
+        crate::routes::sanitize::validate_safe_url(&wa.gowa_url)?;
         let clean_phone = wa.phone.replace(['+', '-', ' '], "");
+        if !clean_phone.chars().all(|c| c.is_ascii_digit()) || clean_phone.len() < 8 || clean_phone.len() > 16 {
+            return Err(ApiError::BadRequest("Invalid WhatsApp phone number format".into()));
+        }
         let down_msg = url_encode(&format!("🚨 *ALERT*: Perangkat *{}* ({}) *DOWN*!", dev_label, req.host));
         let up_msg = url_encode(&format!("✅ *RECOVERED*: Perangkat *{}* ({}) *UP*!", dev_label, req.host));
         let base_url = wa.gowa_url.trim_end_matches('/');
@@ -355,11 +362,17 @@ pub async fn netwatch_setup(
         ));
     }
 
-    // Option D: Inject custom RouterOS scripts
+    // Option D: Inject custom RouterOS scripts (requires allow_terminal_exec flag)
     if let Some(ref custom_up) = req.custom_up_script {
+        if !st.allow_terminal_exec {
+            return Err(ApiError::Forbidden("Custom script injection is disabled by gateway security policy. Enable GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()));
+        }
         up_scripts.push(custom_up.clone());
     }
     if let Some(ref custom_down) = req.custom_down_script {
+        if !st.allow_terminal_exec {
+            return Err(ApiError::Forbidden("Custom script injection is disabled by gateway security policy. Enable GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()));
+        }
         down_scripts.push(custom_down.clone());
     }
 
@@ -400,6 +413,21 @@ pub async fn netwatch_batch_setup(
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let mut configured = Vec::new();
+
+    if let Some(ref wh) = req.webhook_url {
+        crate::routes::sanitize::validate_safe_url(wh)?;
+    }
+    if let Some(ref tg) = req.telegram {
+        crate::routes::sanitize::validate_telegram_bot_token(&tg.bot_token)?;
+        crate::routes::sanitize::validate_telegram_chat_id(&tg.chat_id)?;
+    }
+    if let Some(ref wa) = req.whatsapp {
+        crate::routes::sanitize::validate_safe_url(&wa.gowa_url)?;
+        let clean_phone = wa.phone.replace(['+', '-', ' '], "");
+        if !clean_phone.chars().all(|c| c.is_ascii_digit()) || clean_phone.len() < 8 || clean_phone.len() > 16 {
+            return Err(ApiError::BadRequest("Invalid WhatsApp phone number format".into()));
+        }
+    }
 
     for t in req.targets {
         let interval = t.interval.as_deref().unwrap_or("5s");
@@ -547,6 +575,10 @@ pub async fn setup_report_scheduler(
     let start_time = req.start_time.as_deref().unwrap_or("21:00:00");
     let title = req.report_title.as_deref().unwrap_or("LAPORAN NOC HARIAN");
 
+    crate::routes::sanitize::validate_telegram_bot_token(&req.bot_token)?;
+    crate::routes::sanitize::validate_telegram_chat_id(&req.chat_id)?;
+    crate::routes::sanitize::validate_validity(interval)?;
+
     // Bulletproof RouterOS script that queries identity, active hotspot, and resource metrics
     let script_source = format!(
         ":local id [/system identity get name];\n\
@@ -606,6 +638,12 @@ pub async fn hotspot_chat_snippet(
     let bot_id = q.chat_id.as_deref().unwrap_or("YOUR_TELEGRAM_CHAT_ID");
     let wa_number = q.wa_phone.as_deref().unwrap_or("628123456789");
 
+    // Clean inputs: escape for safe inclusion in JS/HTML
+    let safe_hotspot_js = hotspot.replace(['\\', '"', '\r', '\n', '<', '>'], "");
+    let safe_bot_id_js = bot_id.replace(['\\', '"', '\r', '\n', '<', '>'], "");
+    let safe_wa_num = wa_number.chars().filter(|c| c.is_ascii_digit()).collect::<String>();
+    let clean_wa = if safe_wa_num.is_empty() { "628123456789".to_string() } else { safe_wa_num };
+
     let snippet_code = format!(
         r#"<!-- ================================================================= -->
 <!-- HOTSPOT LIVE CHAT & WHATSAPP FLOATING WIDGET (Intergram & Gowa)    -->
@@ -635,10 +673,12 @@ pub async fn hotspot_chat_snippet(
   <span>Bantuan WhatsApp</span>
 </a>
 "#,
-        hotspot = hotspot,
-        bot_id = bot_id,
-        wa_number = wa_number
+        hotspot = safe_hotspot_js,
+        bot_id = safe_bot_id_js,
+        wa_number = clean_wa
     );
+
+    let escaped_code = crate::routes::sanitize::html_escape(&snippet_code);
 
     let html_page = format!(
         r#"<!DOCTYPE html>
@@ -661,7 +701,7 @@ pub async fn hotspot_chat_snippet(
   <pre id="code">{}</pre>
 </body>
 </html>"#,
-        snippet_code
+        escaped_code
     );
 
     Html(html_page)

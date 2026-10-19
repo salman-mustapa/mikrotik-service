@@ -54,6 +54,10 @@ pub async fn add_address(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_ip_or_cidr(&req.address)?;
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+
     let mut args = vec![("address", req.address.as_str()), ("interface", req.interface.as_str())];
     if let Some(c) = req.comment.as_deref() {
         args.push(("comment", c));
@@ -104,6 +108,22 @@ pub async fn add_route(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_ip_or_cidr(&req.dst_address)?;
+    if crate::routes::sanitize::validate_ip_or_cidr(&req.gateway).is_err() {
+        crate::routes::sanitize::validate_safe_identifier(&req.gateway, "gateway")?;
+    }
+    if let Some(d) = req.distance.as_deref() {
+        if d.parse::<u16>().map(|v| !(1..=255).contains(&v)).unwrap_or(true) {
+            return Err(ApiError::BadRequest("distance must be between 1 and 255".into()));
+        }
+    }
+    if let Some(cg) = req.check_gateway.as_deref() {
+        if cg != "ping" && cg != "arp" {
+            return Err(ApiError::BadRequest("check-gateway must be 'ping' or 'arp'".into()));
+        }
+    }
+
     let mut args = vec![
         ("dst-address", req.dst_address.as_str()),
         ("gateway", req.gateway.as_str()),
@@ -175,6 +195,15 @@ pub async fn add_pool(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "pool_name")?;
+    if !req.ranges.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | '-' | ',')) {
+        return Err(ApiError::BadRequest("ranges contains invalid characters".into()));
+    }
+    if let Some(np) = req.next_pool.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(np, "next_pool")?;
+    }
+
     let mut args = vec![("name", req.name.as_str()), ("ranges", req.ranges.as_str())];
     if let Some(np) = req.next_pool.as_deref() {
         args.push(("next-pool", np));
@@ -344,7 +373,7 @@ fn estimate_pool_capacity(ranges: &str) -> usize {
     for part in ranges.split(',') {
         let part = part.trim();
         if let Some((start_ip, end_ip)) = part.split_once('-') {
-            if let (Some(s_last), Some(e_last)) = (start_ip.split('.').last(), end_ip.split('.').last()) {
+            if let (Some(s_last), Some(e_last)) = (start_ip.split('.').next_back(), end_ip.split('.').next_back()) {
                 if let (Ok(s), Ok(e)) = (s_last.parse::<usize>(), e_last.parse::<usize>()) {
                     if e >= s {
                         total += (e - s) + 1;

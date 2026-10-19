@@ -149,8 +149,17 @@ pub async fn block_app(
             let domain = req.custom_domain.as_deref().ok_or_else(|| {
                 ApiError::BadRequest("custom_domain wajib diisi untuk app_type custom".into())
             })?;
-            let wildcard = format!("*{}*", domain);
-            let comment = req.comment.unwrap_or_else(|| format!("[App-Blocker] Custom Block ({})", domain));
+            let domain_trimmed = domain.trim();
+            if domain_trimmed.is_empty() || domain_trimmed.len() > 100 || !domain_trimmed.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+                return Err(ApiError::BadRequest("custom_domain contains invalid characters. Only alphanumeric, '.', '-', and '_' are allowed".into()));
+            }
+            let wildcard = format!("*{}*", domain_trimmed);
+            if let Some(ref c) = req.comment {
+                if c.contains(['\r', '\n', '"', ';']) {
+                    return Err(ApiError::BadRequest("comment contains invalid characters".into()));
+                }
+            }
+            let comment = req.comment.unwrap_or_else(|| format!("[App-Blocker] Custom Block ({})", domain_trimmed));
             client.run(build_command(
                 "/ip/firewall/filter/add",
                 [
@@ -190,12 +199,12 @@ pub async fn unblock_app(
     let app = req.app_type.to_lowercase();
     let rows = client.run(build_command("/ip/firewall/filter/print", std::iter::empty::<(&str, &str)>())).await?;
 
-    let search_tag = format!("[App-Blocker]");
+    let search_tag = "[App-Blocker]";
     let mut removed_count = 0;
 
     for r in rows {
         if let Some(comment) = r.get("comment") {
-            if comment.starts_pub_with(&search_tag) && comment.to_lowercase().contains(&app) {
+            if comment.starts_pub_with(search_tag) && comment.to_lowercase().contains(&app) {
                 if let Some(id) = r.get(".id") {
                     let _ = client.run(build_command("/ip/firewall/filter/remove", [(".id", id)])).await;
                     removed_count += 1;

@@ -183,6 +183,10 @@ pub async fn add_eoip(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.remote_address)?;
+
     let tid_str = req.tunnel_id.to_string();
     let mut args = vec![
         ("name", req.name.as_str()),
@@ -240,6 +244,13 @@ pub async fn add_gre(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.remote_address)?;
+    if let Some(ref la) = req.local_address {
+        crate::routes::sanitize::validate_ip_or_cidr(la)?;
+    }
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("remote-address", req.remote_address.as_str()),
@@ -302,6 +313,13 @@ pub async fn add_ipip(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.remote_address)?;
+    if let Some(ref la) = req.local_address {
+        crate::routes::sanitize::validate_ip_or_cidr(la)?;
+    }
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("remote-address", req.remote_address.as_str()),

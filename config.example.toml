@@ -2,8 +2,12 @@
 # Gateway dapat berjalan secara stateless (multi-tenant) via Header HTTP X-Router-Host,
 # atau menggunakan slot router terdaftar di bawah ini:
 
-listen = "0.0.0.0:8080"
-api_token = "change-me-to-a-long-random-string"
+# Bind ke localhost secara default demi keamanan (gunakan reverse proxy TLS seperti Caddy/Nginx untuk akses publik)
+listen = "127.0.0.1:8080"
+
+# Wajib diisi token acak minimal 32 karakter untuk hak akses Admin. (env: GATEWAY_TOKEN)
+# Gateway akan menolak start jika menggunakan string default 'change-me-to-a-long-random-string'
+api_token = "generate-a-strong-32-char-random-token-here!"
 
 # Opsional: token READ-ONLY untuk browser/aplikasi yang hanya menampilkan peta (/map, <mikrotik-map>).
 # Hanya bisa GET /api/v1/map/* dan subscribe_map di /ws; tidak bisa edit/command. Min. 16 karakter, harus beda dari api_token.
@@ -13,7 +17,39 @@ api_token = "change-me-to-a-long-random-string"
 # Folder penyimpanan layout peta jaringan & gambar denah (env: GATEWAY_DATA_DIR). Default ./data
 # data_dir = "./data"
 
-# Opsional: Daftarkan router tetap jika diperlukan
+# =========================================================================
+# Parameter Penguatan Keamanan (Security Hardening Flags)
+# =========================================================================
+# 1. Izinkan penargetan router dinamis via header X-Router-Host (SSRF Protection).
+#    Default false: hanya router terdaftar di slot [[router]] yang diizinkan.
+# allow_dynamic_routers = false
+
+# 2. Izinkan eksekusi command RouterOS mentah via /api/v1/command.
+#    Default false: mencegah eksekusi CLI bebas bila token bocor.
+# allow_raw_command = false
+
+# 3. Izinkan eksekusi skrip CLI multi-line via /api/v1/scripts/terminal-exec.
+#    Default false: mencegah injeksi terminal skrip arbitrary.
+# allow_terminal_exec = false
+
+# 4. Izinkan penghapusan audit logs via /api/v1/audit/clear.
+#    Default false: menjaga append-only audit trail.
+# allow_audit_clear = false
+
+# 5. Percaya header X-Forwarded-For / X-Real-IP dari Reverse Proxy tepercaya.
+#    Default false: hanya menggunakan IP koneksi soket langsung.
+# trust_forwarded_for = false
+
+# 6. Wajibkan autentikasi Bearer token untuk mengakses /docs dan /api/v1/spec.
+#    Default false: katalog terbuka untuk dev explorer.
+# protect_docs = false
+
+# 7. Whitelist origin CORS yang diizinkan (kosong = hanya localhost / same-origin).
+# cors_allowed_origins = ["https://dashboard.example.com"]
+
+# =========================================================================
+# Slot Router Terdaftar
+# =========================================================================
 # [[router]]
 # id = "main"
 # addr = "192.168.88.1:8728"

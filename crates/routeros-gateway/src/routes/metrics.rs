@@ -12,7 +12,6 @@ pub struct MetricsQuery {
     pub host: Option<String>,
     pub port: Option<u16>,
     pub user: Option<String>,
-    pub pass: Option<String>,
     pub token: Option<String>,
     pub router_id: Option<String>,
 }
@@ -68,7 +67,7 @@ pub async fn prometheus_metrics(
             host: Some(h),
             port: Some(query.port.unwrap_or(8728)),
             user: Some(query.user.unwrap_or_else(|| "admin".into())),
-            password: Some(query.pass.unwrap_or_default()),
+            password: None,
         })
     } else {
         None
@@ -78,11 +77,26 @@ pub async fn prometheus_metrics(
 
     let client_res = st.resolve_client(resolved_target.as_ref(), router_id.as_deref()).await;
 
-    let target_label = resolved_target
+fn escape_prometheus_label(val: &str) -> String {
+    let mut out = String::with_capacity(val.len());
+    for c in val.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => {},
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+    let target_raw = resolved_target
         .as_ref()
         .and_then(|t| t.host.clone())
         .or_else(|| router_id.clone())
         .unwrap_or_else(|| "default_router".into());
+    let target_label = escape_prometheus_label(&target_raw);
 
     let mut out = String::with_capacity(4096);
 
@@ -156,7 +170,7 @@ pub async fn prometheus_metrics(
     if let Ok(interfaces) = if_res {
         out.push_str("# HELP mikrotik_interface_rx_bytes_total Received bytes on interface\n# TYPE mikrotik_interface_rx_bytes_total counter\n");
         for iface in &interfaces {
-            let name = iface.get("name").unwrap_or("unknown");
+            let name = escape_prometheus_label(iface.get("name").unwrap_or("unknown"));
             let rx_bytes: u64 = iface.get("rx-byte").and_then(|v| v.parse().ok()).unwrap_or(0);
             out.push_str(&format!("mikrotik_interface_rx_bytes_total{{host=\"{}\",interface=\"{}\"}} {}\n", target_label, name, rx_bytes));
         }
@@ -164,7 +178,7 @@ pub async fn prometheus_metrics(
 
         out.push_str("# HELP mikrotik_interface_tx_bytes_total Transmitted bytes on interface\n# TYPE mikrotik_interface_tx_bytes_total counter\n");
         for iface in &interfaces {
-            let name = iface.get("name").unwrap_or("unknown");
+            let name = escape_prometheus_label(iface.get("name").unwrap_or("unknown"));
             let tx_bytes: u64 = iface.get("tx-byte").and_then(|v| v.parse().ok()).unwrap_or(0);
             out.push_str(&format!("mikrotik_interface_tx_bytes_total{{host=\"{}\",interface=\"{}\"}} {}\n", target_label, name, tx_bytes));
         }
@@ -172,7 +186,7 @@ pub async fn prometheus_metrics(
 
         out.push_str("# HELP mikrotik_interface_rx_packets_total Received packets on interface\n# TYPE mikrotik_interface_rx_packets_total counter\n");
         for iface in &interfaces {
-            let name = iface.get("name").unwrap_or("unknown");
+            let name = escape_prometheus_label(iface.get("name").unwrap_or("unknown"));
             let rx_pkts: u64 = iface.get("rx-packet").and_then(|v| v.parse().ok()).unwrap_or(0);
             out.push_str(&format!("mikrotik_interface_rx_packets_total{{host=\"{}\",interface=\"{}\"}} {}\n", target_label, name, rx_pkts));
         }
@@ -180,7 +194,7 @@ pub async fn prometheus_metrics(
 
         out.push_str("# HELP mikrotik_interface_tx_packets_total Transmitted packets on interface\n# TYPE mikrotik_interface_tx_packets_total counter\n");
         for iface in &interfaces {
-            let name = iface.get("name").unwrap_or("unknown");
+            let name = escape_prometheus_label(iface.get("name").unwrap_or("unknown"));
             let tx_pkts: u64 = iface.get("tx-packet").and_then(|v| v.parse().ok()).unwrap_or(0);
             out.push_str(&format!("mikrotik_interface_tx_packets_total{{host=\"{}\",interface=\"{}\"}} {}\n", target_label, name, tx_pkts));
         }
@@ -188,7 +202,7 @@ pub async fn prometheus_metrics(
 
         out.push_str("# HELP mikrotik_interface_up Operational link running status (1=up, 0=down)\n# TYPE mikrotik_interface_up gauge\n");
         for iface in &interfaces {
-            let name = iface.get("name").unwrap_or("unknown");
+            let name = escape_prometheus_label(iface.get("name").unwrap_or("unknown"));
             let running = iface.get("running").map(|v| v == "true").unwrap_or(false);
             let val = if running { 1 } else { 0 };
             out.push_str(&format!("mikrotik_interface_up{{host=\"{}\",interface=\"{}\"}} {}\n", target_label, name, val));

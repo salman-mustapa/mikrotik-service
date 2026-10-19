@@ -53,6 +53,8 @@ pub async fn deploy_bogon_filter(
     headers: HeaderMap,
     Json(req): Json<WanInterfaceReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.wan_interface, "wan_interface")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -129,6 +131,8 @@ pub async fn deploy_dns_guard(
     headers: HeaderMap,
     Json(req): Json<WanInterfaceReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.wan_interface, "wan_interface")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -171,6 +175,8 @@ pub async fn deploy_raw_antiddos(
     headers: HeaderMap,
     Json(req): Json<WanInterfaceReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.wan_interface, "wan_interface")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -229,10 +235,22 @@ pub async fn setup_auto_reboot(
     headers: HeaderMap,
     Json(req): Json<AutoRebootReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_system_reboot {
+        return Err(ApiError::Forbidden(
+            "Auto reboot setup is disabled (allow_system_reboot is false)".to_string(),
+        ));
+    }
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Scheduler configuration requires terminal execution permission (allow_terminal_exec is false)".to_string(),
+        ));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let reboot_time = req.reboot_time.as_deref().unwrap_or("04:00:00");
+    crate::routes::sanitize::validate_time_format(reboot_time)?;
     let sched_name = "AutoReboot_Subuh_0400";
     let sched_comment = format!("{} Pembersihan RAM & Reset Session ISP Harian", HARDENING_COMMENT_TAG);
 
@@ -274,6 +292,8 @@ pub async fn deploy_full_hardening(
     headers: HeaderMap,
     Json(req): Json<FullHardeningReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.wan_interface, "wan_interface")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router.clone(), req.router_id.clone());
     let _client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

@@ -1,8 +1,8 @@
 # ==========================================
 # Multi-Stage Build: MikroTik Universal Rust Engine
 # ==========================================
-# Stage 1: Build binary using official Rust Alpine image (musl static)
-FROM rust:alpine AS builder
+# Stage 1: Build binary using pinned official Rust Alpine image (musl static)
+FROM rust:1.82-alpine AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY crates/routeros-gateway/Cargo.toml ./crates/routeros-gateway/
 RUN mkdir -p ./crates/routeros-core/src && echo "pub fn dummy() {}" > ./crates/routeros-core/src/lib.rs && \
     mkdir -p ./crates/routeros-gateway/src && echo "fn main() {}" > ./crates/routeros-gateway/src/main.rs
 
-RUN cargo build --release -p routeros-gateway || true
+RUN cargo build --release --locked -p routeros-gateway || true
 
 # Copy real source code
 COPY crates/routeros-core ./crates/routeros-core
@@ -27,13 +27,13 @@ COPY crates/routeros-gateway ./crates/routeros-gateway
 # Touch main files to invalidate cargo cache for real code build
 RUN touch ./crates/routeros-core/src/lib.rs ./crates/routeros-gateway/src/main.rs
 
-# Build final release binary
-RUN cargo build --release -p routeros-gateway
+# Build final release binary with reproducible lockfile enforcement
+RUN cargo build --release --locked -p routeros-gateway
 
 # ==========================================
 # Stage 2: Ultra-lightweight & Secure Production Runtime (< 25MB)
 # ==========================================
-FROM alpine:3.20 AS runtime
+FROM alpine:3.20.3 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata wget
 
@@ -54,8 +54,8 @@ USER appuser
 
 EXPOSE 8080
 
+# Default environment variables without hardcoded credentials
 ENV GATEWAY_LISTEN="0.0.0.0:8080" \
-    GATEWAY_TOKEN="change-me-to-a-long-random-string" \
     GATEWAY_DATA_DIR="/data" \
     RUST_LOG="info"
 

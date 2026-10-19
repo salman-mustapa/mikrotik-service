@@ -46,6 +46,10 @@ pub async fn create_backup(
     headers: HeaderMap,
     Json(req): Json<CreateBackupReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if let Some(n) = req.name.as_deref() {
+        crate::routes::sanitize::validate_safe_filename(n)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = Vec::new();
@@ -68,6 +72,10 @@ pub async fn export_config(
     headers: HeaderMap,
     Json(req): Json<ExportReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if let Some(f) = req.file.as_deref() {
+        crate::routes::sanitize::validate_safe_filename(f)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = Vec::new();
@@ -135,6 +143,8 @@ pub async fn restore_backup(
     headers: HeaderMap,
     Json(req): Json<RestoreBackupReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_filename(&req.name)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -157,12 +167,19 @@ pub async fn import_config(
     headers: HeaderMap,
     Json(req): Json<ImportConfigReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Config script importing is disabled by gateway security policy. Set GATEWAY_ALLOW_TERMINAL_EXEC=true to permit.".into()
+        ));
+    }
+    crate::routes::sanitize::validate_safe_filename(&req.file)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let mut args = vec![("file-name", req.file.as_str())];
     let verb_str = req.verbose.map(|v| if v { "yes" } else { "no" });
-    if let Some(v) = verb_str.as_deref() {
+    if let Some(v) = verb_str {
         args.push(("verbose", v));
     }
 
@@ -182,6 +199,8 @@ pub async fn read_file_content(
     headers: HeaderMap,
     Json(req): Json<ReadFileReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_filename(&req.file)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -216,6 +235,11 @@ pub async fn write_file_content(
     headers: HeaderMap,
     Json(req): Json<WriteFileReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if req.contents.len() > 1_048_576 {
+        return Err(ApiError::BadRequest("File content exceeds 1MB limit for direct router storage write".into()));
+    }
+    crate::routes::sanitize::validate_safe_filename(&req.file)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

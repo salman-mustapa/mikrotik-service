@@ -63,6 +63,10 @@ pub async fn add_simple(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_bandwidth_rate(&req.max_limit)?;
+
     let mut args = vec![
         ("name", req.name.as_str()),
         ("target", req.target.as_str()),
@@ -82,6 +86,9 @@ pub async fn set_limit(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_bandwidth_rate(&req.max_limit)?;
+
     client.run(build_command("/queue/simple/set", [
         (".id", req.id.as_str()),
         ("max-limit", req.max_limit.as_str()),
@@ -383,7 +390,7 @@ pub async fn overview_summary(
     }
 
     // Sort top 5 downloaders berdasarkan pemakaian real-time saat ini
-    items.sort_by(|a, b| b.cur_down.cmp(&a.cur_down));
+    items.sort_by_key(|a| std::cmp::Reverse(a.cur_down));
     let top_active_users: Vec<Value> = items.iter().take(5).map(|it| {
         json!({
             "name": it.name,

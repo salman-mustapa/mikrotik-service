@@ -332,6 +332,7 @@ fn worse(a: &'static str, b: &'static str) -> &'static str {
 }
 
 /// Evaluate utilisation / packet-rate / drop conditions for a link or a queue.
+#[allow(clippy::too_many_arguments)]
 fn eval_traffic(
     th: &Thresholds,
     scope: &str,
@@ -779,6 +780,11 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
             "parent_source": if overridden.contains(&n.id) { "override" } else { "auto" },
             "status": n.status,
             "position": { "x": pos.x, "y": pos.y, "source": pos_src },
+            "geo": {
+                "lat": placement.and_then(|p| p.lat),
+                "lng": placement.and_then(|p| p.lng),
+                "address": placement.and_then(|p| p.address.clone()),
+            },
             "icon": { "id": icon_id, "source": icon_src, "auto_id": auto_icon },
             "health": health,
             "reasons": reasons.iter().map(|r| json!({"kind": r.kind, "severity": r.severity, "message": r.message})).collect::<Vec<_>>(),
@@ -892,6 +898,34 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
         },
     });
 
+    let mut outages: Vec<Value> = Vec::new();
+    for n in &node_values {
+        if n["health"] == "critical" {
+            outages.push(json!({
+                "type": "node",
+                "id": n["id"],
+                "label": n["display_label"],
+                "node_type": n["node_type"],
+                "ip": n["ip"],
+                "interface": n["interface"],
+                "geo": n["geo"],
+                "reasons": n["reasons"],
+            }));
+        }
+    }
+    for e in &edge_values {
+        if e["health"] == "critical" {
+            outages.push(json!({
+                "type": "link",
+                "id": e["id"],
+                "source": e["source"],
+                "target": e["target"],
+                "speed": e["speed"],
+                "health": e["health"],
+            }));
+        }
+    }
+
     let scene = json!({
         "success": true,
         "generated_at": crate::current_iso_timestamp(),
@@ -908,6 +942,7 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
         },
         "thresholds": th,
         "summary": summary,
+        "outages": outages,
         "alerts": alerts,
         "warnings": warnings,
         "nodes": node_values,
@@ -1652,7 +1687,7 @@ mod tests {
     #[test]
     fn saved_position_icon_label_and_waypoints_are_applied() {
         let mut l = MapLayout::new_empty("t");
-        l.nodes.insert("ap_ether5_AA".into(), NodePlacement { x: 0.7, y: 0.2, icon: Some("server".into()), label: Some("Rooftop AP".into()), locked: true, parent_override: None });
+        l.nodes.insert("ap_ether5_AA".into(), NodePlacement { x: 0.7, y: 0.2, icon: Some("server".into()), label: Some("Rooftop AP".into()), locked: true, parent_override: None, ..Default::default() });
         l.nodes.insert("if_ether5".into(), NodePlacement { x: 0.4, y: 0.5, ..Default::default() });
         l.paths.insert("edge_if_ether5_ap_ether5_AA".into(), EdgePath { waypoints: vec![Point { x: 0.4, y: 0.2 }, Point { x: 0.6, y: 0.2 }], style: Some("orthogonal".into()), capacity_bps: None });
         let out = run(l, HashMap::new(), vec![], None, 1000);

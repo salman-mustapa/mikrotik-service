@@ -55,9 +55,13 @@ pub mod failover_wizard;
 pub mod graphing;
 pub mod hardening;
 pub mod isolir;
-pub mod mikhmon_v4;
 pub mod packet_sniffer;
 pub mod port_knocking;
+pub mod sanitize;
+pub mod security_cve;
+pub mod allowlist;
+pub mod layer7;
+pub mod provisioning;
 
 use std::sync::Arc;
 use axum::routing::{get, post, put};
@@ -209,6 +213,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/hotspot/profiles", get(hotspot::profiles).post(hotspot::profiles))
         .route("/api/v1/hotspot/profile/add", post(hotspot::add_profile))
         .route("/api/v1/hotspot/profile/remove", post(hotspot::remove_profile))
+        .route("/api/v1/hotspot/profiles/create-package", post(hotspot::create_package_profile))
+        .route("/api/v1/hotspot/profiles/packages", get(hotspot::list_package_profiles).post(hotspot::list_package_profiles))
         .route("/api/v1/hotspot/profile/inject-expiry-script", post(hotspot::inject_expiry_script))
         .route("/api/v1/hotspot/server-profiles", get(hotspot::server_profiles).post(hotspot::server_profiles))
         .route("/api/v1/hotspot/server-profile/set", post(hotspot::set_server_profile))
@@ -246,6 +252,22 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/user-manager/limitations", get(user_manager::limitations).post(user_manager::limitations))
         .route("/api/v1/user-manager/limitation/add", post(user_manager::add_limitation))
         .route("/api/v1/user-manager/user/assign-profile", post(user_manager::assign_profile))
+        .route("/api/v1/user-manager/routers", get(user_manager::routers).post(user_manager::routers))
+        .route("/api/v1/user-manager/router/add", post(user_manager::add_router))
+        .route("/api/v1/user-manager/status", get(user_manager::userman_status).post(user_manager::userman_status))
+        // Aliases for /api/v1/userman/...
+        .route("/api/v1/userman/users", get(user_manager::users).post(user_manager::users))
+        .route("/api/v1/userman/user/add", post(user_manager::create_user))
+        .route("/api/v1/userman/user/remove", post(user_manager::remove_user))
+        .route("/api/v1/userman/sessions", get(user_manager::sessions).post(user_manager::sessions))
+        .route("/api/v1/userman/profiles", get(user_manager::profiles).post(user_manager::profiles))
+        .route("/api/v1/userman/profile/add", post(user_manager::add_profile))
+        .route("/api/v1/userman/limitations", get(user_manager::limitations).post(user_manager::limitations))
+        .route("/api/v1/userman/limitation/add", post(user_manager::add_limitation))
+        .route("/api/v1/userman/user/assign-profile", post(user_manager::assign_profile))
+        .route("/api/v1/userman/routers", get(user_manager::routers).post(user_manager::routers))
+        .route("/api/v1/userman/router/add", post(user_manager::add_router))
+        .route("/api/v1/userman/status", get(user_manager::userman_status).post(user_manager::userman_status))
 
         // --- Bridge & VLANs ---
         .route("/api/v1/bridge/all", get(bridge::bridges).post(bridge::bridges))
@@ -317,6 +339,8 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/firewall/connections", get(firewall::connections).post(firewall::connections))
         .route("/api/v1/firewall/connections/top-talkers", get(firewall::top_talkers).post(firewall::top_talkers))
         .route("/api/v1/firewall/connections/flush", post(firewall::flush_connections))
+        .route("/api/v1/firewall/connections/kill", post(firewall::kill_connection))
+        .route("/api/v1/firewall/conntrack/settings", get(firewall::conntrack_settings).post(firewall::conntrack_settings))
 
         // --- Queues (Bandwidth Limiting & Live Inspection) ---
         .route("/api/v1/queues/simple", get(queues::simple).post(queues::simple))
@@ -334,6 +358,10 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/interface/list", get(interfaces::all).post(interfaces::all))
         .route("/api/v1/interfaces/sample-traffic", post(interfaces::sample_traffic))
         .route("/api/v1/interfaces/stream", get(interfaces::stream_traffic))
+        .route("/api/v1/interfaces/vlans", get(interfaces::vlans).post(interfaces::vlans))
+        .route("/api/v1/interfaces/vlan/add", post(interfaces::add_vlan))
+        .route("/api/v1/interfaces/vlan/remove", post(interfaces::remove_vlan))
+        .route("/api/v1/network/sync-pppoe-hotspot", post(interfaces::sync_pppoe_hotspot))
 
         // --- Network Tools & Diagnostics ---
         .route("/api/v1/tools/ping", post(tools::ping))
@@ -481,8 +509,11 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/integrations/reports/setup-scheduler", post(integrations::setup_report_scheduler))
         .route("/api/v1/integrations/hotspot-chat/snippet", get(integrations::hotspot_chat_snippet))
 
-        // --- Enterprise Mikhmon-Killer: Hotspot Voucher Engine 2.0 ---
+        // --- Enterprise Hotspot Voucher Engine 2.0 ---
         .route("/api/v1/hotspot/vouchers/generate", post(vouchers::generate_vouchers))
+        .route("/api/v1/hotspot/vouchers/create-single", post(vouchers::create_single_voucher))
+        .route("/api/v1/hotspot/vouchers/create", post(vouchers::create_single_voucher))
+        .route("/api/v1/hotspot/vouchers/history", get(vouchers::voucher_usage_history).post(vouchers::voucher_usage_history))
         .route("/api/v1/hotspot/vouchers/tracking", get(vouchers::voucher_tracking).post(vouchers::voucher_tracking))
         .route("/api/v1/hotspot/vouchers/thermal-print", post(vouchers::thermal_print))
         .route("/api/v1/hotspot/vouchers/sell", post(vouchers::sell_voucher))
@@ -513,12 +544,18 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/wisp/isolir/restore", post(isolir::restore_user))
         .route("/api/v1/wisp/isolir/list", get(isolir::list_isolated).post(isolir::list_isolated))
         .route("/api/v1/wisp/isolir/teardown", post(isolir::teardown_isolir))
+        .route("/api/v1/wisp/isolir/pppoe/isolate", post(isolir::isolate_pppoe_user))
+        .route("/api/v1/wisp/isolir/pppoe/restore", post(isolir::restore_pppoe_user))
+        .route("/api/v1/wisp/isolir/pppoe/list", get(isolir::list_pppoe_isolated).post(isolir::list_pppoe_isolated))
+        .route("/api/v1/wisp/isolir/allowlist/add", post(isolir::add_isolir_allowlist))
 
         // --- Packet Sniffer & Wireshark Streamer (Winbox NOC Tool) ---
         .route("/api/v1/tools/sniffer/status", get(packet_sniffer::sniffer_status).post(packet_sniffer::sniffer_status))
         .route("/api/v1/tools/sniffer/start", post(packet_sniffer::sniffer_start))
         .route("/api/v1/tools/sniffer/stop", post(packet_sniffer::sniffer_stop))
         .route("/api/v1/tools/sniffer/reset", post(packet_sniffer::sniffer_reset))
+        .route("/api/v1/tools/sniffer/packets", get(packet_sniffer::sniffer_packets).post(packet_sniffer::sniffer_packets))
+        .route("/api/v1/tools/sniffer/hosts", get(packet_sniffer::sniffer_hosts).post(packet_sniffer::sniffer_hosts))
 
         // --- RouterOS Built-in Web Graphing MRTG (/graphs) ---
         .route("/api/v1/tools/graphing/status", get(graphing::graphing_status).post(graphing::graphing_status))
@@ -538,13 +575,59 @@ pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/api/v1/security/hardening/deploy-full-hardening", post(hardening::deploy_full_hardening))
         .route("/api/v1/security/hardening/audit-status", get(hardening::audit_status).post(hardening::audit_status))
 
-        // --- Mikhmon v4 Hotspot Suite: Lock MAC, Expiry Modes & Trial Controller ---
-        .route("/api/v1/hotspot/mikhmon-v4/lock-mac/enable", post(mikhmon_v4::enable_lock_mac))
-        .route("/api/v1/hotspot/mikhmon-v4/lock-mac/bind-now", post(mikhmon_v4::bind_user_mac_now))
-        .route("/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", post(mikhmon_v4::setup_expiry_mode))
-        .route("/api/v1/hotspot/mikhmon-v4/trial/status", get(mikhmon_v4::trial_status).post(mikhmon_v4::trial_status))
-        .route("/api/v1/hotspot/mikhmon-v4/trial/setup", post(mikhmon_v4::setup_trial))
-        .route("/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", post(mikhmon_v4::reset_trial_cookies))
+        // --- Hotspot Profile & Voucher Policies (Enterprise Standard) ---
+        .route("/api/v1/hotspot/profile/lock-mac", post(hotspot::enable_lock_mac))
+        .route("/api/v1/hotspot/profile/bind-mac", post(hotspot::bind_user_mac_now))
+        .route("/api/v1/hotspot/profile/expiry-mode", post(hotspot::setup_expiry_mode))
+        .route("/api/v1/hotspot/trial/status", get(hotspot::trial_status).post(hotspot::trial_status))
+        .route("/api/v1/hotspot/trial/setup", post(hotspot::setup_trial))
+        .route("/api/v1/hotspot/trial/reset-cookies", post(hotspot::reset_trial_cookies))
+        .route("/api/v1/hotspot/sweeper/deploy", post(vouchers::deploy_auto_cleaner))
+
+        // --- RouterOS Vulnerability & CVE Security Database Scanner (/api/v1/vuln/*) ---
+        .route("/api/v1/vuln/scan", get(security_cve::scan_vulnerabilities).post(security_cve::scan_vulnerabilities))
+        .route("/api/v1/vuln/catalog", get(security_cve::list_cve_catalog))
+        .route("/api/v1/vuln/quick-harden", post(security_cve::quick_harden_vulnerabilities))
+        .route("/api/v1/security/vulnerabilities/scan", get(security_cve::scan_vulnerabilities).post(security_cve::scan_vulnerabilities))
+        .route("/api/v1/security/vulnerabilities/quick-harden", post(security_cve::quick_harden_vulnerabilities))
+
+        // --- Comprehensive Allowlist Suite (Tier 1 Default, Tier 2 Custom, Tier 3 Advanced & Audit) ---
+        .route("/api/v1/allowlist/presets", get(allowlist::list_presets))
+        .route("/api/v1/allowlist/presets/deploy", post(allowlist::deploy_preset))
+        .route("/api/v1/allowlist/list", get(allowlist::list_all).post(allowlist::list_all))
+        .route("/api/v1/allowlist/custom/add", post(allowlist::add_custom))
+        .route("/api/v1/allowlist/custom/remove", post(allowlist::remove_custom))
+        .route("/api/v1/allowlist/custom/toggle", post(allowlist::toggle_custom))
+        .route("/api/v1/allowlist/advanced/add", post(allowlist::add_advanced))
+        .route("/api/v1/allowlist/audit", get(allowlist::audit_allowlist).post(allowlist::audit_allowlist))
+
+        // --- Firewall Live Connection Mitigation, Anomaly Detection & Quarantine ---
+        .route("/api/v1/firewall/connections/mitigate", post(firewall::mitigate_connection))
+        .route("/api/v1/firewall/connections/anomalies", get(firewall::connection_anomalies).post(firewall::connection_anomalies))
+        .route("/api/v1/firewall/quarantine", get(firewall::list_quarantine).post(firewall::list_quarantine))
+        .route("/api/v1/firewall/quarantine/release", post(firewall::release_quarantine))
+
+        // --- Firewall Quick Actions Engine (Pre-built Templates, Step Checklist Loader & State History) ---
+        .route("/api/v1/firewall/quick-actions/presets", get(firewall::quick_action_presets))
+        .route("/api/v1/firewall/quick-actions/execute", post(firewall::execute_quick_action))
+        .route("/api/v1/firewall/quick-actions/history", get(firewall::quick_actions_history))
+
+        // --- Layer 7 Protocols & Service Ports (Winbox Tabs) ---
+        .route("/api/v1/firewall/layer7", get(layer7::list_layer7).post(layer7::list_layer7))
+        .route("/api/v1/firewall/layer7/add", post(layer7::add_layer7))
+        .route("/api/v1/firewall/layer7/remove", post(layer7::remove_layer7))
+        .route("/api/v1/firewall/layer7/presets", get(layer7::list_layer7_presets))
+        .route("/api/v1/firewall/layer7/deploy-preset", post(layer7::deploy_layer7_preset))
+        .route("/api/v1/firewall/service-ports", get(layer7::list_service_ports).post(layer7::list_service_ports))
+        .route("/api/v1/firewall/service-port/toggle", post(layer7::toggle_service_port))
+
+        // --- Universal Golden Setup Provisioning Engine (Zero-to-Hero with Realtime Steps & History) ---
+        .route("/api/v1/provisioning/templates", get(provisioning::list_templates))
+        .route("/api/v1/provisioning/blueprints", get(provisioning::list_blueprints))
+        .route("/api/v1/provisioning/deploy", post(provisioning::deploy_provisioning))
+        .route("/api/v1/provisioning/clean-slate", post(provisioning::clean_slate_endpoint))
+        .route("/api/v1/provisioning/history", get(provisioning::provisioning_history))
+        .route("/api/v1/provisioning/verify", get(provisioning::verify_provisioning_endpoint).post(provisioning::verify_provisioning_endpoint))
 
         .with_state(state)
 }

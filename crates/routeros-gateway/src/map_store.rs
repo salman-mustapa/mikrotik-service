@@ -97,6 +97,15 @@ pub struct NodePlacement {
     pub x: f64,
     /// Normalised 0..1 across the background image (top -> bottom).
     pub y: f64,
+    /// Real geographic latitude (WGS 84, -90.0 to 90.0) for real map visualizer.
+    #[serde(default)]
+    pub lat: Option<f64>,
+    /// Real geographic longitude (WGS 84, -180.0 to 180.0) for real map visualizer.
+    #[serde(default)]
+    pub lng: Option<f64>,
+    /// Physical location / address (e.g. "ODP-01 Jl. Merdeka No. 10").
+    #[serde(default)]
+    pub address: Option<String>,
     /// Overrides the auto-detected icon. Must be one of [`ICONS`].
     #[serde(default)]
     pub icon: Option<String>,
@@ -286,6 +295,21 @@ pub fn validate_background(b: &Background) -> Result<(), String> {
 pub fn validate_placement(key: &str, n: &NodePlacement) -> Result<(), String> {
     if !unit(n.x) || !unit(n.y) {
         return Err(format!("node '{key}': x and y must be numbers between 0 and 1"));
+    }
+    if let Some(lat) = n.lat {
+        if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return Err(format!("node '{key}': lat must be a valid latitude between -90 and 90"));
+        }
+    }
+    if let Some(lng) = n.lng {
+        if !lng.is_finite() || !(-180.0..=180.0).contains(&lng) {
+            return Err(format!("node '{key}': lng must be a valid longitude between -180 and 180"));
+        }
+    }
+    if let Some(a) = &n.address {
+        if !clean_text(a, 160) {
+            return Err(format!("node '{key}': address must be <= 160 characters without control characters"));
+        }
     }
     if let Some(i) = &n.icon {
         if !icon_exists(i) {

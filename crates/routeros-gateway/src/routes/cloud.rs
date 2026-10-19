@@ -66,16 +66,17 @@ pub async fn cloud_set(
 
     let mut args = Vec::new();
     let ddns_str = req.ddns_enabled.map(|b| if b { "yes" } else { "no" });
-    if let Some(s) = ddns_str.as_deref() {
+    if let Some(s) = ddns_str {
         args.push(("ddns-enabled", s));
     }
 
     let ut_str = req.update_time.map(|b| if b { "yes" } else { "no" });
-    if let Some(s) = ut_str.as_deref() {
+    if let Some(s) = ut_str {
         args.push(("update-time", s));
     }
 
     if let Some(iv) = req.ddns_update_interval.as_deref() {
+        crate::routes::sanitize::validate_validity(iv)?;
         args.push(("ddns-update-interval", iv));
     }
 

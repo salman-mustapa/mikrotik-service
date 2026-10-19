@@ -33,6 +33,28 @@ pub async fn setup_hotspot_wizard(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.local_address)?;
+    if !req.dhcp_pool_range.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | '-' | ',')) {
+        return Err(ApiError::BadRequest("dhcp_pool_range contains invalid characters".into()));
+    }
+    if let Some(ref dns) = req.dns_name {
+        if !dns.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+            return Err(ApiError::BadRequest("dns_name contains invalid characters".into()));
+        }
+    }
+    if let Some(ref name) = req.hotspot_name {
+        crate::routes::sanitize::validate_safe_identifier(name, "hotspot_name")?;
+    }
+    if let Some(ref admin) = req.admin_user {
+        crate::routes::sanitize::validate_safe_identifier(admin, "admin_user")?;
+    }
+    if let Some(ref pass) = req.admin_password {
+        if pass.contains(['\r', '\n', '"', ';']) {
+            return Err(ApiError::BadRequest("admin_password contains invalid characters".into()));
+        }
+    }
+
     let hs_name = req.hotspot_name.unwrap_or_else(|| format!("hs-{}", req.interface));
     let dns_url = req.dns_name.unwrap_or_else(|| "login.wifi".into());
     let pool_name = format!("pool-{}", hs_name);

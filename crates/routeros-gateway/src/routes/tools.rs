@@ -50,15 +50,21 @@ pub async fn ping(
     headers: HeaderMap,
     Json(req): Json<PingReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_host_or_ip(&req.address)?;
+    if let Some(i) = req.interface.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(i, "interface")?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![("address", req.address.as_str())];
-    let count_val = req.count.unwrap_or(4);
+    let count_val = req.count.unwrap_or(4).clamp(1, 100);
     let count_str = count_val.to_string();
     args.push(("count", count_str.as_str()));
     let size_str;
     if let Some(s) = req.size {
-        size_str = s.to_string();
+        let clamped = s.clamp(28, 65507);
+        size_str = clamped.to_string();
         args.push(("size", size_str.as_str()));
     }
     if let Some(i) = req.interface.as_deref() {
@@ -111,8 +117,7 @@ pub async fn ping(
             avg_rtt = Some(format!("{:.1}ms", avg));
             min_rtt = Some(format!("{:.1}ms", min));
             max_rtt = Some(format!("{:.1}ms", max));
-            if transmitted > 0 {
-                let loss = (transmitted.saturating_sub(received) * 100) / transmitted;
+            if let Some(loss) = (transmitted.saturating_sub(received) * 100).checked_div(transmitted) {
                 packet_loss = loss;
             }
         }
@@ -138,9 +143,11 @@ pub async fn traceroute(
     headers: HeaderMap,
     Json(req): Json<TracerouteReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_host_or_ip(&req.address)?;
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
-    let count_str = req.count.unwrap_or(1).to_string();
+    let count_val = req.count.unwrap_or(1).clamp(1, 30);
+    let count_str = count_val.to_string();
     let args = [("address", req.address.as_str()), ("count", count_str.as_str())];
     let rows = client.run(build_command("/tool/traceroute", args)).await?;
     let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
@@ -179,6 +186,11 @@ pub async fn bandwidth_test(
     headers: HeaderMap,
     Json(req): Json<BandwidthTestReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_host_or_ip(&req.address)?;
+    if let Some(u) = req.user.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(u, "user")?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![("address", req.address.as_str()), ("duration", "5s")];
@@ -229,10 +241,16 @@ pub async fn multi_ping(
         target_list.push("8.8.8.8".to_string());
         target_list.push("208.67.222.222".to_string());
     }
+    if target_list.len() > 20 {
+        target_list.truncate(20);
+    }
+    for host in &target_list {
+        crate::routes::sanitize::validate_host_or_ip(host)?;
+    }
 
-    let count = req.count.unwrap_or(3);
+    let count = req.count.unwrap_or(3).clamp(1, 10);
     let count_str = count.to_string();
-    let size_str = req.size.map(|s| s.to_string());
+    let size_str = req.size.map(|s| s.clamp(28, 65507).to_string());
 
     let mut results = Vec::new();
     let mut total_latency = 0.0f64;

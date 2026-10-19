@@ -37,8 +37,18 @@ pub async fn execute_batch(
     headers: HeaderMap,
     Json(req): Json<BatchReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_raw_command {
+        return Err(ApiError::Forbidden(
+            "Raw command execution is disabled by gateway security policy. Set GATEWAY_ALLOW_RAW_COMMAND=true to enable.".into()
+        ));
+    }
+
     if req.commands.is_empty() {
         return Err(ApiError::BadRequest("commands list cannot be empty".into()));
+    }
+
+    if req.commands.len() > 50 {
+        return Err(ApiError::BadRequest("Batch execution cannot exceed 50 commands per request".into()));
     }
 
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);

@@ -1,10 +1,11 @@
-use axum::response::Html;
+use axum::response::{Html, IntoResponse, Response};
+use axum::http::header;
 use axum::Json;
 use serde_json::{json, Value};
 
 /// GET / - MikroTik NOC Operations Command Center & Developer Console (Light Theme)
-pub async fn console_page() -> Html<&'static str> {
-    Html(r##"<!DOCTYPE html>
+pub async fn console_page() -> Response {
+    let mut resp = Html(r##"<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -894,6 +895,8 @@ pub async fn console_page() -> Html<&'static str> {
               <option value="traffic">Real-Time Interface Bandwidth (RX/TX Bps)</option>
               <option value="overview">System Overview Live Heartbeat (CPU &amp; RAM)</option>
               <option value="logs">Live RouterOS Syslog Stream</option>
+              <option value="connections">Live Firewall Conntrack Flow (Real-Time Active Packets &amp; Connections)</option>
+              <option value="active_users">Live Active Subscribers (Hotspot &amp; PPPoE Real-Time Sessions)</option>
             </select>
             <input id="ws-target-param" class="ws-input" type="text" placeholder="Target Host / IP (e.g. 8.8.8.8)" value="8.8.8.8" style="min-width: 180px;">
           </div>
@@ -953,6 +956,8 @@ pub async fn console_page() -> Html<&'static str> {
       // --- Security & Diagnostics (cat: security) ---
       { id: "doctor_diagnose", path: "/api/v1/doctor/diagnose", method: "POST", cat: "security", desc: "AI Heuristic Network Doctor: Audit 6 pilar vital (CPU, RAM, WAN Ping, Throttled Queues, FastTrack, AP/LAN) & rekomendasi perbaikan instan.", defaultPayload: "{}" },
       { id: "sec_vuln_audit", path: "/api/v1/security/vulnerability-audit", method: "GET", cat: "security", desc: "Audit kerentanan CVE RouterOS, open service sniffing (Telnet, FTP, API), & Open DNS Resolver.", defaultPayload: "{}" },
+      { id: "sec_vuln_scan", path: "/api/v1/security/vulnerabilities/scan", method: "GET", cat: "security", desc: "Database CVE & Vulnerability Scanner RouterOS terintegrasi (CVE-2023-30799, CVE-2018-14847 Chimera, Telnet/FTP sniffing, DNS open resolver, user admin) dilengkapi Risk Score (0-100) dan Security Grade (A-F).", defaultPayload: "{}" },
+      { id: "sec_vuln_quick_harden", path: "/api/v1/security/vulnerabilities/quick-harden", method: "POST", cat: "security", desc: "1-Klik Auto Remediasi Kerentanan: Nonaktifkan service tidak aman (Telnet, FTP, API unencrypted), dan tutup celah open DNS resolver WAN.", defaultPayload: '{\n  "disable_telnet": true,\n  "disable_ftp": true,\n  "disable_unencrypted_api": true,\n  "block_wan_dns": true\n}' },
       { id: "sec_antibruteforce", path: "/api/v1/security/deploy-antibruteforce", method: "POST", cat: "security", desc: "1-Klik pasang firewall filter anti brute-force attack bertingkat untuk WinBox, SSH, & API.", defaultPayload: '{\n  "protect_winbox": true,\n  "protect_ssh": true,\n  "protect_api": true,\n  "blacklist_timeout": "7d"\n}' },
       { id: "app_block", path: "/api/v1/security/app-block", method: "POST", cat: "security", desc: "1-Klik blokir Layer 7 / TLS host untuk TikTok, YouTube, WhatsApp, Judi Online, atau Torrent P2P.", defaultPayload: '{\n  "app_type": "judi_online",\n  "comment": "Blokir Judol"\n}' },
       { id: "app_unblock", path: "/api/v1/security/app-unblock", method: "POST", cat: "security", desc: "Buka kembali blokir aplikasi / domain di firewall.", defaultPayload: '{\n  "app_type": "judi_online"\n}' },
@@ -978,24 +983,71 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "fw_block_ip", path: "/api/v1/firewall/block-ip", method: "POST", cat: "security", desc: "Blokir IP instan: Tambahkan ke address-list BLACKLIST dan pastikan rule drop forward aktif.", defaultPayload: '{\n  "address": "192.168.88.99",\n  "list": "BLACKLIST",\n  "comment": "Abuse client",\n  "ensure_drop_rule": true\n}' },
       { id: "fw_unblock_ip", path: "/api/v1/firewall/unblock-ip", method: "POST", cat: "security", desc: "Buka blokir IP target secara langsung via alamat IP atau ID.", defaultPayload: '{\n  "address": "192.168.88.99",\n  "list": "BLACKLIST"\n}' },
       { id: "fw_conntrack", path: "/api/v1/firewall/connections", method: "GET", cat: "security", desc: "Inspeksi tabel Connection Tracking (Conntrack) aktif di router.", defaultPayload: "{}" },
+      { id: "fw_conntrack_kill", path: "/api/v1/firewall/connections/kill", method: "POST", cat: "security", desc: "Winbox Connection Killer: Putus koneksi spesifik berdasarkan ID koneksi atau kriteria filter (IP asal, IP tujuan, protokol).", defaultPayload: '{\n  "src_address": "192.168.88.99",\n  "protocol": "tcp"\n}' },
+      { id: "fw_conntrack_settings", path: "/api/v1/firewall/conntrack/settings", method: "GET", cat: "security", desc: "Inspeksi atau atur preferensi Connection Tracking RouterOS (enabled, max entries, tcp/udp timeouts).", defaultPayload: "{}" },
       { id: "fw_top_talkers", path: "/api/v1/firewall/connections/top-talkers", method: "GET", cat: "security", desc: "Top Talkers Conntrack: Perangkat yang memiliki koneksi terbanyak.", defaultPayload: "{}" },
       { id: "fw_conntrack_flush", path: "/api/v1/firewall/connections/flush", method: "POST", cat: "security", desc: "Flush/reset tabel koneksi conntrack aktif.", defaultPayload: '{\n  "src_address": "192.168.88.99"\n}' },
+      { id: "allowlist_presets", path: "/api/v1/allowlist/presets", method: "GET", cat: "security", desc: "Katalog preset allowlist resmi (Payment Gateways & QRIS, Perbankan Indonesia, E-Wallets, CS WhatsApp/Telegram, DNS & NTP, Portal Edukasi).", defaultPayload: "{}" },
+      { id: "allowlist_presets_deploy", path: "/api/v1/allowlist/presets/deploy", method: "POST", cat: "security", desc: "1-Klik Deploy Preset Allowlist: Pasang otomatis ke Hotspot Walled Garden atau Firewall Isolir / Billing Bypass.", defaultPayload: '{\n  "preset_id": "payment_gateways_qris",\n  "target_scope": "both"\n}' },
+      { id: "allowlist_list", path: "/api/v1/allowlist/list", method: "GET", cat: "security", desc: "Daftar entri allowlist aktif di router lintas Hotspot Walled Garden dan Firewall Address-List.", defaultPayload: "{}" },
+      { id: "allowlist_custom_add", path: "/api/v1/allowlist/custom/add", method: "POST", cat: "security", desc: "Tambah entri allowlist kustom: Daftarkan domain (misal *.tokopedia.com), IP, atau subnet CIDR ke Hotspot atau Isolir Bypass.", defaultPayload: '{\n  "target": "payment.mybilling.net",\n  "target_scope": "both",\n  "comment": "Custom Payment Portal"\n}' },
+      { id: "allowlist_custom_remove", path: "/api/v1/allowlist/custom/remove", method: "POST", cat: "security", desc: "Hapus entri allowlist kustom dari Hotspot Walled Garden atau Address-List.", defaultPayload: '{\n  "target": "payment.mybilling.net",\n  "target_scope": "both"\n}' },
+      { id: "allowlist_custom_toggle", path: "/api/v1/allowlist/custom/toggle", method: "POST", cat: "security", desc: "Enable / Disable entri allowlist target tanpa menghapus konfigurasinya.", defaultPayload: '{\n  "target": "payment.mybilling.net",\n  "disabled": true\n}' },
+      { id: "allowlist_advanced_add", path: "/api/v1/allowlist/advanced/add", method: "POST", cat: "security", desc: "Allowlist Tingkat Lanjut: Filter granular berdasarkan URL path, HTTP method, protokol, server hotspot, dan temporary checkout timeout.", defaultPayload: '{\n  "target_scope": "both",\n  "dst_host": "api.midtrans.com",\n  "path": "/v2/charge",\n  "method": "POST",\n  "dst_port": "443",\n  "timeout": "1h",\n  "comment": "Checkout Window 1 Jam"\n}' },
+      { id: "allowlist_audit", path: "/api/v1/allowlist/audit", method: "GET", cat: "security", desc: "Audit Kesehatan Allowlist: Verifikasi urutan firewall filter isolir, port DNS 53 bypass, dan validasi fungsional Walled Garden.", defaultPayload: "{}" },
+
+      // --- RouterOS Vulnerability & Security Audit Engine ---
+      { id: "vuln_scan", path: "/api/v1/vuln/scan", method: "GET", cat: "security", desc: "Audit Kerentanan Komprehensif: Memindai versi RouterOS terhadap database CVE, mendeteksi port tidak aman (Telnet 23, unencrypted FTP, Winbox dari WAN), dan menghasilkan grade keamanan (A-F) serta skor risiko 0-100.", defaultPayload: "{}" },
+      { id: "vuln_catalog", path: "/api/v1/vuln/catalog", method: "GET", cat: "security", desc: "Katalog Database Kerentanan CVE RouterOS Resmi lengkap dengan CVSS score, versi terdampak, dan rekomendasi mitigasi.", defaultPayload: "{}" },
+      { id: "vuln_harden", path: "/api/v1/vuln/quick-harden", method: "POST", cat: "security", desc: "1-Klik Auto-Harden Kerentanan: Otomatis menonaktifkan Telnet, membatasi akses port Winbox/SSH hanya dari IP lokal terpercaya.", defaultPayload: "{}" },
+
+      // --- Firewall Live Connection Mitigation, Anomaly Detection & Quarantine ---
+      { id: "firewall_mitigate", path: "/api/v1/firewall/connections/mitigate", method: "POST", cat: "security", desc: "1-Klik Respon Mitigasi Koneksi: Putus koneksi aktif dan seketika masukkan IP target ke daftar blokir (BLACKLIST/QUARANTINE) atau WHITELIST dengan jaminan RAW Prerouting Drop (0% CPU) dan verifikasi RouterOS.", defaultPayload: '{\n  "src_address": "172.16.10.12:33712",\n  "dst_address": "92.223.116.254:443",\n  "action": "block_both",\n  "timeout": "24h",\n  "kill_active": true,\n  "comment": "Anomalous flood connection"\n}' },
+      { id: "firewall_anomalies", path: "/api/v1/firewall/connections/anomalies", method: "GET", cat: "security", desc: "Detektor Anomali Realtime: Pindai tabel conntrack aktif untuk mendeteksi Conntrack Flood (>40 sesi per IP), Port Scanners, Port Berbahaya (SMB 445, Telnet 23, Miner 3333, Winbox 8291), serta byte hogs.", defaultPayload: "{}" },
+      { id: "firewall_quarantine", path: "/api/v1/firewall/quarantine", method: "GET", cat: "security", desc: "Daftar seluruh IP yang sedang terisolir di daftar karantina atau blacklist lengkap dengan sisa waktu timeout.", defaultPayload: "{}" },
+      { id: "firewall_quarantine_release", path: "/api/v1/firewall/quarantine/release", method: "POST", cat: "security", desc: "Bebaskan IP dari status karantina atau blacklist.", defaultPayload: '{\n  "address": "172.16.10.12",\n  "list": "BLACKLIST"\n}' },
+
+      // --- Firewall Quick Actions Engine (Step Checklist Loader & State History) ---
+      { id: "firewall_qa_presets", path: "/api/v1/firewall/quick-actions/presets", method: "GET", cat: "security", desc: "Katalog template Quick Action Firewall: Blokir penyerang, isolir host, proteksi brute-force Winbox, cegah DNS hijack, anti-SYN flood, dan whitelist admin.", defaultPayload: "{}" },
+      { id: "firewall_qa_execute", path: "/api/v1/firewall/quick-actions/execute", method: "POST", cat: "security", desc: "Eksekusi Quick Action Firewall: Menghasilkan langkah proses terstruktur berurutan (checklist loader) dan verifikasi langsung ke memori RouterOS.", defaultPayload: '{\n  "preset_id": "block_malicious_ip",\n  "params": {\n    "address": "198.51.100.22",\n    "list": "BLACKLIST",\n    "timeout": "24h",\n    "comment": "Quick Action Block Attacker"\n  }\n}' },
+      { id: "firewall_qa_history", path: "/api/v1/firewall/quick-actions/history", method: "GET", cat: "security", desc: "Riwayat eksekusi quick action firewall lengkap dengan durasi per langkah dan status verifikasi untuk audit log developer.", defaultPayload: "{}" },
+
+      // --- Layer 7 Protocols & Service Ports (Winbox Tabs) ---
+      { id: "layer7_list", path: "/api/v1/firewall/layer7", method: "GET", cat: "security", desc: "Daftar regex pattern Layer 7 Protocol (/ip/firewall/layer7-protocol/print) di router.", defaultPayload: "{}" },
+      { id: "layer7_add", path: "/api/v1/firewall/layer7/add", method: "POST", cat: "security", desc: "Tambah pattern regex Layer 7 Protocol kustom.", defaultPayload: '{\n  "name": "Custom-Filter",\n  "regexp": "^.+(badsite|malware).+$"\n}' },
+      { id: "layer7_presets", path: "/api/v1/firewall/layer7/presets", method: "GET", cat: "security", desc: "Katalog preset resmi Layer 7 Protocol (BitTorrent, Judi Online, TikTok, YouTube, Netflix, Speedtest).", defaultPayload: "{}" },
+      { id: "layer7_deploy_preset", path: "/api/v1/firewall/layer7/deploy-preset", method: "POST", cat: "security", desc: "1-Klik Deploy preset Layer 7 Protocol otomatis lengkap dengan opsi drop filter rule.", defaultPayload: '{\n  "preset_id": "judol_gambling",\n  "create_drop_filter": true\n}' },
+      { id: "service_ports_list", path: "/api/v1/firewall/service-ports", method: "GET", cat: "security", desc: "Daftar status Application Layer Gateway (ALG) Service Ports (SIP, FTP, TFTP, IRC, PPTP, H323).", defaultPayload: "{}" },
+      { id: "service_port_toggle", path: "/api/v1/firewall/service-port/toggle", method: "POST", cat: "security", desc: "Aktifkan atau nonaktifkan ALG Service Port (misal menonaktifkan SIP ALG untuk stabilitas VoIP).", defaultPayload: '{\n  "name": "sip",\n  "disabled": true\n}' },
+
+      // --- Universal Golden Setup Provisioning Engine (Zero-to-Hero) ---
+      { id: "provisioning_templates", path: "/api/v1/provisioning/templates", method: "GET", cat: "fast", desc: "Katalog blueprint arsitektur router (All-in-One ISP, Hotspot Cafe, Corporate Multi-VLAN, Clean Minimalist).", defaultPayload: "{}" },
+      { id: "provisioning_deploy", path: "/api/v1/provisioning/deploy", method: "POST", cat: "fast", desc: "Universal 1-Klik Setup Provisioning Engine: Terapkan konfigurasi siap produksi modular dengan checklist tahapan proses dan verifikasi live RouterOS.", defaultPayload: '{\n  "router_identity": "NOC-CORE-GATEWAY",\n  "clean_slate": false,\n  "wan_lan": {\n    "wan_interface": "ether1",\n    "lan_interface": "bridge-lan",\n    "lan_subnet": "192.168.88.1/24",\n    "enable_nat_masquerade": true,\n    "enable_fasttrack": true,\n    "enable_baseline_hardening": true\n  },\n  "hotspot": {\n    "enabled": true,\n    "create_default_packages": true,\n    "deploy_walled_garden_presets": true,\n    "deploy_autonomous_sweeper": true\n  },\n  "pppoe": {\n    "enabled": true,\n    "create_default_profiles": true,\n    "enable_isolir_support": true\n  },\n  "vlan": {\n    "enabled": true,\n    "isolate_inter_vlan": true\n  },\n  "security_hardening": {\n    "enabled": true,\n    "deploy_security_rules": true,\n    "protect_winbox_ssh": true,\n    "enable_psd": true\n  }\n}' },
+      { id: "provisioning_clean_slate", path: "/api/v1/provisioning/clean-slate", method: "POST", cat: "fast", desc: "Pembersihan aman konfigurasi/rule lama tanpa memutus akses koneksi manajemen router.", defaultPayload: "{}" },
+      { id: "provisioning_history", path: "/api/v1/provisioning/history", method: "GET", cat: "fast", desc: "Riwayat seluruh deployment provisioning lengkap dengan rincian durasi langkah per tahapan dan status verifikasi RouterOS.", defaultPayload: "{}" },
+      { id: "provisioning_verify", path: "/api/v1/provisioning/verify", method: "GET", cat: "fast", desc: "Verifikasi konfigurasi live router terhadap standar golden setup (LAN, WAN, DHCP, NAT, FastTrack, Hotspot, PPPoE, VLAN, Hardening).", defaultPayload: "{}" },
 
       // --- Voucher Engine 2.0 (cat: voucher) ---
+      { id: "hotspot_profile_create_pkg", path: "/api/v1/hotspot/profiles/create-package", method: "POST", cat: "voucher", desc: "Hotspot Package Profile Wizard (Konsep Mikhmon Ditingkatkan): Buat paket voucher profil lengkap (Rate limit, Shared users, Validitas, Harga jual/modal, Lock-to-MAC script, Expiry mode).", defaultPayload: '{\n  "name": "3JAM-5RB",\n  "rate_limit": "3M/5M",\n  "shared_users": 1,\n  "validity": "3h",\n  "price": 4000,\n  "selling_price": 5000,\n  "lock_mac": true,\n  "expiry_mode": "notice"\n}' },
+      { id: "hotspot_profile_list_pkgs", path: "/api/v1/hotspot/profiles/packages", method: "GET", cat: "voucher", desc: "Daftar Paket Profil Hotspot Komprehensif: Menampilkan profil dengan parsing otomatis harga, validitas, shared users, rate limit, dan jumlah voucher terdaftar.", defaultPayload: "{}" },
       { id: "vouchers_gen", path: "/api/v1/hotspot/vouchers/generate", method: "POST", cat: "voucher", desc: "Ultra-fast parallel batch voucher generator (1-1000 voucher, ROS v6/v7 safe, custom prefix, time/quota limit).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "count": 5,\n  "prefix": "HOT-",\n  "user_mode": "same",\n  "charset": "alphanumeric_lower",\n  "length": 6,\n  "timelimit": "1h",\n  "datalimit": "500M",\n  "price": 3000,\n  "selling_price": 3000\n}' },
+      { id: "vouchers_create_single", path: "/api/v1/hotspot/vouchers/create-single", method: "POST", cat: "voucher", desc: "Buat 1 voucher fleksibel dengan custom username/password atau auto-generate (dilengkapi link login & QR Code).", defaultPayload: '{\n  "profile": "1JAM-3RB",\n  "username": "tamu-vip",\n  "price": "3000",\n  "time_limit": "1h"\n}' },
+      { id: "vouchers_history", path: "/api/v1/hotspot/vouchers/history", method: "GET", cat: "voucher", desc: "Monitoring riwayat lengkap: user yang pernah aktif, pernah terpakai, online saat ini, dan total konsumsi kuota bandwidth.", defaultPayload: "{}" },
       { id: "vouchers_track", path: "/api/v1/hotspot/vouchers/tracking", method: "GET", cat: "voucher", desc: "Tracking lifecycle & sisa kuota/waktu voucher presisi real-time (available, online, used, expired).", defaultPayload: "{}" },
       { id: "vouchers_thermal", path: "/api/v1/hotspot/vouchers/thermal-print", method: "POST", cat: "voucher", desc: "Formatter struk termal ESC/POS (58mm/80mm) siap cetak via printer Bluetooth / USB.", defaultPayload: '{\n  "vouchers": [\n    { "username": "HOT-a89f2", "password": "HOT-a89f2", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ],\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "dns_name": "hotspot.local",\n  "paper_width": "58mm"\n}' },
       { id: "vouchers_sell", path: "/api/v1/hotspot/vouchers/sell", method: "POST", cat: "voucher", desc: "Tandai voucher terjual di kasir dengan nama operator dan nominal rupiah.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "cashier": "Kasir-1",\n  "price": 3000\n}' },
       { id: "vouchers_sell_send", path: "/api/v1/hotspot/vouchers/sell-and-send", method: "POST", cat: "voucher", desc: "POS Kasir: Tandai voucher terjual dan kirim struk instan ke nomor WhatsApp pelanggan via Gowa API.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "phone": "081234567890",\n  "cashier": "Admin Kasir",\n  "hotspot_name": "HOTSPOT ENTERPRISE",\n  "login_url": "http://hotspot.local/login"\n}' },
-      { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Mikhmon-Style Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
+      { id: "vouchers_sales_report", path: "/api/v1/hotspot/vouchers/sales-report", method: "GET", cat: "voucher", desc: "Financial & Sales Revenue Summary: rekap omset rupiah harian & bulanan, voucher terjual, dan breakdown per paket.", defaultPayload: "{}" },
       { id: "vouchers_clean", path: "/api/v1/hotspot/vouchers/clean-expired", method: "POST", cat: "voucher", desc: "Pembersihan aman voucher kedaluwarsa tanpa menghapus voucher yang belum digunakan.", defaultPayload: '{\n  "force": true\n}' },
       { id: "voucher_template_render", path: "/api/v1/hotspot/voucher-template/render", method: "POST", cat: "voucher", desc: "Render lembaran cetak voucher visual berformat HTML (58mm, 80mm, atau A4 Grid) dengan QR Code.", defaultPayload: '{\n  "theme": "modern",\n  "paper_width": "80mm",\n  "hotspot_name": "WAROENG HOTSPOT",\n  "vouchers": [\n    { "username": "HOT-9012", "password": "pass-9012", "profile": "1JAM-3RB", "timelimit": "1h", "price": 3000 }\n  ]\n}' },
-      { id: "mikhmon_lock_mac", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/enable", method: "POST", cat: "voucher", desc: "Auto-Lock MAC Address pada Hotspot profile (Anti tukar/bagi-bagi voucher).", defaultPayload: '{\n  "profile_name": "default"\n}' },
-      { id: "mikhmon_lock_mac_now", path: "/api/v1/hotspot/mikhmon-v4/lock-mac/bind-now", method: "POST", cat: "voucher", desc: "Kunci MAC address user hotspot target ke entri user saat ini juga.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "mac_address": "AA:BB:CC:DD:EE:FF"\n}' },
-      { id: "mikhmon_expiry_setup", path: "/api/v1/hotspot/mikhmon-v4/expiry-mode/setup", method: "POST", cat: "voucher", desc: "Setup 3-Mode Expiry Voucher: Remove, Notice (isolir web peringatan), atau Record.", defaultPayload: '{\n  "profile_name": "default",\n  "expiry_mode": "notice",\n  "validity": "1d",\n  "notice_profile": "EXPIRED_NOTICE"\n}' },
-      { id: "mikhmon_trial_status", path: "/api/v1/hotspot/mikhmon-v4/trial/status", method: "GET", cat: "voucher", desc: "Status konfigurasi login gratisan (Trial) di Hotspot Server Profile.", defaultPayload: "{}" },
-      { id: "mikhmon_trial_setup", path: "/api/v1/hotspot/mikhmon-v4/trial/setup", method: "POST", cat: "voucher", desc: "Setup batasan durasi trial gratisan dan waktu reset per MAC.", defaultPayload: '{\n  "enable_trial": true,\n  "trial_uptime_limit": "15m",\n  "trial_uptime_reset": "1d"\n}' },
-      { id: "mikhmon_trial_reset", path: "/api/v1/hotspot/mikhmon-v4/trial/reset-cookies", method: "POST", cat: "voucher", desc: "Reset seluruh cookies MAC trial agar pengunjung dapat mencoba login kembali.", defaultPayload: "{}" },
+      // --- Hotspot Profile Policies & MAC Locking (cat: voucher) ---
+      { id: "hotspot_profile_lock_mac", path: "/api/v1/hotspot/profile/lock-mac", method: "POST", cat: "voucher", desc: "Auto-Lock MAC Address pada Hotspot profile (Anti tukar/bagi-bagi voucher: kunci otomatis ke perangkat pertama saat login).", defaultPayload: '{\n  "profile_name": "default"\n}' },
+      { id: "hotspot_profile_bind_mac", path: "/api/v1/hotspot/profile/bind-mac", method: "POST", cat: "voucher", desc: "Kunci MAC address user hotspot target ke entri user saat ini secara langsung.", defaultPayload: '{\n  "username": "HOT-a89f2",\n  "mac_address": "AA:BB:CC:DD:EE:FF"\n}' },
+      { id: "hotspot_profile_expiry_setup", path: "/api/v1/hotspot/profile/expiry-mode", method: "POST", cat: "voucher", desc: "Setup 3-Mode Expiry Voucher: Remove, Notice (isolir web peringatan), atau Record (tanpa ribuan scheduler).", defaultPayload: '{\n  "profile_name": "default",\n  "expiry_mode": "notice",\n  "validity": "1d",\n  "notice_profile": "EXPIRED_NOTICE"\n}' },
+      { id: "hotspot_sweeper_deploy", path: "/api/v1/hotspot/sweeper/deploy", method: "POST", cat: "voucher", desc: "Pasang Autonomous Sweeper di RouterOS: Hanya 1 recurring job berkala untuk ribuan voucher (zero bloat, 0% CPU).", defaultPayload: '{\n  "interval": "5m"\n}' },
+      { id: "hotspot_trial_status", path: "/api/v1/hotspot/trial/status", method: "GET", cat: "voucher", desc: "Status konfigurasi login gratisan (Trial) di Hotspot Server Profile.", defaultPayload: "{}" },
+      { id: "hotspot_trial_setup", path: "/api/v1/hotspot/trial/setup", method: "POST", cat: "voucher", desc: "Setup batasan durasi trial gratisan dan waktu reset per MAC.", defaultPayload: '{\n  "enable_trial": true,\n  "trial_uptime_limit": "15m",\n  "trial_uptime_reset": "1d"\n}' },
+      { id: "hotspot_trial_reset", path: "/api/v1/hotspot/trial/reset-cookies", method: "POST", cat: "voucher", desc: "Reset seluruh cookies MAC trial agar pengunjung dapat mencoba login kembali.", defaultPayload: "{}" },
 
       // --- Bot & Netwatch Automation (cat: notify) ---
       { id: "integ_tg_send", path: "/api/v1/integrations/telegram/send", method: "POST", cat: "notify", desc: "Kirim pesan/alert instan ke Telegram Bot via socket fetch RouterOS.", defaultPayload: '{\n  "bot_token": "YOUR_BOT_TOKEN",\n  "chat_id": "123456789",\n  "text": "🚨 *ALERT NOC*: Link Internet Utama DOWN!"\n}' },
@@ -1066,6 +1118,8 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "tools_sniffer_status", path: "/api/v1/tools/sniffer/status", method: "GET", cat: "tools", desc: "Status Packet Sniffer RouterOS (running, buffer, limit).", defaultPayload: "{}" },
       { id: "tools_sniffer_start", path: "/api/v1/tools/sniffer/start", method: "POST", cat: "tools", desc: "Mulai packet capture ke file .pcap atau streaming TZSP ke PC Wireshark.", defaultPayload: '{\n  "interface": "all",\n  "file_name": "capture.pcap",\n  "file_limit": "2000KiB"\n}' },
       { id: "tools_sniffer_stop", path: "/api/v1/tools/sniffer/stop", method: "POST", cat: "tools", desc: "Hentikan packet sniffer.", defaultPayload: "{}" },
+      { id: "tools_sniffer_packets", path: "/api/v1/tools/sniffer/packets", method: "GET", cat: "tools", desc: "Inspeksi buffer paket langsung dari Packet Sniffer (/tool/sniffer/packet/print) secara real-time tanpa pcap.", defaultPayload: "{}" },
+      { id: "tools_sniffer_hosts", path: "/api/v1/tools/sniffer/hosts", method: "GET", cat: "tools", desc: "Daftar host & IP yang terdeteksi oleh Packet Sniffer (/tool/sniffer/host/print).", defaultPayload: "{}" },
       { id: "tools_graphing_status", path: "/api/v1/tools/graphing/status", method: "GET", cat: "tools", desc: "Status konfigurasi grafik historis web RouterOS (/graphs).", defaultPayload: "{}" },
       { id: "tools_graphing_enable", path: "/api/v1/tools/graphing/enable", method: "POST", cat: "tools", desc: "Aktifkan grafik web MRTG untuk interface, queue bandwidth, dan CPU.", defaultPayload: '{\n  "enable_interfaces": true,\n  "interface": "all",\n  "enable_queues": true,\n  "enable_resource": true\n}' },
       { id: "tools_graphing_disable", path: "/api/v1/tools/graphing/disable", method: "POST", cat: "tools", desc: "Nonaktifkan grafik historis web MRTG.", defaultPayload: "{}" },
@@ -1128,6 +1182,9 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "userman_profiles", path: "/api/v1/user-manager/profiles", method: "GET", cat: "hotspot", desc: "Daftar billing profile User Manager (RADIUS internal MikroTik).", defaultPayload: "{}" },
       { id: "userman_limitations", path: "/api/v1/user-manager/limitations", method: "GET", cat: "hotspot", desc: "Daftar limitations kecepatan & kuota paket User Manager.", defaultPayload: "{}" },
       { id: "userman_assign", path: "/api/v1/user-manager/user/assign-profile", method: "POST", cat: "hotspot", desc: "Assign billing profile/paket User Manager ke user.", defaultPayload: '{\n  "user": "user123",\n  "profile": "Paket-1Bulan"\n}' },
+      { id: "userman_status", path: "/api/v1/userman/status", method: "GET", cat: "hotspot", desc: "Deteksi otomatis versi User Manager RouterOS (v6 legacy vs v7 modern) beserta status paket aktif.", defaultPayload: "{}" },
+      { id: "userman_routers", path: "/api/v1/userman/routers", method: "GET", cat: "hotspot", desc: "Daftar Router Client yang terdaftar pada User Manager RADIUS server.", defaultPayload: "{}" },
+      { id: "userman_router_add", path: "/api/v1/userman/router/add", method: "POST", cat: "hotspot", desc: "Daftarkan Routerboard baru sebagai RADIUS client di User Manager.", defaultPayload: '{\n  "name": "RB-Cabang1",\n  "ip_address": "192.168.1.1",\n  "shared_secret": "123456"\n}' },
 
       // --- DHCP & IPAM (cat: dhcp) ---
       { id: "dhcp_leases", path: "/api/v1/dhcp/leases", method: "GET", cat: "dhcp", desc: "Daftar seluruh IP lease DHCP server, hostname klien, status bound, dan MAC address.", defaultPayload: "{}" },
@@ -1164,6 +1221,10 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "isolir_isolate", path: "/api/v1/wisp/isolir/isolate", method: "POST", cat: "pppoe", desc: "Isolir pelanggan menunggak ke address-list ISOLIR_LIST.", defaultPayload: '{\n  "client_ip": "192.168.88.105",\n  "customer_name": "Budi Santoso",\n  "due_date": "10 Oktober 2026"\n}' },
       { id: "isolir_restore", path: "/api/v1/wisp/isolir/restore", method: "POST", cat: "pppoe", desc: "Pulihkan akses internet pelanggan setelah lunas.", defaultPayload: '{\n  "client_ip": "192.168.88.105"\n}' },
       { id: "isolir_list", path: "/api/v1/wisp/isolir/list", method: "GET", cat: "pppoe", desc: "Daftar seluruh pelanggan yang sedang diisolir saat ini.", defaultPayload: "{}" },
+      { id: "isolir_pppoe_isolate", path: "/api/v1/wisp/isolir/pppoe/isolate", method: "POST", cat: "pppoe", desc: "Isolir pelanggan PPPoE: simpan profil asli ke komentar [PREV_PROF:...], ganti profil ke ISOLIR_PPPOE, masukkan IP ke ISOLIR_LIST, dan tendang sesi aktif agar langsung diarahkan ke portal isolir.", defaultPayload: '{\n  "username": "user_pppoe_1",\n  "customer_name": "Pelanggan A",\n  "due_date": "2026-10-20"\n}' },
+      { id: "isolir_pppoe_restore", path: "/api/v1/wisp/isolir/pppoe/restore", method: "POST", cat: "pppoe", desc: "Restorasi pelanggan PPPoE lunas: pulihkan profil paket asli, bersihkan IP dari ISOLIR_LIST, dan tendang sesi agar segera reconnect kecepatan penuh.", defaultPayload: '{\n  "username": "user_pppoe_1"\n}' },
+      { id: "isolir_pppoe_list", path: "/api/v1/wisp/isolir/pppoe/list", method: "GET", cat: "pppoe", desc: "Daftar seluruh pelanggan PPPoE yang sedang terisolir (beserta paket awal dan durasi isolir).", defaultPayload: "{}" },
+      { id: "isolir_allowlist_add", path: "/api/v1/wisp/isolir/allowlist/add", method: "POST", cat: "pppoe", desc: "Bypass Allowlist Isolir: Izinkan domain pembayaran (Midtrans, Xendit, QRIS, BCA) atau chat WhatsApp agar pelanggan terisolir tetap bisa membayar tagihan dan menghubungi CS.", defaultPayload: '{\n  "host": "api.midtrans.com",\n  "comment": "Payment Gateway Midtrans"\n}' },
 
       // --- IP & Routing Tables (cat: ip) ---
       { id: "ip_addr", path: "/api/v1/ip/addresses", method: "GET", cat: "ip", desc: "Daftar alamat IP yang dikonfigurasi pada setiap interface router.", defaultPayload: "{}" },
@@ -1228,7 +1289,13 @@ pub async fn console_page() -> Html<&'static str> {
       { id: "neighbors_all", path: "/api/v1/neighbors/all", method: "GET", cat: "net", desc: "Daftar perangkat tetangga yang ditemukan via MNDP / CDP / LLDP discovery.", defaultPayload: "{}" },
       { id: "infra_scan", path: "/api/v1/network/infrastructure/scan", method: "GET", cat: "net", desc: "Deteksi otomatis Access Point pihak ketiga (Totolink, TP-Link, Mercusys, ZTE) di jaringan.", defaultPayload: "{}" },
       { id: "infra_poe_cycle", path: "/api/v1/network/infrastructure/poe-cycle", method: "POST", cat: "net", desc: "Reboot paksa Access Point yang hang lewat pemutusan daya PoE port sementara.", defaultPayload: '{\n  "interface": "ether5",\n  "off_seconds": 3\n}' },
-      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' }
+      { id: "infra_ap_tunnel", path: "/api/v1/network/infrastructure/ap-tunnel", method: "POST", cat: "net", desc: "Buka port forwarding sementara untuk akses Web Admin AP pihak ketiga dari luar LAN.", defaultPayload: '{\n  "ap_ip": "192.168.100.3",\n  "external_port": 8083\n}' },
+      { id: "net_sync_pppoe_hotspot", path: "/api/v1/network/sync-pppoe-hotspot", method: "POST", cat: "net", desc: "Dual-Service Sync: Gabungkan PPPoE & Hotspot pada port yang sama (Single-Port Coexistence atau Multi-VLAN Trunking) dengan TCP MSS Clamping & IP Bypass.", defaultPayload: '{\n  "master_interface": "ether2",\n  "mode": "vlan",\n  "hotspot_vlan_id": 100,\n  "hotspot_network": "192.168.10.0/24",\n  "hotspot_gateway": "192.168.10.1",\n  "pppoe_vlan_id": 200,\n  "pppoe_pool_range": "10.10.0.10-10.10.0.250",\n  "pppoe_local_address": "10.10.0.1",\n  "tcp_mss_clamp": true\n}' },
+      { id: "if_vlans", path: "/api/v1/interfaces/vlans", method: "GET", cat: "net", desc: "Daftar seluruh virtual sub-interface VLAN (/interface/vlan/print).", defaultPayload: "{}" },
+      { id: "if_vlan_add", path: "/api/v1/interfaces/vlan/add", method: "POST", cat: "net", desc: "Buat virtual sub-interface VLAN baru pada physical port atau bridge.", defaultPayload: '{\n  "name": "vlan100-hotspot",\n  "vlan_id": 100,\n  "interface": "ether2"\n}' },
+      { id: "if_vlan_remove", path: "/api/v1/interfaces/vlan/remove", method: "POST", cat: "net", desc: "Hapus virtual sub-interface VLAN dari router.", defaultPayload: '{\n  "name": "vlan100-hotspot"\n}' },
+      { id: "map_node_coordinate", path: "/api/v1/map/nodes/coordinate", method: "POST", cat: "net", desc: "Set koordinat geografis nyata (WGS84 lat/lng) & alamat fisik perangkat untuk visualisasi Google Maps / Leaflet.", defaultPayload: '{\n  "node_id": "core-router-1",\n  "lat": -6.2088,\n  "lng": 106.8456,\n  "address": "NOC Gedung Utama Lt. 2"\n}' },
+      { id: "map_scene_view", path: "/api/v1/map/scene", method: "GET", cat: "net", desc: "Ambil full visualisasi topologi jaringan beserta status outage 'putus dimana' dan titik koordinat geografis.", defaultPayload: "{}" }
     ];
 
 
@@ -1239,26 +1306,26 @@ pub async fn console_page() -> Html<&'static str> {
     function initCreds() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('host')) document.getElementById('target-host').value = urlParams.get('host');
-      else if (localStorage.getItem('ros_host')) document.getElementById('target-host').value = localStorage.getItem('ros_host');
+      else if (sessionStorage.getItem('ros_host')) document.getElementById('target-host').value = sessionStorage.getItem('ros_host');
 
       if (urlParams.get('port')) document.getElementById('target-port').value = urlParams.get('port');
-      else if (localStorage.getItem('ros_port')) document.getElementById('target-port').value = localStorage.getItem('ros_port');
+      else if (sessionStorage.getItem('ros_port')) document.getElementById('target-port').value = sessionStorage.getItem('ros_port');
 
       if (urlParams.get('user')) document.getElementById('target-user').value = urlParams.get('user');
-      else if (localStorage.getItem('ros_user')) document.getElementById('target-user').value = localStorage.getItem('ros_user');
+      else if (sessionStorage.getItem('ros_user')) document.getElementById('target-user').value = sessionStorage.getItem('ros_user');
 
-      if (urlParams.get('pass')) document.getElementById('target-pass').value = urlParams.get('pass');
-      else if (localStorage.getItem('ros_pass')) document.getElementById('target-pass').value = localStorage.getItem('ros_pass');
+      // Security: Do NOT read router password from URL query string
+      if (sessionStorage.getItem('ros_pass')) document.getElementById('target-pass').value = sessionStorage.getItem('ros_pass');
 
-      if (localStorage.getItem('ros_token')) document.getElementById('gw-token').value = localStorage.getItem('ros_token');
+      if (sessionStorage.getItem('ros_token')) document.getElementById('gw-token').value = sessionStorage.getItem('ros_token');
 
       ['target-host', 'target-port', 'target-user', 'target-pass', 'gw-token'].forEach(id => {
         document.getElementById(id).addEventListener('input', () => {
-          localStorage.setItem('ros_host', document.getElementById('target-host').value.trim());
-          localStorage.setItem('ros_port', document.getElementById('target-port').value.trim());
-          localStorage.setItem('ros_user', document.getElementById('target-user').value.trim());
-          localStorage.setItem('ros_pass', document.getElementById('target-pass').value);
-          localStorage.setItem('ros_token', document.getElementById('gw-token').value.trim());
+          sessionStorage.setItem('ros_host', document.getElementById('target-host').value.trim());
+          sessionStorage.setItem('ros_port', document.getElementById('target-port').value.trim());
+          sessionStorage.setItem('ros_user', document.getElementById('target-user').value.trim());
+          sessionStorage.setItem('ros_pass', document.getElementById('target-pass').value);
+          sessionStorage.setItem('ros_token', document.getElementById('gw-token').value.trim());
           updateSnippet();
         });
       });
@@ -1270,7 +1337,7 @@ pub async fn console_page() -> Html<&'static str> {
       sel.innerHTML = '<option value="custom">-- Custom Host --</option>';
       let profiles = [];
       try {
-        profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+        profiles = JSON.parse(sessionStorage.getItem('ros_saved_profiles') || '[]');
       } catch (e) { profiles = []; }
 
       profiles.forEach((p, idx) => {
@@ -1280,7 +1347,7 @@ pub async fn console_page() -> Html<&'static str> {
         sel.appendChild(opt);
       });
 
-      const activeIdx = localStorage.getItem('ros_active_profile_idx');
+      const activeIdx = sessionStorage.getItem('ros_active_profile_idx');
       if (activeIdx !== null && profiles[parseInt(activeIdx)]) {
         sel.value = activeIdx;
       }
@@ -1292,21 +1359,21 @@ pub async fn console_page() -> Html<&'static str> {
       if (sel.value === 'custom') return;
       const idx = parseInt(sel.value);
       try {
-        const profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+        const profiles = JSON.parse(sessionStorage.getItem('ros_saved_profiles') || '[]');
         const p = profiles[idx];
         if (p) {
           document.getElementById('target-host').value = p.host || '';
           document.getElementById('target-port').value = p.port || '';
           document.getElementById('target-user').value = p.user || '';
           document.getElementById('target-pass').value = p.pass || '';
-          document.getElementById('gw-token').value = p.token || 'change-me-to-a-long-random-string';
+          document.getElementById('gw-token').value = p.token || '';
 
-          localStorage.setItem('ros_host', p.host || '');
-          localStorage.setItem('ros_port', p.port || '');
-          localStorage.setItem('ros_user', p.user || '');
-          localStorage.setItem('ros_pass', p.pass || '');
-          localStorage.setItem('ros_token', p.token || '');
-          localStorage.setItem('ros_active_profile_idx', idx.toString());
+          sessionStorage.setItem('ros_host', p.host || '');
+          sessionStorage.setItem('ros_port', p.port || '');
+          sessionStorage.setItem('ros_user', p.user || '');
+          sessionStorage.setItem('ros_pass', p.pass || '');
+          sessionStorage.setItem('ros_token', p.token || '');
+          sessionStorage.setItem('ros_active_profile_idx', idx.toString());
 
           updateSnippet();
           testConnectionAndSnapshot();
@@ -1333,7 +1400,7 @@ pub async fn console_page() -> Html<&'static str> {
       if (!name) return;
 
       try {
-        let profiles = JSON.parse(localStorage.getItem('ros_saved_profiles') || '[]');
+        let profiles = JSON.parse(sessionStorage.getItem('ros_saved_profiles') || '[]');
         const newProf = { name, host, port, user, pass, token };
         const existingIdx = profiles.findIndex(p => p.name === name);
         if (existingIdx >= 0) {
@@ -1341,13 +1408,13 @@ pub async fn console_page() -> Html<&'static str> {
         } else {
           profiles.push(newProf);
         }
-        localStorage.setItem('ros_saved_profiles', JSON.stringify(profiles));
+        sessionStorage.setItem('ros_saved_profiles', JSON.stringify(profiles));
         initSavedProfiles();
         const sel = document.getElementById('profile-select');
         const foundIdx = profiles.findIndex(p => p.name === name);
         if (foundIdx >= 0 && sel) {
           sel.value = foundIdx.toString();
-          localStorage.setItem('ros_active_profile_idx', foundIdx.toString());
+          sessionStorage.setItem('ros_active_profile_idx', foundIdx.toString());
         }
         alert(`Profil '${name}' berhasil disimpan!`);
       } catch (e) {
@@ -1939,6 +2006,26 @@ asyncio.run(stream_live_telemetry())`;
               router_user: user,
               router_pass: pass
             }));
+          } else if (streamType === 'connections') {
+            appendWsLine(`Subscribing to live firewall conntrack flow (real-time packets & connections)...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "subscribe_connections",
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
+            }));
+          } else if (streamType === 'active_users') {
+            appendWsLine(`Subscribing to live active subscribers (Hotspot & PPPoE)...`, 'comment');
+            wsSocket.send(JSON.stringify({
+              action: "subscribe_active_users",
+              router: routerObj,
+              router_host: host,
+              router_port: port ? parseInt(port, 10) : 8728,
+              router_user: user,
+              router_pass: pass
+            }));
           }
         };
 
@@ -1952,6 +2039,23 @@ asyncio.run(stream_live_telemetry())`;
               const seq = msg.sequence || '1';
               const target = msg.target || targetParam || 'target';
               appendWsLine(`64 bytes from ${target}: seq=${seq} time=${rtt} status=LIVE_REPLY`, 'success');
+            } else if (msg.event === 'connections_frame') {
+              const d = msg.data || [];
+              appendWsLine(`[CONNTRACK FLOW] Active Connections: ${msg.total_active_connections || d.length} flowing packets`, 'success');
+              if (d.length > 0) {
+                const sample = d.slice(0, 3).map(c => `${c.protocol || 'ip'} ${c['src-address'] || ''} -> ${c['dst-address'] || ''} (${c['tcp-state'] || ''})`).join(' | ');
+                appendWsLine(`  ↳ Sample Flow: ${sample}`, 'normal');
+              }
+            } else if (msg.event === 'active_users_frame') {
+              appendWsLine(`[ACTIVE SUBSCRIBERS] Hotspot: ${msg.hotspot_active_count} | PPPoE: ${msg.pppoe_active_count} | Total: ${msg.total_active_subscribers}`, 'success');
+              if (msg.hotspot_active && msg.hotspot_active.length > 0) {
+                const s = msg.hotspot_active.slice(0, 2).map(u => `${u.user || ''} (${u.address || ''}, uptime: ${u.uptime || ''})`).join(' | ');
+                appendWsLine(`  ↳ Hotspot: ${s}`, 'normal');
+              }
+              if (msg.pppoe_active && msg.pppoe_active.length > 0) {
+                const s = msg.pppoe_active.slice(0, 2).map(u => `${u.name || ''} (${u.address || ''}, uptime: ${u.uptime || ''})`).join(' | ');
+                appendWsLine(`  ↳ PPPoE: ${s}`, 'normal');
+              }
             } else if (msg.event === 'traffic_frame') {
               const d = msg.data || {};
               const rxBps = parseFloat(d['rx-bits-per-second'] || d.rx_bps || 0);
@@ -2018,12 +2122,19 @@ asyncio.run(stream_live_telemetry())`;
     });
   </script>
 </body>
-</html>"##)
+</html>"##).into_response();
+    resp.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        header::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' data:;",
+        ),
+    );
+    resp
 }
 
 /// GET /docs - Dedicated Enterprise API Documentation & Schema Explorer (Light Theme)
-pub async fn docs_page() -> Html<&'static str> {
-    Html(r##"<!DOCTYPE html>
+pub async fn docs_page() -> Response {
+    let mut resp = Html(r##"<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -2457,7 +2568,7 @@ pub async fn docs_page() -> Html<&'static str> {
 
       <!-- Section: Hotspot Voucher Engine 2.0 -->
       <section class="doc-section" id="sec-vouchers">
-        <div class="section-header">🎟️ Next-Gen Hotspot Voucher Engine 2.0 (Mikhmon Killer)</div>
+        <div class="section-header">🎟️ Next-Gen Hotspot Voucher Engine 2.0 (High-Speed &amp; Multi-Threaded)</div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
@@ -2468,6 +2579,26 @@ pub async fn docs_page() -> Html<&'static str> {
           <div class="ep-desc">Batch generator multi-threaded berkecepatan tinggi: buat 1 hingga 1.000 voucher dalam &lt;1 detik. Kompatibel penuh dengan RouterOS v6 dan v7 tanpa bug NTP/reboot desync. Dilengkapi structured metadata comment untuk tracking status &amp; harga jual.</div>
           <div class="code-preview">POST /api/v1/hotspot/vouchers/generate
 { "profile": "1JAM-3RB", "count": 20, "prefix": "HOT-", "user_mode": "same", "timelimit": "1h", "price": 3000 }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/create-single</div>
+            <a href="/?endpoint=vouchers_create_single" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Buat 1 Voucher Satuan Fleksibel: Buat voucher dengan custom username &amp; password pilihan sendiri atau auto-generate instan. Dilengkapi metadata harga, time limit, dan login URL siap QR Code.</div>
+          <div class="code-preview">POST /api/v1/hotspot/vouchers/create-single
+{ "profile": "1JAM-3RB", "username": "tamu-vip", "price": "3000", "time_limit": "1h" }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/vouchers/history</div>
+            <a href="/?endpoint=vouchers_history" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Monitoring User &amp; Riwayat Voucher Komprehensif: Pantau seluruh user yang pernah aktif (active sessions), pernah terpakai (used vouchers), belum terpakai (available), kedaluwarsa (expired), beserta total volume kuota bytes dan akumulasi waktu uptime.</div>
         </div>
 
         <div class="ep-doc-card">
@@ -2740,6 +2871,24 @@ ws.stream.listen((message) {
           </div>
           <div class="ep-desc">Generate ratusan voucher Hotspot unik secara massal dengan profil limit dan masa aktif tertentu.</div>
         </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/profiles/create-package</div>
+            <a href="/?endpoint=hotspot_profile_create_pkg" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Wizard Pembuatan Profil Paket Hotspot (Elevated Mikhmon Concept): Buat paket voucher profil lengkap mencakup rate-limit (misal 3M/5M), shared-users, validitas durasi (misal 3h, 1d), harga modal &amp; harga jual, auto-lock MAC address (anti-tukar HP), dan mode kedaluwarsa (remove, notice, record) secara atomik.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/profiles/packages</div>
+            <a href="/?endpoint=hotspot_profile_list_pkgs" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Katalog Paket Profil Hotspot Komprehensif: Mengambil seluruh profil Hotspot dan membedah (parse) metadata harga, validitas durasi, batas kecepatan, serta menghitung jumlah total voucher terdaftar pada masing-masing paket.</div>
+        </div>
       </section>
 
       <!-- Section: PPPoE -->
@@ -2893,6 +3042,181 @@ ws.stream.listen((message) {
             <div class="ep-path">/api/v1/firewall/connections/flush</div>
           </div>
           <div class="ep-desc">Flush / putus paksa sesi koneksi dari IP tertentu atau seluruh sesi conntrack untuk mitigasi darurat DDoS.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections/kill</div>
+            <a href="/?endpoint=fw_conntrack_kill" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Winbox Connection Killer (/ip/firewall/connection/remove): Putus koneksi target seketika berdasarkan ID koneksi atau kriteria filter (IP asal, IP tujuan, protokol). Memutus transmisi paket aktif tanpa perlu reboot router.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/conntrack/settings</div>
+            <a href="/?endpoint=fw_conntrack_settings" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Inspeksi &amp; Konfigurasi Connection Tracking (/ip/firewall/connection/tracking): Pantau total kapasitas max-entries, total active connections, serta sesuaikan parameter timeout TCP/UDP untuk mencegah tabel memori kehabisan RAM.</div>
+        </div>
+
+        <!-- Section: Tiered Allowlist Suite -->
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span></div>
+            <div class="ep-path">/api/v1/allowlist/presets</div>
+            <a href="/?endpoint=allowlist_presets" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Katalog Preset Allowlist Resmi (Tier 1 Default): Memuat bundel domain &amp; IP kurasi siap pakai untuk Payment Gateways &amp; QRIS (Midtrans, Xendit, Duitku), Perbankan Indonesia (BCA, Mandiri, BRI, BNI), E-Wallets (GoPay, OVO, Dana, ShopeePay), CS WhatsApp &amp; Telegram, DNS &amp; NTP, serta Portal Edukasi.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/allowlist/presets/deploy</div>
+            <a href="/?endpoint=allowlist_presets_deploy" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">1-Klik Deploy Preset Allowlist: Pasang otomatis ke Hotspot Walled Garden, Firewall Isolir / Billing Address-List (ISOLIR_ALLOWED), atau keduanya sekaligus (target_scope: both) secara idempoten.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/allowlist/list</div>
+            <a href="/?endpoint=allowlist_list" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Daftar Terpadu Seluruh Allowlist Aktif: Mengagregasi Walled Garden domain/host, Walled Garden IP list, serta Firewall Isolir Bypass address-lists dalam satu view terpadu.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/allowlist/custom/add</div>
+            <a href="/?endpoint=allowlist_custom_add" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Tambah Allowlist Kustom (Tier 2 Custom): Daftarkan domain wildcard (*.domain.com), alamat IP, atau subnet CIDR ke Hotspot atau Isolir Bypass dengan port &amp; catatan kustom.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/allowlist/advanced/add</div>
+            <a href="/?endpoint=allowlist_advanced_add" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Allowlist Tingkat Lanjut (Tier 3 Advanced): Filter presisi berdasarkan URL path, HTTP method (GET, POST), protokol, server hotspot tertentu, serta dukungan temporary checkout session timeout (misal timeout: 1h) untuk jendela pembayaran isolir otomatis.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-indigo);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/allowlist/audit</div>
+            <a href="/?endpoint=allowlist_audit" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Audit Otomatis Kesehatan Allowlist: Memverifikasi integritas firewall isolir (apakah rule accept ISOLIR_ALLOWED berada di atas rule drop isolir), port DNS 53 bypass, serta mendeteksi potensi konflik aturan Walled Garden.</div>
+        </div>
+
+        <!-- Section: Firewall Live Mitigation & Threat Defense -->
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-rose);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections/mitigate</div>
+            <a href="/?endpoint=firewall_mitigate" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc"><strong>1-Klik Mitigasi Koneksi Realtime:</strong> Putus seketika koneksi mencurigakan dari tabel Conntrack MikroTik dan langsung masukkan IP target ke daftar blokir (BLACKLIST/QUARANTINE) atau WHITELIST dengan opsi batas waktu (timeout e.g. 24h) dan catatan jejak forensik. Menjamin rule drop di firewall RAW (prerouting drop = 0% CPU saat diserang) dan Filter Forward serta verifikasi live RouterOS.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-rose);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/connections/anomalies</div>
+            <a href="/?endpoint=firewall_anomalies" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc"><strong>Detektor Heuristik Anomali Sesi Jaringan:</strong> Memindai seluruh tabel sesi koneksi router untuk menemukan Conntrack Flooding (&gt;40 koneksi per IP), port scanning, port berbahaya (SMB 445 WannaCry, Telnet 23 Mirai, Cryptominer 3333, Winbox 8291 attack), dan byte hogs dengan payload mitigasi 1-klik siap eksekusi.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-rose);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/quarantine</div>
+            <a href="/?endpoint=firewall_quarantine" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Monitoring Karantina &amp; Blacklist: Daftar seluruh IP lokal atau target luar yang sedang terisolir di BLACKLIST, QUARANTINE, atau ISOLIR lengkap dengan sisa masa timeout dan opsi pelepas karantina.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-emerald);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/quick-actions/execute</div>
+            <a href="/?endpoint=firewall_qa_execute" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc"><strong>Firewall Quick Actions Engine:</strong> Generator pembuatan aksi firewall instan (blokir penyerang, isolir host terinfeksi, proteksi brute-force Winbox, cegah DNS hijack, anti-SYN flood) lengkap dengan checklist proses berurutan, durasi tiap tahapan, dan verifikasi langsung ke memori RouterOS.</div>
+        </div>
+
+        <!-- Section: Layer 7 Protocols & Service Ports (Winbox Tabs) -->
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-blue);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/layer7</div>
+            <a href="/?endpoint=layer7_list" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Tab Winbox Layer 7 Protocols (/ip/firewall/layer7-protocol/print): Menampilkan pola regex inspeksi paket Layer 7 aktif di firewall router.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-blue);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span></div>
+            <div class="ep-path">/api/v1/firewall/layer7/presets</div>
+            <a href="/?endpoint=layer7_presets" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Katalog Preset Resmi Layer 7 Protocol: Pola regex siap pakai untuk BitTorrent P2P, Perjudian Online / Slot Gacor, TikTok, YouTube Video, Netflix, dan Speedtest Ookla.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-blue);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/layer7/deploy-preset</div>
+            <a href="/?endpoint=layer7_deploy_preset" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">1-Klik Deploy Preset Layer 7 Protocol: Mendaftarkan regex ke router dan otomatis membuat firewall filter forward drop rule untuk memblokir trafik aplikasi tersebut.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-blue);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/firewall/service-ports</div>
+            <a href="/?endpoint=service_ports_list" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Tab Winbox Service Ports (/ip/firewall/service-port): Daftar status Application Layer Gateway (ALG) helper untuk SIP, FTP, TFTP, IRC, PPTP, dan H323.</div>
+        </div>
+
+        <!-- Section: Universal Golden Setup Provisioning Engine -->
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-emerald);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span></div>
+            <div class="ep-path">/api/v1/provisioning/templates</div>
+            <a href="/?endpoint=provisioning_templates" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Katalog Blueprint Arsitektur Router (Zero-to-Hero): Template konfigurasi All-in-One ISP / RT-RW Net, Hotspot Cafe &amp; Hotel Voucher Hub, Corporate Multi-VLAN, dan Clean Minimalist Production.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-emerald);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/provisioning/deploy</div>
+            <a href="/?endpoint=provisioning_deploy" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc"><strong>Universal 1-Klik Setup Provisioning Engine:</strong> Terapkan konfigurasi siap pakai modular dengan pilihan lengkap atau salah satu modul saja (WAN/LAN Base, Hotspot Captive Portal + Walled Garden QRIS + 3 Paket Profil + Sweeper, PPPoE Server + Profil + Isolir Billing, Multi-VLAN Segmentation, dan Security EDR Hardening). Mendukung opsi clean-slate untuk membersihkan aturan lama yang bentrok secara otomatis.</div>
+        </div>
+
+        <div class="ep-doc-card" style="border-left: 4px solid var(--accent-emerald);">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/provisioning/clean-slate</div>
+            <a href="/?endpoint=provisioning_clean_slate" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Safe Clean Slate: Membersihkan rule firewall, isolir, dan paket pengujian lama tanpa memutus akses IP atau kredensial login manajemen router.</div>
         </div>
 
         <div class="ep-doc-card">
@@ -3138,6 +3462,48 @@ ws.stream.listen((message) {
           </div>
           <div class="ep-desc">Pulihkan akses internet pelanggan seketika setelah pembayaran tagihan lunas.</div>
         </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/pppoe/isolate</div>
+            <a href="/?endpoint=isolir_pppoe_isolate" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Isolir Pelanggan PPPoE Menunggak: Simpan profil paket asli ke tag komentar [PREV_PROF:...], ganti profil ke ISOLIR_PPPOE, masukkan IP ke address-list ISOLIR_LIST, dan tendang sesi aktif (/ppp/active) agar langsung dialihkan ke portal tagihan isolir.</div>
+          <div class="code-preview">POST /api/v1/wisp/isolir/pppoe/isolate
+{ "username": "user_pppoe_1", "customer_name": "Pelanggan A", "due_date": "2026-10-20" }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/pppoe/restore</div>
+            <a href="/?endpoint=isolir_pppoe_restore" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Restorasi Akses PPPoE: Kembalikan profil paket langganan asli secara otomatis dari tag komentar, hapus IP dari ISOLIR_LIST, dan putuskan sesi aktif agar pelanggan langsung reconnect dengan kecepatan internet normal.</div>
+          <div class="code-preview">POST /api/v1/wisp/isolir/pppoe/restore
+{ "username": "user_pppoe_1" }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/pppoe/list</div>
+            <a href="/?endpoint=isolir_pppoe_list" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Daftar Pelanggan PPPoE Terisolir: Menampilkan seluruh akun PPPoE yang sedang dalam masa isolir beserta nama paket aslinya dan tanggal jatuh tempo.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/wisp/isolir/allowlist/add</div>
+            <a href="/?endpoint=isolir_allowlist_add" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Allowlist Bypass Isolir: Daftarkan domain/host pembayaran (Midtrans, Xendit, QRIS, BCA, Mandiri) atau messaging (WhatsApp) ke ISOLIR_ALLOWED dengan firewall filter accept otomatis, sehingga pelanggan terisolir tetap bisa membayar tagihan dan chat CS.</div>
+          <div class="code-preview">POST /api/v1/wisp/isolir/allowlist/add
+{ "host": "api.midtrans.com", "comment": "Payment Gateway Midtrans" }</div>
+        </div>
       </section>
 
       <!-- Section: MTCSE Security Suite & Packet Sniffer -->
@@ -3175,42 +3541,128 @@ ws.stream.listen((message) {
           </div>
           <div class="ep-desc">Aktifkan RouterOS Built-in Web Graphing MRTG (/graphs) untuk memantau grafik historis interface, simple queue, dan CPU tanpa server eksternal.</div>
         </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/security/vulnerabilities/scan</div>
+            <a href="/?endpoint=sec_vuln_scan" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">RouterOS Vulnerability &amp; CVE Database Scanner: Audit cerdas versi RouterOS terhadap basis data kerentanan CVE (CVE-2023-30799, CVE-2018-14847 Chimera, CVE-2023-32154, DNS Open-Resolver, Telnet/FTP sniffing, akun default admin). Menghasilkan Risk Score (0-100), Security Grade (A-F), dan skrip remedi otomatis.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/security/vulnerabilities/quick-harden</div>
+            <a href="/?endpoint=sec_vuln_quick_harden" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">1-Klik Quick Security Remediation: Nonaktifkan service tidak terenkripsi (Telnet port 23, FTP port 21, API polos port 8728) dan pasang filter proteksi DNS Open Resolver di interface WAN secara instan.</div>
+          <div class="code-preview">POST /api/v1/security/vulnerabilities/quick-harden
+{ "disable_telnet": true, "disable_ftp": true, "disable_unencrypted_api": true, "block_wan_dns": true }</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/tools/sniffer/packets</div>
+            <a href="/?endpoint=tools_sniffer_packets" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Inspeksi Buffer Paket Live (/tool/sniffer/packet/print): Mengambil paket yang sedang ditangkap dalam memori sniffer tanpa perlu mendownload file .pcap eksternal. Menampilkan interface, MAC source/dest, dan protocol.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/tools/sniffer/hosts</div>
+            <a href="/?endpoint=tools_sniffer_hosts" class="nav-btn" style="padding: 3px 8px; font-size: 0.72rem;">Uji di Playground</a>
+          </div>
+          <div class="ep-desc">Inspeksi Sniffer Host List (/tool/sniffer/host/print): Menampilkan seluruh host dan IP yang berinteraksi di segmen jaringan yang sedang dianalisis sniffer.</div>
+        </div>
       </section>
 
-      <!-- Section: Mikhmon v4 Hotspot Suite -->
-      <section class="doc-section" id="sec-mikhmon-v4">
-        <div class="section-header">🎫 Mikhmon v4 Advanced Suite: Lock MAC, 3-Mode Expiry &amp; Trial Controller</div>
+      <!-- Section: Hotspot Profile Policies, Anti-Tukar HP & Expiry Modes -->
+      <section class="doc-section" id="sec-hotspot-policies">
+        <div class="section-header">🎫 Hotspot Profile Policies: Lock MAC (Anti-Tukar HP), 3-Mode Expiry &amp; Guest Trial</div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
             <div class="methods-group"><span class="m-pill m-post">POST</span></div>
-            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/lock-mac/enable</div>
+            <div class="ep-path">/api/v1/hotspot/profile/lock-mac</div>
           </div>
-          <div class="ep-desc">Lock User to MAC: Injeksi script on-login otomatis mengunci MAC address perangkat pada login pertama agar voucher tidak bisa dipindahtangankan ke HP lain.</div>
+          <div class="ep-desc">Lock User to MAC: Injeksi policy on-login otomatis mengikat MAC address perangkat pada login pertama ke voucher agar voucher tidak bisa dipindahtangankan ke HP lain.</div>
         </div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
             <div class="methods-group"><span class="m-pill m-post">POST</span></div>
-            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/expiry-mode/setup</div>
+            <div class="ep-path">/api/v1/hotspot/profile/bind-mac</div>
           </div>
-          <div class="ep-desc">3-Mode Expiry Voucher: Konfigurasi validitas mode Remove (hapus akun), Notice (alihkan ke web peringatan habis), atau Record (catat transaksi kasir ke log).</div>
+          <div class="ep-desc">Direct MAC Binding: Kunci MAC address user hotspot target ke entri voucher saat ini juga tanpa menunggu klien login ulang.</div>
         </div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
             <div class="methods-group"><span class="m-pill m-post">POST</span></div>
-            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/trial/setup</div>
+            <div class="ep-path">/api/v1/hotspot/profile/expiry-mode</div>
           </div>
-          <div class="ep-desc">Hotspot Trial Controller: Atur durasi internet gratisan (misal 15 menit per 1 hari) dan batasan profil pengguna uji coba.</div>
+          <div class="ep-desc">3-Mode Expiry Voucher: Konfigurasi validitas otomatis mode Remove (hapus akun), Notice (alihkan ke web peringatan habis), atau Record (catat transaksi kasir ke log) tanpa membebani router dengan ribuan scheduler.</div>
         </div>
 
         <div class="ep-doc-card">
           <div class="ep-top">
             <div class="methods-group"><span class="m-pill m-post">POST</span></div>
-            <div class="ep-path">/api/v1/hotspot/mikhmon-v4/trial/reset-cookies</div>
+            <div class="ep-path">/api/v1/hotspot/sweeper/deploy</div>
+          </div>
+          <div class="ep-desc">Autonomous Router Sweeper: Pasang 1 background sweeper task di RouterOS untuk menyapu voucher expired secara mandiri (zero bloat, 0-1% CPU).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/trial/status</div>
+          </div>
+          <div class="ep-desc">Cek status dan parameter login gratisan (Free Guest Trial) di Hotspot Server Profile.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/trial/setup</div>
+          </div>
+          <div class="ep-desc">Hotspot Free Trial Controller: Atur durasi internet gratisan (misal 15 menit per 1 hari), profile user trial, dan aktifkan fitur trial di server profile.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/hotspot/trial/reset-cookies</div>
           </div>
           <div class="ep-desc">Reset MAC trial cookies: Hapus riwayat perangkat gratisan agar pengunjung dapat mencoba koneksi kembali jika diizinkan.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/network/sync-pppoe-hotspot</div>
+          </div>
+          <div class="ep-desc">Dual-Service Sync Coexistence: Gabungkan PPPoE Server dan Hotspot pada 1 port fisik yang sama (baik via Multi-VLAN Trunking seperti VLAN 100 &amp; VLAN 200 atau Single-Port Coexistence dengan Hotspot IP Bypass &amp; TCP MSS Clamping 1452).</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/interfaces/vlans</div>
+          </div>
+          <div class="ep-desc">Virtual Sub-Interface VLAN CRUD: Kelola sub-interface VLAN (/interface/vlan) untuk segmentasi trafik ISP, RT-RW Net, Hotspot, dan PPPoE.</div>
+        </div>
+
+        <div class="ep-doc-card">
+          <div class="ep-top">
+            <div class="methods-group"><span class="m-pill m-get">GET</span><span class="m-pill m-post">POST</span></div>
+            <div class="ep-path">/api/v1/userman/status</div>
+          </div>
+          <div class="ep-desc">User Manager v6 &amp; v7 Detector: Otomatis mendeteksi arsitektur RADIUS RouterOS v6 (/tool/user-manager) vs v7 (/user-manager) serta status lisensi/paket aktif.</div>
         </div>
       </section>
 
@@ -3505,7 +3957,14 @@ ws.stream.listen((message) {
     }
   </script>
 </body>
-</html>"##)
+</html>"##).into_response();
+    resp.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        header::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' data:;",
+        ),
+    );
+    resp
 }
 
 /// GET /api/v1/spec - Machine-readable JSON Catalog of all Gateway Endpoints

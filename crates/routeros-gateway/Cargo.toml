@@ -18,3 +18,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.5", features = ["cors"] }
 md-5 = { workspace = true }
 hex = { workspace = true }
+sha2 = { workspace = true }

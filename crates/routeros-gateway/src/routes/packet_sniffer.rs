@@ -78,6 +78,7 @@ pub async fn sniffer_start(
         set_args.push(("filter-ip-address", ip));
     }
     if let Some(p) = req.filter_port.as_deref() {
+        crate::routes::sanitize::validate_ports_list(p)?;
         set_args.push(("filter-port", p));
     }
     if let Some(proto) = req.filter_protocol.as_deref() {
@@ -85,6 +86,7 @@ pub async fn sniffer_start(
     }
 
     if let Some(fn_str) = req.file_name.as_deref() {
+        crate::routes::sanitize::validate_safe_filename(fn_str)?;
         set_args.push(("file-name", fn_str));
         let fl = req.file_limit.as_deref().unwrap_or("2000KiB");
         set_args.push(("file-limit", fl));
@@ -93,6 +95,11 @@ pub async fn sniffer_start(
     }
 
     if let Some(srv) = req.streaming_server.as_deref() {
+        if crate::state::is_blocked_host(srv) {
+            return Err(ApiError::Forbidden(
+                "Streaming server target is blocked by security policy (loopback, link-local, or cloud metadata)".into()
+            ));
+        }
         set_args.push(("streaming-enabled", "yes"));
         set_args.push(("streaming-server", srv));
     } else {
@@ -156,5 +163,61 @@ pub async fn sniffer_reset(
     Ok(Json(json!({
         "success": true,
         "message": "Buffer packet sniffer berhasil dibersihkan"
+    })))
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct PacketQueryReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// GET or POST /api/v1/tools/sniffer/packets - Melihat isi buffer paket yang tertangkap (/tool/sniffer/packet/print)
+pub async fn sniffer_packets(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<PacketQueryReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client
+        .run(build_command("/tool/sniffer/packet/print", std::iter::empty::<(&str, &str)>()))
+        .await?;
+
+    let limit = req.limit.unwrap_or(100);
+    let total = rows.len();
+    let data: Vec<HashMap<String, String>> = rows.into_iter().take(limit).map(|r| r.attrs).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "total_packets_captured": total,
+        "limit_applied": limit,
+        "packets": data
+    })))
+}
+
+/// GET or POST /api/v1/tools/sniffer/hosts - Melihat daftar host dan statistik trafik yang ditangkap sniffer
+pub async fn sniffer_hosts(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<BaseReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or_default();
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let rows = client
+        .run(build_command("/tool/sniffer/host/print", std::iter::empty::<(&str, &str)>()))
+        .await?;
+
+    let data: Vec<HashMap<String, String>> = rows.into_iter().map(|r| r.attrs).collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "total_hosts": data.len(),
+        "hosts": data
     })))
 }

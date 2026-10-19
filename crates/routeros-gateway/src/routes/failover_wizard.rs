@@ -67,6 +67,21 @@ pub async fn setup_recursive_failover(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    if req.primary_distance == 0 || req.primary_distance > 255 || req.backup_distance == 0 || req.backup_distance > 255 {
+        return Err(ApiError::BadRequest("Route distance must be between 1 and 255".into()));
+    }
+    if crate::routes::sanitize::validate_ip_or_cidr(&req.primary_gateway).is_err() {
+        crate::routes::sanitize::validate_safe_identifier(&req.primary_gateway, "primary_gateway")?;
+    }
+    if crate::routes::sanitize::validate_ip_or_cidr(&req.backup_gateway).is_err() {
+        crate::routes::sanitize::validate_safe_identifier(&req.backup_gateway, "backup_gateway")?;
+    }
+    crate::routes::sanitize::validate_ip_or_cidr(&req.primary_check_host)?;
+    crate::routes::sanitize::validate_ip_or_cidr(&req.backup_check_host)?;
+    if let Some(tbl) = req.routing_table.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(tbl, "routing_table")?;
+    }
+
     // 1. Bersihkan rute recursive failover lama dengan tag ini jika ada
     let existing_routes = client
         .run(build_command("/ip/route/print", std::iter::empty::<(&str, &str)>()))

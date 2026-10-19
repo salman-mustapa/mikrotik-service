@@ -31,6 +31,8 @@ pub struct ResetConfigReq {
     pub no_defaults: Option<bool>,
     pub skip_backup: Option<bool>,
     pub run_after_reset: Option<String>, // .rsc script filename
+    /// Explicit confirmation flag to prevent accidental router wipe
+    pub confirm: Option<bool>,
 }
 
 /// POST /api/v1/maintenance/netinstall-prep - Prepares the router to boot directly into Netinstall
@@ -164,20 +166,42 @@ pub async fn reset_configuration(
     headers: HeaderMap,
     Json(req): Json<ResetConfigReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_system_reset {
+        return Err(ApiError::Forbidden(
+            "Hard reset configuration is disabled by gateway security policy. Set GATEWAY_ALLOW_SYSTEM_RESET=true to permit.".into()
+        ));
+    }
+
+    let confirm_header = headers.get("x-confirm-reset").and_then(|v| v.to_str().ok()).unwrap_or("");
+    if req.confirm != Some(true) && confirm_header != "true" {
+        return Err(ApiError::BadRequest(
+            "Hard reset requires explicit confirmation. Set 'confirm': true in the request body or header 'X-Confirm-Reset: true'.".into()
+        ));
+    }
+
+    if let Some(script) = req.run_after_reset.as_deref() {
+        if !st.allow_terminal_exec {
+            return Err(ApiError::Forbidden(
+                "Executing run-after-reset script is disabled by security policy (allow_terminal_exec = false)".into()
+            ));
+        }
+        crate::routes::sanitize::validate_safe_filename(script)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let mut args = Vec::new();
     let keep_usr_str = req.keep_users.map(|v| if v { "yes" } else { "no" });
-    if let Some(ku) = keep_usr_str.as_deref() {
+    if let Some(ku) = keep_usr_str {
         args.push(("keep-users", ku));
     }
     let no_def_str = req.no_defaults.map(|v| if v { "yes" } else { "no" });
-    if let Some(nd) = no_def_str.as_deref() {
+    if let Some(nd) = no_def_str {
         args.push(("no-defaults", nd));
     }
     let skip_bk_str = req.skip_backup.map(|v| if v { "yes" } else { "no" });
-    if let Some(sb) = skip_bk_str.as_deref() {
+    if let Some(sb) = skip_bk_str {
         args.push(("skip-backup", sb));
     }
     if let Some(script) = req.run_after_reset.as_deref() {

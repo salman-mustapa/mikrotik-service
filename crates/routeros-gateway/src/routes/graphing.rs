@@ -71,6 +71,10 @@ pub async fn graphing_enable(
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let allow = req.allow_address.as_deref().unwrap_or("0.0.0.0/0");
+    crate::routes::sanitize::validate_ip_or_cidr(allow)?;
+    if let Some(i) = req.interface.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(i, "interface")?;
+    }
     let mut configured = Vec::new();
 
     // 1. Graphing Interface

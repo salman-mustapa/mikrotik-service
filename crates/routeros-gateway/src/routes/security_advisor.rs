@@ -242,6 +242,7 @@ pub async fn deploy_antibruteforce(
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let timeout = req.blacklist_timeout.as_deref().unwrap_or("7d");
+    crate::routes::sanitize::validate_validity(timeout)?;
     let protect_winbox = req.protect_winbox.unwrap_or(true);
     let protect_ssh = req.protect_ssh.unwrap_or(true);
     let protect_api = req.protect_api.unwrap_or(true);

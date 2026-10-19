@@ -101,6 +101,25 @@ pub async fn set_wifi(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    let ssid = req.ssid.trim();
+    if ssid.is_empty() || ssid.len() > 32 || ssid.contains(['\r', '\n', '"', ';']) {
+        return Err(ApiError::BadRequest("SSID must be between 1 and 32 characters and contain no illegal characters".into()));
+    }
+    if let Some(ref pass) = req.passphrase {
+        if pass.len() < 8 || pass.len() > 63 || pass.contains(['\r', '\n', '"', ';']) {
+            return Err(ApiError::BadRequest("WiFi passphrase must be 8-63 characters without illegal characters".into()));
+        }
+    }
+    if let Some(ref sec) = req.security_name {
+        crate::routes::sanitize::validate_safe_identifier(sec, "security_name")?;
+    }
+    if let Some(ref cfg) = req.config_name {
+        crate::routes::sanitize::validate_safe_identifier(cfg, "config_name")?;
+    }
+    if let Some(ref country) = req.country {
+        crate::routes::sanitize::validate_safe_identifier(country, "country")?;
+    }
+
     let sec_name = req.security_name.as_deref().unwrap_or("sec-gateway");
     let cfg_name = req.config_name.as_deref().unwrap_or("cfg-gateway");
 
@@ -185,6 +204,10 @@ pub async fn provision(
     headers: HeaderMap,
     Json(req): Json<ProvisionReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if let Some(mac) = req.radio_mac.as_deref() {
+        crate::routes::sanitize::validate_mac_address(mac)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 

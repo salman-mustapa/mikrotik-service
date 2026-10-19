@@ -96,6 +96,20 @@ pub async fn torch(
     headers: HeaderMap,
     Json(req): Json<TorchReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    if let Some(src) = req.src_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(src)?;
+    }
+    if let Some(dst) = req.dst_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(dst)?;
+    }
+    if let Some(p) = req.port.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(p, "port")?;
+    }
+    if let Some(proto) = req.protocol.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(proto, "protocol")?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -126,10 +140,16 @@ pub async fn ip_scan(
     headers: HeaderMap,
     Json(req): Json<IpScanReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    if let Some(rng) = req.address_range.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(rng)?;
+    }
+    let dur = req.duration.as_deref().unwrap_or("3s");
+    crate::routes::sanitize::validate_validity(dur)?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
-    let dur = req.duration.as_deref().unwrap_or("3s");
     let mut args = vec![
         ("interface", req.interface.as_str()),
         ("duration", dur),
@@ -172,6 +192,15 @@ pub async fn romon_set(
     headers: HeaderMap,
     Json(req): Json<SetRomonReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if let Some(id) = req.id.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(id, "romon id")?;
+    }
+    if let Some(sec) = req.secrets.as_deref() {
+        if sec.len() > 128 || sec.contains('\n') || sec.contains('\r') {
+            return Err(ApiError::BadRequest("secrets contains invalid characters or exceeds 128 characters".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -214,12 +243,22 @@ pub async fn watchdog(
     req: Option<Json<SetWatchdogReq>>,
 ) -> Result<Json<Value>, ApiError> {
     let req = req.map(|Json(r)| r).unwrap_or_default();
+    if let Some(ping) = req.ping_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(ping)?;
+    }
+    if let Some(to) = req.ping_timeout.as_deref() {
+        crate::routes::sanitize::validate_validity(to)?;
+    }
+    if let Some(boot) = req.ping_start_after_boot.as_deref() {
+        crate::routes::sanitize::validate_validity(boot)?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let mut args = Vec::new();
     let wt_str = req.watchdog_timer.map(|w| if w { "yes" } else { "no" });
-    if let Some(wt) = wt_str.as_deref() { args.push(("watchdog-timer", wt)); }
+    if let Some(wt) = wt_str { args.push(("watchdog-timer", wt)); }
     if let Some(ping) = req.ping_address.as_deref() { args.push(("ping-address", ping)); }
     if let Some(to) = req.ping_timeout.as_deref() { args.push(("ping-timeout", to)); }
     if let Some(boot) = req.ping_start_after_boot.as_deref() { args.push(("ping-start-after-boot", boot)); }
@@ -246,6 +285,20 @@ pub async fn ntp_config(
     req: Option<Json<SetNtpReq>>,
 ) -> Result<Json<Value>, ApiError> {
     let req = req.map(|Json(r)| r).unwrap_or_default();
+    if let Some(srv) = req.servers.as_deref() {
+        for s in srv.split(',') {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                crate::routes::sanitize::validate_host_or_ip(trimmed)?;
+            }
+        }
+    }
+    if let Some(tz) = req.time_zone_name.as_deref() {
+        if tz.len() > 64 || !tz.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+')) {
+            return Err(ApiError::BadRequest("Invalid time_zone_name".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -305,6 +358,13 @@ pub async fn add_dhcp_client(
     headers: HeaderMap,
     Json(req): Json<AddDhcpClientReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    if let Some(ref c) = req.comment {
+        if c.len() > 128 || c.contains('\n') || c.contains('\r') {
+            return Err(ApiError::BadRequest("comment contains invalid characters or exceeds 128 characters".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -335,6 +395,8 @@ pub async fn remove_dhcp_client(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/ip/dhcp-client/remove", [(".id", req.id.as_str())])).await?;
@@ -351,6 +413,15 @@ pub async fn terminal_exec(
     headers: HeaderMap,
     Json(req): Json<TerminalExecReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_terminal_exec {
+        return Err(ApiError::Forbidden(
+            "Terminal script execution is disabled by gateway security policy. Set GATEWAY_ALLOW_TERMINAL_EXEC=true to enable.".into()
+        ));
+    }
+    if req.script.len() > 65_536 {
+        return Err(ApiError::BadRequest("Script exceeds 64KB limit".into()));
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -370,8 +441,13 @@ pub async fn terminal_exec(
     // 2. Run script
     let run_res = client.run(build_command("/system/script/run", [("number", temp_name.as_str())])).await;
 
-    // 3. Clean up script
-    let _ = client.run(build_command("/system/script/remove", [(".id", temp_name.as_str())])).await;
+    // 3. Clean up script reliably by finding its .id
+    let scripts = client.run(build_command("/system/script/print", [("?name", temp_name.as_str())])).await.unwrap_or_default();
+    for s in scripts {
+        if let Some(id) = s.get(".id") {
+            let _ = client.run(build_command("/system/script/remove", [(".id", id)])).await;
+        }
+    }
 
     match run_res {
         Ok(_) => Ok(Json(json!({

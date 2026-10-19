@@ -2,8 +2,8 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::http::header;
 
 /// GET /topology - Rich, interactive Network Topology Visualizer with Draggable Nodes & Light Theme
-pub async fn visualizer_page() -> Html<&'static str> {
-    Html(r#"<!DOCTYPE html>
+pub async fn visualizer_page() -> Response {
+    let mut resp = Html(r#"<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -589,25 +589,25 @@ pub async fn visualizer_page() -> Html<&'static str> {
     let dragStartY = 0;
 
     function syncCreds() {
-      localStorage.setItem('ros_host', document.getElementById('target-host').value);
-      localStorage.setItem('ros_port', document.getElementById('target-port').value);
-      localStorage.setItem('ros_user', document.getElementById('target-user').value);
-      localStorage.setItem('ros_pass', document.getElementById('target-pass').value);
+      sessionStorage.setItem('ros_host', document.getElementById('target-host').value);
+      sessionStorage.setItem('ros_port', document.getElementById('target-port').value);
+      sessionStorage.setItem('ros_user', document.getElementById('target-user').value);
+      sessionStorage.setItem('ros_pass', document.getElementById('target-pass').value);
     }
 
     function initCreds() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('host')) document.getElementById('target-host').value = urlParams.get('host');
-      else if (localStorage.getItem('ros_host')) document.getElementById('target-host').value = localStorage.getItem('ros_host');
+      else if (sessionStorage.getItem('ros_host')) document.getElementById('target-host').value = sessionStorage.getItem('ros_host');
 
       if (urlParams.get('port')) document.getElementById('target-port').value = urlParams.get('port');
-      else if (localStorage.getItem('ros_port')) document.getElementById('target-port').value = localStorage.getItem('ros_port');
+      else if (sessionStorage.getItem('ros_port')) document.getElementById('target-port').value = sessionStorage.getItem('ros_port');
 
       if (urlParams.get('user')) document.getElementById('target-user').value = urlParams.get('user');
-      else if (localStorage.getItem('ros_user')) document.getElementById('target-user').value = localStorage.getItem('ros_user');
+      else if (sessionStorage.getItem('ros_user')) document.getElementById('target-user').value = sessionStorage.getItem('ros_user');
 
-      if (urlParams.get('pass')) document.getElementById('target-pass').value = urlParams.get('pass');
-      else if (localStorage.getItem('ros_pass')) document.getElementById('target-pass').value = localStorage.getItem('ros_pass');
+      // Security: Do NOT read router password from URL query parameters
+      if (sessionStorage.getItem('ros_pass')) document.getElementById('target-pass').value = sessionStorage.getItem('ros_pass');
 
       ['target-host', 'target-port', 'target-user', 'target-pass'].forEach(id => {
         document.getElementById(id).addEventListener('input', syncCreds);
@@ -630,7 +630,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
       const port = parseInt(document.getElementById('target-port').value) || 8728;
       const user = document.getElementById('target-user').value.trim();
       const pass = document.getElementById('target-pass').value;
-      const token = localStorage.getItem('ros_token') || 'change-me-to-a-long-random-string';
+      const token = sessionStorage.getItem('ros_token') || '';
 
       if (!host && !user) {
         showNotice("ℹ️ Masukkan Host & User Router target di atas lalu klik Render Graf", false);
@@ -1254,7 +1254,7 @@ pub async fn visualizer_page() -> Html<&'static str> {
             </div>
             <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 8px; padding: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;" class="scrollable-device-list">
               ${children.map(c => `
-                <div style="padding: 8px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.12s;" onmouseover="this.style.borderColor='#93c5fd';this.style.background='#eff6ff';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#ffffff';" onclick="event.stopPropagation(); openDrawerById('${escapeHtml(c.id)}')">
+                <div class="child-device-item" data-node-id="${escapeHtml(c.id)}" style="padding: 8px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.12s;" onmouseover="this.style.borderColor='#93c5fd';this.style.background='#eff6ff';" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#ffffff';">
                   <div>
                     <div style="font-weight: 700; color: #1e293b;">${escapeHtml(c.label)}</div>
                     <div style="color: #64748b; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">${escapeHtml(c.ip || 'No IP')} | ${escapeHtml(c.mac || 'No MAC')}</div>
@@ -1264,6 +1264,14 @@ pub async fn visualizer_page() -> Html<&'static str> {
               `).join('')}
             </div>
           </div>`;
+        childSection.onclick = (e) => {
+          const item = e.target.closest('.child-device-item');
+          if (item) {
+            e.stopPropagation();
+            const targetId = item.getAttribute('data-node-id');
+            if (targetId) openDrawerById(targetId);
+          }
+        };
       }
 
       document.getElementById('ping-result').textContent = "Klik tombol di atas untuk uji latency";
@@ -1384,7 +1392,14 @@ pub async fn visualizer_page() -> Html<&'static str> {
     });
   </script>
 </body>
-</html>"#)
+</html>"#).into_response();
+    resp.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        header::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' data:;",
+        ),
+    );
+    resp
 }
 
 /// GET /sdk/mikrotik-widget.js - Embeddable Web Component SDK

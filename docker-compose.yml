@@ -7,16 +7,26 @@ services:
     container_name: mikrotik-universal-gateway
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Bind ke localhost demi keamanan; pasang reverse proxy TLS (Caddy/Nginx) untuk eksposur publik
+      - "127.0.0.1:8080:8080"
     environment:
       - GATEWAY_LISTEN=0.0.0.0:8080
-      - GATEWAY_TOKEN=change-me-to-a-long-random-string
+      # Wajib set GATEWAY_TOKEN di .env atau environment host (min. 32 karakter)
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?GATEWAY_TOKEN environment variable must be set}
       - RUST_LOG=info
       # Opsional: token READ-ONLY (>=16 karakter, beda dari GATEWAY_TOKEN) untuk browser/aplikasi yang hanya menampilkan peta.
       # - GATEWAY_VIEWER_TOKEN=ganti-dengan-token-viewer-acak-panjang
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       # Layout peta jaringan & gambar denah (hilang jika volume ini dihapus)
       - gateway-data:/data
+    # Panduan Reverse Proxy TLS (Caddy):
+    # gateway.domain.com {
+    #     reverse_proxy 127.0.0.1:8080
+    # }
     # Opsional: Uncomment jika ingin mapping file config statis dari host.
     # PENTING: Pastikan config.toml berupa file di host (`cp config.example.toml config.toml`), bukan folder.
     # Opsional: tambahkan mapping config statis dari host ke daftar volumes di atas:

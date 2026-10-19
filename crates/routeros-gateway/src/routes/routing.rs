@@ -212,6 +212,20 @@ pub async fn add_bgp_peer(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "peer_name")?;
+    if crate::routes::sanitize::validate_ip_or_cidr(&req.remote_address).is_err()
+        && !req.remote_address.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+        return Err(ApiError::BadRequest("remote_address must be a valid IP address or hostname".into()));
+    }
+    if !req.remote_as.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::BadRequest("remote_as must be a numeric AS number".into()));
+    }
+    if let Some(ref la) = req.local_as {
+        if !la.chars().all(|c| c.is_ascii_digit()) {
+            return Err(ApiError::BadRequest("local_as must be a numeric AS number".into()));
+        }
+    }
+
     let comment_val = req.comment.as_deref().unwrap_or("[BGP] Carrier Peering Session");
 
     // Coba sintaks RouterOS v7 terlebih dahulu (/routing/bgp/connection/add)
@@ -292,6 +306,8 @@ pub async fn add_routing_table(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "table_name")?;
+
     let fib_str = if req.fib.unwrap_or(true) { "yes" } else { "no" };
     let mut args = vec![
         ("name", req.name.as_str()),
@@ -328,6 +344,17 @@ pub async fn add_routing_rule(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.table, "table")?;
+    if let Some(ref src) = req.src_address {
+        crate::routes::sanitize::validate_ip_or_cidr(src)?;
+    }
+    if let Some(ref dst) = req.dst_address {
+        crate::routes::sanitize::validate_ip_or_cidr(dst)?;
+    }
+    if let Some(ref rm) = req.routing_mark {
+        crate::routes::sanitize::validate_safe_identifier(rm, "routing_mark")?;
+    }
 
     let action_str = req.action.as_deref().unwrap_or("lookup");
     let mut args = vec![

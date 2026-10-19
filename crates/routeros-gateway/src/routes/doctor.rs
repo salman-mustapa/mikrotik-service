@@ -106,8 +106,8 @@ pub async fn doctor_diagnose(
     let mut packet_loss_pct = 0;
     if let Ok(rows) = ping_res {
         let total = rows.len();
-        let mut received = 0;
-        let mut total_time_ms = 0;
+        let mut received: usize = 0;
+        let mut total_time_ms: u32 = 0;
 
         for r in &rows {
             if let Some(t_str) = r.get("time") {
@@ -117,10 +117,10 @@ pub async fn doctor_diagnose(
             }
         }
 
-        if total > 0 {
-            packet_loss_pct = 100 - ((received * 100) / total);
-            if received > 0 {
-                avg_rtt = format!("{}ms", total_time_ms / (received as u32));
+        if let Some(pct) = (received * 100).checked_div(total) {
+            packet_loss_pct = 100 - pct;
+            if let Some(avg) = total_time_ms.checked_div(received as u32) {
+                avg_rtt = format!("{}ms", avg);
             }
         }
 

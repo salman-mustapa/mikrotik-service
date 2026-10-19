@@ -59,6 +59,15 @@ pub async fn setup_port_knocking(
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
+    if req.knock_port_1 == 0 || req.knock_port_2 == 0 || req.knock_port_3 == 0 {
+        return Err(ApiError::BadRequest("Knock ports must be between 1 and 65535".into()));
+    }
+    crate::routes::sanitize::validate_ports_list(&req.target_ports)?;
+    crate::routes::sanitize::validate_validity(&req.access_duration)?;
+    if let Some(i) = req.in_interface.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(i, "in_interface")?;
+    }
+
     let p1_str = req.knock_port_1.to_string();
     let p2_str = req.knock_port_2.to_string();
     let p3_str = req.knock_port_3.to_string();

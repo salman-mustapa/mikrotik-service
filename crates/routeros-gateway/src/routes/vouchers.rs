@@ -32,11 +32,33 @@ pub struct GenerateBatchVouchersReq {
     #[serde(default = "default_profile")]
     pub profile: String,
     pub time_limit: Option<String>,  // e.g. "1h", "3h", "1d", "7d"
+    pub validity: Option<String>,    // e.g. "1h", "3h", "1d", "7d" (calendar validity)
     pub data_limit: Option<String>,  // e.g. "500M", "1G", "5G"
     pub price: Option<String>,       // e.g. "3000", "5000", "10000"
     pub server: Option<String>,      // default "all"
     pub comment_tag: Option<String>, // custom batch tag, e.g. "BATCH-OKT"
     pub dns_name: Option<String>,    // e.g. "hotspot.local" or "login.wifi"
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CreateSingleVoucherReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    /// Username voucher (jika kosong, otomatis digenerate dengan prefix)
+    pub username: Option<String>,
+    /// Password voucher (jika kosong atau user_mode == "user_is_pass", sama dengan username)
+    pub password: Option<String>,
+    #[serde(default = "default_mode")]
+    pub user_mode: String, // "user_is_pass" atau "user_and_pass"
+    #[serde(default = "default_profile")]
+    pub profile: String,
+    pub time_limit: Option<String>, // e.g. "1h", "3h", "1d"
+    pub validity: Option<String>,   // e.g. "1d", "7d", "30d"
+    pub data_limit: Option<String>, // e.g. "500M", "2G"
+    pub price: Option<String>,      // e.g. "3000", "5000"
+    pub server: Option<String>,
+    pub comment: Option<String>,
+    pub dns_name: Option<String>,
 }
 
 fn default_prefix() -> String { "V-".into() }
@@ -188,6 +210,119 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Helper function to parse month name (e.g. "oct", "nov") to 1..12
+fn parse_ros_month(m: &str) -> Option<u32> {
+    match m.to_lowercase().as_str() {
+        "jan" => Some(1), "feb" => Some(2), "mar" => Some(3), "apr" => Some(4),
+        "may" => Some(5), "jun" => Some(6), "jul" => Some(7), "aug" => Some(8),
+        "sep" => Some(9), "oct" => Some(10), "nov" => Some(11), "dec" => Some(12),
+        _ => None,
+    }
+}
+
+fn is_leap_year(y: u32) -> bool {
+    y.is_multiple_of(4) && !y.is_multiple_of(100) || y.is_multiple_of(400)
+}
+
+/// Convert (year, month, day, hour, min, sec) to seconds since UNIX epoch (1970-01-01 00:00:00 UTC)
+fn date_time_to_unix(year: u32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Option<u64> {
+    if year < 1970 || !(1..=12).contains(&month) || !(1..=31).contains(&day) || hour > 23 || min > 59 || sec > 59 {
+        return None;
+    }
+
+    let days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut days: u64 = 0;
+    for y in 1970..year {
+        days += if is_leap_year(y) { 366 } else { 365 };
+    }
+
+    let is_current_leap = is_leap_year(year);
+    for m in 1..month {
+        if m == 2 && is_current_leap {
+            days += 29;
+        } else {
+            days += days_in_months[(m - 1) as usize];
+        }
+    }
+
+    days += (day.saturating_sub(1)) as u64;
+    Some(days * 86400 + (hour as u64) * 3600 + (min as u64) * 60 + (sec as u64))
+}
+
+/// Parse date string in either RouterOS v6 format ("mmm/dd/yyyy HH:MM:SS") or RouterOS v7 format ("yyyy-mm-dd HH:MM:SS")
+fn parse_ros_timestamp(date_str: &str, time_str: &str) -> Option<u64> {
+    let t_parts: Vec<&str> = time_str.split(':').collect();
+    if t_parts.len() < 3 {
+        return None;
+    }
+    let hour: u32 = t_parts[0].parse().ok()?;
+    let min: u32 = t_parts[1].parse().ok()?;
+    let sec: u32 = t_parts[2].parse().ok()?;
+
+    if date_str.contains('/') {
+        // ROS v6: "mmm/dd/yyyy"
+        let d_parts: Vec<&str> = date_str.split('/').collect();
+        if d_parts.len() >= 3 {
+            let month = parse_ros_month(d_parts[0])?;
+            let day: u32 = d_parts[1].parse().ok()?;
+            let year: u32 = d_parts[2].parse().ok()?;
+            return date_time_to_unix(year, month, day, hour, min, sec);
+        }
+    } else if date_str.contains('-') {
+        // ROS v7: "yyyy-mm-dd"
+        let d_parts: Vec<&str> = date_str.split('-').collect();
+        if d_parts.len() >= 3 {
+            let year: u32 = d_parts[0].parse().ok()?;
+            let month: u32 = d_parts[1].parse().ok()?;
+            let day: u32 = d_parts[2].parse().ok()?;
+            return date_time_to_unix(year, month, day, hour, min, sec);
+        }
+    }
+
+    None
+}
+
+/// Helper function to check if a voucher comment has expired based on [EXP:...|VAL:...]
+pub fn is_voucher_comment_expired(comment: &str, now_unix: u64) -> bool {
+    if !comment.contains("EXP:") {
+        return false;
+    }
+
+    let exp_part = match comment.split("EXP:").nth(1) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    let date_time_segment = exp_part.split('|').next().unwrap_or("").trim_end_matches(']');
+    let mut dt_tokens = date_time_segment.split_whitespace();
+    let date_str = match dt_tokens.next() {
+        Some(d) => d,
+        None => return false,
+    };
+    let time_str = match dt_tokens.next() {
+        Some(t) => t,
+        None => return false,
+    };
+
+    let start_unix = match parse_ros_timestamp(date_str, time_str) {
+        Some(ts) => ts,
+        None => return false,
+    };
+
+    let validity_secs = if comment.contains("VAL:") {
+        let val_part = comment.split("VAL:").nth(1).unwrap_or("").split('|').next().unwrap_or("").trim_end_matches(']');
+        parse_ros_duration_seconds(val_part)
+    } else {
+        86400
+    };
+
+    if validity_secs == 0 {
+        return false;
+    }
+
+    now_unix >= start_unix + validity_secs
+}
+
 /// POST /api/v1/hotspot/vouchers/generate - High-speed parallel voucher batch creation
 pub async fn generate_vouchers(
     State(st): State<Arc<AppState>>,
@@ -196,6 +331,29 @@ pub async fn generate_vouchers(
 ) -> Result<Json<Value>, ApiError> {
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.profile, "profile")?;
+    if !req.prefix.is_empty() {
+        crate::routes::sanitize::validate_safe_identifier(&req.prefix, "prefix")?;
+    }
+    if let Some(ref t) = req.time_limit {
+        crate::routes::sanitize::validate_validity(t)?;
+    }
+    if let Some(ref v) = req.validity {
+        crate::routes::sanitize::validate_validity(v)?;
+    }
+    if let Some(ref d) = req.data_limit {
+        crate::routes::sanitize::validate_bandwidth_rate(d)?;
+    }
+    if let Some(ref p) = req.price {
+        crate::routes::sanitize::validate_price(p)?;
+    }
+    if let Some(ref s) = req.server {
+        crate::routes::sanitize::validate_safe_identifier(s, "server")?;
+    }
+    if let Some(ref tag) = req.comment_tag {
+        crate::routes::sanitize::validate_safe_identifier(tag, "comment_tag")?;
+    }
 
     let qty = req.qty.clamp(1, 1000);
     let len = req.length.clamp(4, 16);
@@ -219,6 +377,8 @@ pub async fn generate_vouchers(
         format!("VC-{}", t)
     });
 
+    let val_label = req.validity.as_deref().or(req.time_limit.as_deref()).unwrap_or("-");
+
     let mut generated_items = Vec::with_capacity(qty);
     let mut futures = Vec::with_capacity(qty);
 
@@ -240,7 +400,7 @@ pub async fn generate_vouchers(
             username.clone()
         };
 
-        let structured_comment = format!("[VOUCHER|{}|Rp {}|{}|{}]", req.profile, price_str, batch_tag, req.time_limit.as_deref().unwrap_or("-"));
+        let structured_comment = format!("[VOUCHER|{}|Rp {}|{}|VAL:{}]", req.profile, price_str, batch_tag, val_label);
 
         let mut args = vec![
             ("name".to_string(), username.clone()),
@@ -273,6 +433,7 @@ pub async fn generate_vouchers(
             "password": password,
             "profile": req.profile,
             "time_limit": req.time_limit,
+            "validity": req.validity,
             "data_limit": req.data_limit,
             "price": price_str,
             "batch_tag": batch_tag,
@@ -292,6 +453,239 @@ pub async fn generate_vouchers(
         "profile": req.profile,
         "vouchers": generated_items,
     })))
+}
+
+/// POST /api/v1/hotspot/vouchers/create-single - Buat 1 Voucher Fleksibel (Custom Username/Password atau Auto-Generate)
+pub async fn create_single_voucher(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateSingleVoucherReq>,
+) -> Result<Json<Value>, ApiError> {
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    crate::routes::sanitize::validate_safe_identifier(&req.profile, "profile")?;
+    if let Some(ref t) = req.time_limit {
+        crate::routes::sanitize::validate_validity(t)?;
+    }
+    if let Some(ref v) = req.validity {
+        crate::routes::sanitize::validate_validity(v)?;
+    }
+    let price_str = req.price.as_deref().unwrap_or("0");
+    crate::routes::sanitize::validate_price(price_str)?;
+
+    let username = match req.username {
+        Some(u) if !u.trim().is_empty() => {
+            crate::routes::sanitize::validate_safe_identifier(&u, "username")?;
+            u.trim().to_string()
+        }
+        _ => {
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(987654321);
+            let chars = b"23456789abcdefghjkmnpqrstuvwxyz";
+            let mut rnd = String::with_capacity(6);
+            let mut val = seed;
+            for _ in 0..6 {
+                val = val.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                let idx = (val as usize) % chars.len();
+                rnd.push(chars[idx] as char);
+            }
+            format!("V-{}", rnd)
+        }
+    };
+
+    let password = match req.password {
+        Some(p) if !p.trim().is_empty() && req.user_mode != "user_is_pass" => {
+            if p.contains(['\r', '\n', '"', ';']) {
+                return Err(ApiError::BadRequest("Password contains invalid characters".into()));
+            }
+            p.trim().to_string()
+        }
+        _ => username.clone(),
+    };
+
+    let mut comment_parts = vec![format!("[VOUCHER|{}|Rp {}]", req.profile, price_str)];
+    if let Some(ref v) = req.validity {
+        comment_parts.push(format!("[VAL:{}]", v));
+    }
+    if let Some(ref c) = req.comment {
+        comment_parts.push(c.clone());
+    }
+    let comment_final = comment_parts.join(" ");
+
+    let mut args = vec![
+        ("name", username.as_str()),
+        ("password", password.as_str()),
+        ("profile", req.profile.as_str()),
+        ("comment", comment_final.as_str()),
+    ];
+
+    if let Some(ref t) = req.time_limit {
+        args.push(("limit-uptime", t.as_str()));
+    }
+    if let Some(ref d) = req.data_limit {
+        args.push(("limit-bytes-total", d.as_str()));
+    }
+    let srv = req.server.as_deref().unwrap_or("all");
+    args.push(("server", srv));
+
+    client.run(build_command("/ip/hotspot/user/add", args)).await?;
+
+    let dns = req.dns_name.as_deref().unwrap_or("hotspot.local");
+    let login_url = format!("http://{}/login?username={}&password={}", dns, username, password);
+    let qr_url = format!("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={}", url_encode(&login_url));
+
+    Ok(Json(json!({
+        "success": true,
+        "voucher": {
+            "username": username,
+            "password": password,
+            "profile": req.profile,
+            "time_limit": req.time_limit,
+            "validity": req.validity,
+            "data_limit": req.data_limit,
+            "price": price_str,
+            "login_url": login_url,
+            "qr_code_url": qr_url,
+            "comment": comment_final
+        },
+        "message": format!("Voucher '{}' berhasil dibuat!", username)
+    })))
+}
+
+/// GET or POST /api/v1/hotspot/vouchers/history - Riwayat Lengkap User yang Pernah Aktif, Pernah Terpakai & Total Konsumsi Kuota
+pub async fn voucher_usage_history(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    req: Option<Json<FilterVouchersReq>>,
+) -> Result<Json<Value>, ApiError> {
+    let req = req.map(|Json(r)| r).unwrap_or(FilterVouchersReq {
+        router: None,
+        router_id: None,
+        profile: None,
+        status: None,
+        batch_tag: None,
+    });
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let user_fut = client.run(build_command("/ip/hotspot/user/print", std::iter::empty::<(&str, &str)>()));
+    let act_fut = client.run(build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>()));
+
+    let (user_res, act_res) = tokio::join!(user_fut, act_fut);
+    let user_rows = user_res?;
+    let act_rows = act_res.unwrap_or_default();
+
+    let mut active_map: HashMap<String, HashMap<String, String>> = HashMap::new();
+    for row in act_rows {
+        if let Some(user) = row.get("user") {
+            active_map.insert(user.to_string(), row.attrs);
+        }
+    }
+
+    let now_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let mut online_list = Vec::new();
+    let mut previously_used_list = Vec::new();
+    let mut expired_list = Vec::new();
+    let mut unused_list = Vec::new();
+
+    let mut total_bytes_all: u64 = 0;
+    let mut total_uptime_secs_all: u64 = 0;
+
+    for row in user_rows {
+        let name = row.get("name").unwrap_or("").to_string();
+        if name.is_empty() || name == "default-trial" {
+            continue;
+        }
+
+        let profile = row.get("profile").unwrap_or("default").to_string();
+        if let Some(ref p_filter) = req.profile {
+            if &profile != p_filter {
+                continue;
+            }
+        }
+
+        let comment = row.get("comment").unwrap_or("").to_string();
+        let uptime_str = row.get("uptime").unwrap_or("0s").to_string();
+        let limit_uptime_str = row.get("limit-uptime").unwrap_or("").to_string();
+        let bytes_in: u64 = row.get("bytes-in").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let bytes_out: u64 = row.get("bytes-out").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let bytes_total = bytes_in + bytes_out;
+        let limit_bytes_str = row.get("limit-bytes-total").unwrap_or("").to_string();
+        let limit_bytes: u64 = limit_bytes_str.parse().unwrap_or_else(|_| parse_byte_str(&limit_bytes_str));
+
+        let used_uptime_secs = parse_ros_duration_seconds(&uptime_str);
+        let limit_uptime_secs = parse_ros_duration_seconds(&limit_uptime_str);
+
+        total_bytes_all += bytes_total;
+        total_uptime_secs_all += used_uptime_secs;
+
+        let is_online = active_map.contains_key(&name);
+        let is_calendar_expired = is_voucher_comment_expired(&comment, now_ts);
+        let is_limit_expired = (limit_uptime_secs > 0 && used_uptime_secs >= limit_uptime_secs) || (limit_bytes > 0 && bytes_total >= limit_bytes);
+
+        let voucher_info = json!({
+            "username": name,
+            "profile": profile,
+            "comment": comment,
+            "uptime": uptime_str,
+            "uptime_seconds": used_uptime_secs,
+            "bytes_in": bytes_in,
+            "bytes_out": bytes_out,
+            "bytes_total": bytes_total,
+            "bytes_total_formatted": format_bytes_human(bytes_total),
+            "limit_uptime": limit_uptime_str,
+            "limit_bytes": limit_bytes_str,
+            "is_online": is_online,
+            "active_session": active_map.get(&name)
+        });
+
+        if is_online {
+            online_list.push(voucher_info);
+        } else if is_calendar_expired || is_limit_expired {
+            expired_list.push(voucher_info);
+        } else if used_uptime_secs > 0 || bytes_total > 0 {
+            previously_used_list.push(voucher_info);
+        } else {
+            unused_list.push(voucher_info);
+        }
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "summary": {
+            "total_vouchers": online_list.len() + previously_used_list.len() + expired_list.len() + unused_list.len(),
+            "online_now": online_list.len(),
+            "previously_used": previously_used_list.len(),
+            "unused_inventory": unused_list.len(),
+            "expired": expired_list.len(),
+            "total_bandwidth_consumed": total_bytes_all,
+            "total_bandwidth_consumed_formatted": format_bytes_human(total_bytes_all),
+            "total_uptime_seconds": total_uptime_secs_all
+        },
+        "online_vouchers": online_list,
+        "previously_used_vouchers": previously_used_list,
+        "expired_vouchers": expired_list,
+        "unused_vouchers": unused_list
+    })))
+}
+
+fn format_bytes_human(bytes: u64) -> String {
+    if bytes >= 1_073_741_824 {
+        format!("{:.2} GB", bytes as f64 / 1_073_741_824.0)
+    } else if bytes >= 1_048_576 {
+        format!("{:.2} MB", bytes as f64 / 1_048_576.0)
+    } else if bytes >= 1024 {
+        format!("{:.2} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{} B", bytes)
+    }
 }
 
 /// POST /api/v1/hotspot/vouchers/tracking - Realtime voucher lifecycle, quota, and uptime tracker
@@ -388,8 +782,8 @@ pub async fn voucher_tracking(
         }
 
         // Remaining calculations
-        let remaining_uptime_secs = if limit_uptime_secs > used_uptime_secs { limit_uptime_secs - used_uptime_secs } else { 0 };
-        let remaining_bytes = if limit_bytes > bytes_total { limit_bytes - bytes_total } else { 0 };
+        let remaining_uptime_secs = limit_uptime_secs.saturating_sub(used_uptime_secs);
+        let remaining_bytes = limit_bytes.saturating_sub(bytes_total);
         let quota_percent_left = if limit_bytes > 0 {
             format!("{:.1}%", (remaining_bytes as f64 / limit_bytes as f64) * 100.0)
         } else {
@@ -477,6 +871,13 @@ pub async fn thermal_print(
     headers: HeaderMap,
     Json(req): Json<ThermalPrintReq>,
 ) -> Result<Json<Value>, ApiError> {
+    if req.vouchers.len() > 500 {
+        return Err(ApiError::BadRequest("Cannot print more than 500 vouchers at once".into()));
+    }
+    for v in &req.vouchers {
+        crate::routes::sanitize::validate_safe_identifier(v, "voucher username")?;
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -561,14 +962,30 @@ pub async fn sell_voucher(
     headers: HeaderMap,
     Json(req): Json<SellVoucherReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.voucher_code, "voucher_code")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
     let hotspot = req.hotspot_name.as_deref().unwrap_or("WIFI HOTSPOT");
     let dns = req.dns_name.as_deref().unwrap_or("hotspot.local");
     let cust_name = req.customer_name.as_deref().unwrap_or("Pelanggan");
-    let clean_phone = req.customer_phone.as_deref().map(|p| p.replace(['+', '-', ' '], "")).unwrap_or_default();
+    if cust_name.len() > 64 || cust_name.contains(['|', ']', '[', '\r', '\n']) {
+        return Err(ApiError::BadRequest("customer_name contains invalid characters or exceeds 64 characters".into()));
+    }
+    let clean_phone = if let Some(p) = req.customer_phone.as_deref() {
+        let cp: String = p.chars().filter(|c| c.is_ascii_digit()).collect();
+        if cp.len() > 20 {
+            return Err(ApiError::BadRequest("customer_phone must be 20 digits or fewer".into()));
+        }
+        cp
+    } else {
+        String::new()
+    };
     let cashier = req.cashier.as_deref().unwrap_or("Admin Kasir");
+    if cashier.len() > 64 || cashier.contains(['|', ']', '[', '\r', '\n']) {
+        return Err(ApiError::BadRequest("cashier contains invalid characters or exceeds 64 characters".into()));
+    }
 
     // Query voucher data from router
     let rows = client.run(build_command(
@@ -623,6 +1040,12 @@ pub async fn sell_voucher(
     // Optional webhook forwarder (e.g. if caller provides webhook URL to Laravel, Next.js, or WhatsApp bridge)
     let mut webhook_forwarded = false;
     if let Some(ref wh) = req.webhook_url {
+        crate::routes::sanitize::validate_safe_url(wh)?;
+        let host_part = wh.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or("").split(':').next().unwrap_or("");
+        if crate::state::is_blocked_host(host_part) {
+            return Err(ApiError::Forbidden("Webhook URL points to blocked host/network".into()));
+        }
+
         let encoded_msg = url_encode(&formatted_receipt);
         let target_url = if wh.contains('?') {
             format!("{}&phone={}&message={}", wh, clean_phone, encoded_msg)
@@ -679,6 +1102,11 @@ pub async fn clean_expired(
 
     let rows = client.run(build_command("/ip/hotspot/user/print", std::iter::empty::<(&str, &str)>())).await?;
 
+    let now_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
     let mut removed_count = 0;
     for r in rows {
         let name = r.get("name").unwrap_or("");
@@ -691,6 +1119,7 @@ pub async fn clean_expired(
 
         let uptime_str = r.get("uptime").unwrap_or("0s");
         let limit_uptime_str = r.get("limit-uptime").unwrap_or("");
+        let comment = r.get("comment").unwrap_or("");
         let bytes_in: u64 = r.get("bytes-in").and_then(|v| v.parse().ok()).unwrap_or(0);
         let bytes_out: u64 = r.get("bytes-out").and_then(|v| v.parse().ok()).unwrap_or(0);
         let limit_bytes: u64 = r.get("limit-bytes-total").and_then(|v| v.parse().ok()).unwrap_or(0);
@@ -698,11 +1127,17 @@ pub async fn clean_expired(
         let used_secs = parse_ros_duration_seconds(uptime_str);
         let limit_secs = parse_ros_duration_seconds(limit_uptime_str);
 
-        let is_expired = (limit_secs > 0 && used_secs >= limit_secs) || (limit_bytes > 0 && (bytes_in + bytes_out) >= limit_bytes);
+        let is_expired = (limit_secs > 0 && used_secs >= limit_secs)
+            || (limit_bytes > 0 && (bytes_in + bytes_out) >= limit_bytes)
+            || is_voucher_comment_expired(comment, now_unix);
 
         if is_expired {
             if let Some(id) = r.get(".id") {
                 let _ = client.run(build_command("/ip/hotspot/user/remove", [(".id", id)])).await;
+                // Also disconnect active session if user is currently online
+                let _ = client.run(build_command("/ip/hotspot/active/remove", [("?user", name)])).await;
+                // Also remove scheduler if any
+                let _ = client.run(build_command("/system/scheduler/remove", [("?name", name)])).await;
                 removed_count += 1;
             }
         }
@@ -723,7 +1158,7 @@ pub struct SalesReportReq {
     pub cashier: Option<String>,
 }
 
-/// GET /api/v1/hotspot/vouchers/sales-report - Mikhmon-Style Financial & Sales Revenue Summary
+/// GET /api/v1/hotspot/vouchers/sales-report - Financial & Sales Revenue Summary
 pub async fn sales_report(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -830,3 +1265,128 @@ fn url_encode(input: &str) -> String {
     }
     encoded
 }
+
+// ============================================================================
+// Autonomous Router Sweeper Engine (1-Job RouterOS Background Sweeper)
+// ============================================================================
+
+#[derive(Deserialize, Debug, Default)]
+pub struct DeployCleanerReq {
+    pub router: Option<RouterTarget>,
+    pub router_id: Option<String>,
+    #[serde(default = "default_cleaner_interval")]
+    pub interval: String, // e.g. "5m", "10m"
+}
+
+fn default_cleaner_interval() -> String {
+    "5m".into()
+}
+
+/// POST /api/v1/hotspot/sweeper/deploy - Pasang autonomous sweeper script & scheduler di RouterOS
+/// Berjalan mandiri di RouterOS (cukup 1 task saja untuk ribuan voucher, zero bloat, 0-1% CPU)
+pub async fn deploy_auto_cleaner(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<DeployCleanerReq>,
+) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_validity(&req.interval)?;
+    let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
+    let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
+    let cleaner_script_name = "hotspot_auto_sweeper";
+    let cleaner_source = ":local uList [/ip hotspot user find where comment~\"EXP:\"];\n\
+        :foreach u in=$uList do={\n\
+          :local uName [/ip hotspot user get $u name];\n\
+          :local uLimit [/ip hotspot user get $u limit-uptime];\n\
+          :local uUp [/ip hotspot user get $u uptime];\n\
+          :if ($uLimit != \"\" and $uUp >= $uLimit) do={\n\
+            /ip hotspot user remove $u;\n\
+            /ip hotspot active remove [find user=$uName];\n\
+            :log info (\"[HOTSPOT-SWEEPER] User \" . $uName . \" kadaluwarsa & dibersihkan otomatis\");\n\
+          }\n\
+        }";
+
+    // 1. Remove existing script if exists
+    let existing_scripts = client.run(build_command(
+        "/system/script/print",
+        [("name", cleaner_script_name)],
+    )).await.unwrap_or_default();
+    for s in existing_scripts {
+        if let Some(id) = s.get(".id") {
+            let _ = client.run(build_command("/system/script/remove", [(".id", id)])).await;
+        }
+    }
+
+    // 2. Add /system/script
+    client.run(build_command(
+        "/system/script/add",
+        [
+            ("name", cleaner_script_name),
+            ("source", cleaner_source),
+            ("comment", "Autonomous Hotspot Voucher Sweeper"),
+        ],
+    )).await?;
+
+    // 3. Remove existing scheduler if exists
+    let sched_name = "hotspot_auto_sweeper_job";
+    let existing_sched = client.run(build_command(
+        "/system/scheduler/print",
+        [("name", sched_name)],
+    )).await.unwrap_or_default();
+    for s in existing_sched {
+        if let Some(id) = s.get(".id") {
+            let _ = client.run(build_command("/system/scheduler/remove", [(".id", id)])).await;
+        }
+    }
+
+    // 4. Add /system/scheduler
+    client.run(build_command(
+        "/system/scheduler/add",
+        [
+            ("name", sched_name),
+            ("interval", req.interval.as_str()),
+            ("on-event", cleaner_script_name),
+            ("comment", "Autonomous Hotspot Sweeper Recurring Scheduler"),
+        ],
+    )).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "script": cleaner_script_name,
+        "scheduler": sched_name,
+        "interval": req.interval,
+        "message": format!("Autonomous Sweeper berhasil diinstal di RouterOS! Berjalan setiap {}.", req.interval)
+    })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_date_time_to_unix() {
+        let ts = date_time_to_unix(2026, 10, 18, 0, 0, 0);
+        assert!(ts.is_some());
+        assert!(ts.unwrap() > 1_700_000_000);
+    }
+
+    #[test]
+    fn test_is_voucher_comment_expired_ros_v6() {
+        let comment = "[VOUCHER|default|Rp 5000|VC-1 [EXP:oct/18/2026 10:00:00|VAL:1h|MODE:REMOVE]]";
+        let start_ts = date_time_to_unix(2026, 10, 18, 10, 0, 0).unwrap();
+        
+        assert!(!is_voucher_comment_expired(comment, start_ts + 1800));
+        assert!(is_voucher_comment_expired(comment, start_ts + 3600));
+        assert!(is_voucher_comment_expired(comment, start_ts + 7200));
+    }
+
+    #[test]
+    fn test_is_voucher_comment_expired_ros_v7() {
+        let comment = "[EXP:2026-10-18 10:00:00|VAL:1d|MODE:REMOVE]";
+        let start_ts = date_time_to_unix(2026, 10, 18, 10, 0, 0).unwrap();
+        
+        assert!(!is_voucher_comment_expired(comment, start_ts + 43200));
+        assert!(is_voucher_comment_expired(comment, start_ts + 86400));
+    }
+}
+

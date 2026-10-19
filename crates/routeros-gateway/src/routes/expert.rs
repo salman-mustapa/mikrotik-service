@@ -51,8 +51,8 @@ pub async fn quick_diagnose(
     if let Ok(rows) = ping_res {
         let sent = rows.len();
         let received = rows.iter().filter(|r| r.get("received").is_some_and(|v| v != "0")).count();
-        if sent > 0 {
-            packet_loss = ((sent.saturating_sub(received)) * 100) / sent;
+        if let Some(loss) = (sent.saturating_sub(received) * 100).checked_div(sent) {
+            packet_loss = loss;
             ping_ok = received > 0;
         }
         if let Some(last) = rows.last() {

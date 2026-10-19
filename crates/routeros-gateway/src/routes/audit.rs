@@ -148,6 +148,12 @@ pub async fn clear_audit_logs(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
+    if !st.allow_audit_clear {
+        return Err(ApiError::Forbidden(
+            "Clearing audit logs is disabled by gateway security policy. Set GATEWAY_ALLOW_AUDIT_CLEAR=true to enable.".into()
+        ));
+    }
+
     let tenant_ctx = headers.get("x-tenant-id").and_then(|v| v.to_str().ok());
     let caller_tenant_hash = compute_tenant_hash(&st.token, tenant_ctx);
 

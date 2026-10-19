@@ -50,11 +50,15 @@ pub async fn render_template(
 }
 
 fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> String {
+    let esc_title = crate::routes::sanitize::html_escape(title);
+    let esc_dns = crate::routes::sanitize::html_escape(dns);
+    let esc_curr = crate::routes::sanitize::html_escape(curr);
     let mut cards = String::new();
     for (i, v) in vouchers.iter().enumerate() {
-        let profile = v.profile.as_deref().unwrap_or("Regular");
-        let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
-        let price = v.price.as_deref().unwrap_or("3.000");
+        let profile = crate::routes::sanitize::html_escape(v.profile.as_deref().unwrap_or("Regular"));
+        let validity = crate::routes::sanitize::html_escape(v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari")));
+        let price = crate::routes::sanitize::html_escape(v.price.as_deref().unwrap_or("3.000"));
+        let user = crate::routes::sanitize::html_escape(&v.username);
         let login_url = format!("http://{}/login?username={}&password={}", dns, v.username, v.password);
         let qr_src = format!("https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={}", urlencoding_simple(&login_url));
 
@@ -91,14 +95,14 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
                 <span>Login: http://{dns}</span>
               </div>
             </div>"#,
-            title = title,
+            title = esc_title,
             idx = i + 1,
-            user = v.username,
+            user = user,
             profile = profile,
             validity = validity,
-            curr = curr,
+            curr = esc_curr,
             price = price,
-            dns = dns,
+            dns = esc_dns,
             qr_src = qr_src
         ));
     }
@@ -157,11 +161,15 @@ fn render_grid(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> 
 }
 
 fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) -> String {
+    let esc_title = crate::routes::sanitize::html_escape(title);
+    let esc_dns = crate::routes::sanitize::html_escape(dns);
+    let esc_curr = crate::routes::sanitize::html_escape(curr);
     let mut receipts = String::new();
     for (i, v) in vouchers.iter().enumerate() {
-        let profile = v.profile.as_deref().unwrap_or("Regular");
-        let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
-        let price = v.price.as_deref().unwrap_or("3.000");
+        let profile = crate::routes::sanitize::html_escape(v.profile.as_deref().unwrap_or("Regular"));
+        let validity = crate::routes::sanitize::html_escape(v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari")));
+        let price = crate::routes::sanitize::html_escape(v.price.as_deref().unwrap_or("3.000"));
+        let user = crate::routes::sanitize::html_escape(&v.username);
         let login_url = format!("http://{}/login?username={}&password={}", dns, v.username, v.password);
         let qr_src = format!("https://api.qrserver.com/v1/create-qr-code/?size=90x90&data={}", urlencoding_simple(&login_url));
 
@@ -182,12 +190,12 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
               <div class="divider">================================</div>
               <div class="t-center text-xs">Simpan struk ini sebagai bukti voucher. #{idx}</div>
             </div>"#,
-            title = title,
-            dns = dns,
-            user = v.username,
+            title = esc_title,
+            dns = esc_dns,
+            user = user,
             profile = profile,
             validity = validity,
-            curr = curr,
+            curr = esc_curr,
             price = price,
             idx = i + 1,
             qr_src = qr_src
@@ -227,21 +235,26 @@ fn render_thermal(vouchers: &[VoucherItem], title: &str, dns: &str, curr: &str) 
 }
 
 fn render_custom(vouchers: &[VoucherItem], template: &str, title: &str, dns: &str, curr: &str) -> String {
+    let esc_title = crate::routes::sanitize::html_escape(title);
+    let esc_dns = crate::routes::sanitize::html_escape(dns);
+    let esc_curr = crate::routes::sanitize::html_escape(curr);
     let mut out = String::new();
     for (i, v) in vouchers.iter().enumerate() {
-        let profile = v.profile.as_deref().unwrap_or("Regular");
-        let validity = v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari"));
-        let price = v.price.as_deref().unwrap_or("3.000");
+        let profile = crate::routes::sanitize::html_escape(v.profile.as_deref().unwrap_or("Regular"));
+        let validity = crate::routes::sanitize::html_escape(v.timelimit.as_deref().unwrap_or(v.datalimit.as_deref().unwrap_or("1 Hari")));
+        let price = crate::routes::sanitize::html_escape(v.price.as_deref().unwrap_or("3.000"));
+        let user = crate::routes::sanitize::html_escape(&v.username);
+        let pass = crate::routes::sanitize::html_escape(&v.password);
 
         let rendered = template
-            .replace("{{username}}", &v.username)
-            .replace("{{password}}", &v.password)
-            .replace("{{profile}}", profile)
-            .replace("{{validity}}", validity)
-            .replace("{{price}}", price)
-            .replace("{{currency}}", curr)
-            .replace("{{hotspot_name}}", title)
-            .replace("{{dns_name}}", dns)
+            .replace("{{username}}", &user)
+            .replace("{{password}}", &pass)
+            .replace("{{profile}}", &profile)
+            .replace("{{validity}}", &validity)
+            .replace("{{price}}", &price)
+            .replace("{{currency}}", &esc_curr)
+            .replace("{{hotspot_name}}", &esc_title)
+            .replace("{{dns_name}}", &esc_dns)
             .replace("{{index}}", &(i + 1).to_string());
 
         out.push_str(&rendered);

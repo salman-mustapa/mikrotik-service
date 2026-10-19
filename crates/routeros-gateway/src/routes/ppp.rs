@@ -65,6 +65,18 @@ pub async fn create_secret(
     headers: HeaderMap,
     Json(req): Json<CreateSecretReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.service, "service")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.profile, "profile")?;
+    if let Some(r) = req.remote_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(r)?;
+    }
+    if let Some(c) = req.comment.as_deref() {
+        if c.len() > 128 || c.contains(['\r', '\n']) {
+            return Err(ApiError::BadRequest("Comment exceeds 128 characters or contains newlines".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![
@@ -88,6 +100,7 @@ pub async fn remove_secret(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/ppp/secret/remove", [(".id", req.id.as_str())])).await?;
@@ -194,6 +207,19 @@ pub async fn set_secret(
     headers: HeaderMap,
     Json(req): Json<SetSecretReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+    if let Some(prof) = req.profile.as_deref() {
+        crate::routes::sanitize::validate_safe_identifier(prof, "profile")?;
+    }
+    if let Some(r) = req.remote_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(r)?;
+    }
+    if let Some(c) = req.comment.as_deref() {
+        if c.len() > 128 || c.contains(['\r', '\n']) {
+            return Err(ApiError::BadRequest("Comment exceeds 128 characters or contains newlines".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![(".id", req.id.as_str())];
@@ -210,7 +236,7 @@ pub async fn set_secret(
         args.push(("comment", c));
     }
     let dis_str = req.disabled.map(|d| if d { "yes" } else { "no" });
-    if let Some(d) = dis_str.as_deref() {
+    if let Some(d) = dis_str {
         args.push(("disabled", d));
     }
     client.run(build_command("/ppp/secret/set", args)).await?;
@@ -222,6 +248,14 @@ pub async fn isolate_customer(
     headers: HeaderMap,
     Json(req): Json<CustomerActionReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.username, "username")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.isolate_profile, "isolate_profile")?;
+    if let Some(ref c) = req.comment {
+        if c.len() > 128 || c.contains(['\r', '\n']) {
+            return Err(ApiError::BadRequest("Comment exceeds 128 characters or contains newlines".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     
@@ -262,6 +296,14 @@ pub async fn restore_customer(
     headers: HeaderMap,
     Json(req): Json<RestoreCustomerReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.username, "username")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.active_profile, "active_profile")?;
+    if let Some(ref c) = req.comment {
+        if c.len() > 128 || c.contains(['\r', '\n']) {
+            return Err(ApiError::BadRequest("Comment exceeds 128 characters or contains newlines".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
 
@@ -305,6 +347,10 @@ pub async fn create_pppoe_server(
     headers: HeaderMap,
     Json(req): Json<CreatePppoeServerReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.service_name, "service_name")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.default_profile, "default_profile")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![
@@ -313,7 +359,7 @@ pub async fn create_pppoe_server(
         ("default-profile", req.default_profile.as_str()),
     ];
     let one_str = req.one_session_per_host.map(|b| if b { "yes" } else { "no" });
-    if let Some(o) = one_str.as_deref() {
+    if let Some(o) = one_str {
         args.push(("one-session-per-host", o));
     }
     client.run(build_command("/interface/pppoe-server/server/add", args)).await?;
@@ -325,6 +371,25 @@ pub async fn create_profile(
     headers: HeaderMap,
     Json(req): Json<CreateProfileReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "name")?;
+    if let Some(l) = req.local_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(l)?;
+    }
+    if let Some(r) = req.remote_address.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(r)?;
+    }
+    if let Some(rt) = req.rate_limit.as_deref() {
+        crate::routes::sanitize::validate_bandwidth_rate(rt)?;
+    }
+    if let Some(dns) = req.dns_server.as_deref() {
+        crate::routes::sanitize::validate_ip_or_cidr(dns)?;
+    }
+    if let Some(c) = req.comment.as_deref() {
+        if c.len() > 128 || c.contains(['\r', '\n']) {
+            return Err(ApiError::BadRequest("Comment exceeds 128 characters or contains newlines".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![("name", req.name.as_str())];

@@ -69,11 +69,33 @@ pub async fn add_peer(
     headers: HeaderMap,
     Json(req): Json<AddPeerReq>,
 ) -> Result<Json<Value>, ApiError> {
+    let pk = req.public_key.trim();
+    if pk.len() < 40 || pk.len() > 64 || !pk.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')) {
+        return Err(ApiError::BadRequest("Invalid WireGuard public_key format".into()));
+    }
+
+    crate::routes::sanitize::validate_safe_identifier(&req.interface, "interface")?;
+    for cidr in req.allowed_address.split(',') {
+        crate::routes::sanitize::validate_ip_or_cidr(cidr.trim())?;
+    }
+    if let Some(ea) = req.endpoint_address.as_deref() {
+        crate::routes::sanitize::validate_host_or_ip(ea)?;
+    }
+    if let Some(ep) = req.endpoint_port.as_deref() {
+        crate::routes::sanitize::validate_ports_list(ep)?;
+    }
+    if let Some(ref c) = req.comment {
+        if c.len() > 128 || c.contains('\n') || c.contains('\r') {
+            return Err(ApiError::BadRequest("comment contains invalid characters or exceeds 128 characters".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
+
     let mut args = vec![
         ("interface", req.interface.as_str()),
-        ("public-key", req.public_key.as_str()),
+        ("public-key", pk),
         ("allowed-address", req.allowed_address.as_str()),
     ];
     if let Some(ea) = req.endpoint_address.as_deref() {
@@ -95,6 +117,8 @@ pub async fn remove_peer(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/interface/wireguard/peers/remove", [(".id", req.id.as_str())])).await?;

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
+use axum::extract::{ConnectInfo, Query, State};
 use axum::response::IntoResponse;
 use futures::{SinkExt, StreamExt};
 use routeros_core::build_command;
@@ -60,14 +60,38 @@ impl WsIncoming {
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Query(query): Query<WsQuery>,
     State(st): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let pre_role = query.token.as_deref().and_then(|t| st.role_for_token(t));
-    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_role))
+    let client_ip = addr.ip();
+    if let Err(retry_after) = st.auth_rate_limiter.check(client_ip).await {
+        return (
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            [("retry-after", retry_after.to_string())],
+            axum::Json(json!({
+                "error": "Too many failed authentication attempts. IP locked out.",
+                "retry_after": retry_after
+            })),
+        ).into_response();
+    }
+
+    let pre_role = if let Some(t) = query.token.as_deref() {
+        if let Some(r) = st.role_for_token(t) {
+            st.auth_rate_limiter.record_success(client_ip).await;
+            Some(r)
+        } else {
+            st.auth_rate_limiter.record_failure(client_ip).await;
+            None
+        }
+    } else {
+        None
+    };
+
+    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_role, client_ip))
 }
 
-async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>) {
+async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>, client_ip: std::net::IpAddr) {
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Channel for outbound messages to ws_sink
@@ -84,6 +108,10 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
 
     // Active streams: key = tag, value = cancellation sender / join handle abort
     let mut active_streams: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
+
+    // Rate limiting tracking per WebSocket connection (max 60 messages/sec)
+    let mut msg_counter = 0u32;
+    let mut msg_window_start = std::time::Instant::now();
 
     // Send connection greeting
     let _ = out_tx.send(json!({
@@ -104,6 +132,19 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
             _ => continue,
         };
 
+        // Message rate limiting per WebSocket connection
+        let now = std::time::Instant::now();
+        if now.duration_since(msg_window_start).as_secs() >= 1 {
+            msg_window_start = now;
+            msg_counter = 0;
+        }
+        msg_counter += 1;
+        if msg_counter > 60 {
+            let _ = out_tx.send(json!({ "event": "error", "error": "WebSocket message rate limit exceeded (max 60 msg/sec)" }).to_string());
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            continue;
+        }
+
         let req: WsIncoming = match serde_json::from_str(&text) {
             Ok(parsed) => parsed,
             Err(e) => {
@@ -118,10 +159,17 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
         if req.action == "auth" {
             if let Some(t) = req.token {
                 if let Some(r) = st.role_for_token(&t) {
+                    st.auth_rate_limiter.record_success(client_ip).await;
                     role = Some(r);
                     let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": r.as_str() }).to_string());
                 } else {
-                    let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": "Invalid token" }).to_string());
+                    st.auth_rate_limiter.record_failure(client_ip).await;
+                    let locked = st.auth_rate_limiter.check(client_ip).await.is_err();
+                    let err_msg = if locked { "Too many failed attempts. IP locked out." } else { "Invalid token" };
+                    let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": err_msg }).to_string());
+                    if locked {
+                        break;
+                    }
                 }
             }
             continue;
@@ -150,6 +198,15 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
 
         match req.action.as_str() {
             "command" => {
+                if !st.allow_raw_command {
+                    let _ = out_tx.send(json!({
+                        "event": "forbidden",
+                        "tag": tag,
+                        "error": "Raw command execution over WebSocket is disabled by gateway security policy. Set GATEWAY_ALLOW_RAW_COMMAND=true to permit."
+                    }).to_string());
+                    continue;
+                }
+
                 let cmd_str = match req.command {
                     Some(c) if !c.trim().is_empty() => c,
                     _ => {
@@ -180,7 +237,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
                         }
                     };
 
-                    let words = build_command(&cmd_str, params.into_iter());
+                    let words = build_command(&cmd_str, params);
                     match client.run(words).await {
                         Ok(rows) => {
                             let data: Vec<_> = rows.into_iter().map(|r| r.attrs).collect();
@@ -203,7 +260,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
                 });
             }
 
-            "subscribe_traffic" | "subscribe_overview" | "subscribe_ping" | "listen_logs" | "subscribe_map"
+            "subscribe_traffic" | "subscribe_overview" | "subscribe_ping" | "listen_logs" | "subscribe_map" | "subscribe_connections"
                 if active_streams.len() >= 10 && !active_streams.contains_key(&tag) =>
             {
                 let _ = out_tx.send(json!({
@@ -615,6 +672,132 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>)
                 });
 
                 active_streams.insert(log_tag, handle);
+            }
+
+            "subscribe_connections" => {
+                let interval = req.interval_ms.unwrap_or(1500).clamp(1000, 10000);
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let stream_tag = tag.clone();
+
+                if let Some(old) = active_streams.remove(&stream_tag) {
+                    old.abort();
+                }
+
+                let stream_tag_task = stream_tag.clone();
+                let handle = tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag_task, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let mut query = Vec::new();
+                    if let Some(p) = req.params.get("protocol") {
+                        query.push(("?protocol", p.as_str()));
+                    }
+                    if let Some(s) = req.params.get("src_address").or(req.params.get("src-address")).or(req.address.as_ref()) {
+                        query.push(("?src-address", s.as_str()));
+                    }
+                    if let Some(d) = req.params.get("dst_address").or(req.params.get("dst-address")) {
+                        query.push(("?dst-address", d.as_str()));
+                    }
+                    if let Some(ts) = req.params.get("tcp_state").or(req.params.get("tcp-state")) {
+                        query.push(("?tcp-state", ts.as_str()));
+                    }
+
+                    let words = build_command("/ip/firewall/connection/print", query);
+
+                    loop {
+                        match client.run(words.clone()).await {
+                            Ok(rows) => {
+                                let total = rows.len();
+                                let data: Vec<HashMap<String, String>> = rows.into_iter().take(100).map(|r| r.attrs).collect();
+                                let sent = out_tx_clone.send(json!({
+                                    "event": "connections_frame",
+                                    "tag": stream_tag_task,
+                                    "total_active_connections": total,
+                                    "data": data,
+                                    "timestamp_ms": chrono_now_ms(),
+                                }).to_string());
+                                if sent.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                let _ = out_tx_clone.send(json!({
+                                    "event": "stream_error",
+                                    "tag": stream_tag_task,
+                                    "error": e.to_string()
+                                }).to_string());
+                                break;
+                            }
+                        }
+                        tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
+                    }
+                });
+
+                active_streams.insert(stream_tag, handle);
+            }
+
+            "subscribe_active_users" => {
+                let interval = req.interval_ms.unwrap_or(2000).clamp(1000, 10000);
+                let target_clone = target.clone();
+                let router_id_clone = router_id.clone();
+                let st_clone = st.clone();
+                let out_tx_clone = out_tx.clone();
+                let stream_tag = tag.clone();
+
+                if let Some(old) = active_streams.remove(&stream_tag) {
+                    old.abort();
+                }
+
+                let stream_tag_task = stream_tag.clone();
+                let handle = tokio::spawn(async move {
+                    let client_res = st_clone.resolve_client(target_clone.as_ref(), router_id_clone.as_deref()).await;
+                    let client = match client_res {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let _ = out_tx_clone.send(json!({ "event": "stream_error", "tag": stream_tag_task, "error": e.to_string() }).to_string());
+                            return;
+                        }
+                    };
+
+                    let hs_cmd = build_command("/ip/hotspot/active/print", std::iter::empty::<(&str, &str)>());
+                    let ppp_cmd = build_command("/ppp/active/print", std::iter::empty::<(&str, &str)>());
+
+                    loop {
+                        let hs_res = client.run(hs_cmd.clone()).await;
+                        let ppp_res = client.run(ppp_cmd.clone()).await;
+
+                        let hotspot_active: Vec<HashMap<String, String>> = hs_res.map(|r| r.into_iter().map(|row| row.attrs).collect()).unwrap_or_default();
+                        let pppoe_active: Vec<HashMap<String, String>> = ppp_res.map(|r| r.into_iter().map(|row| row.attrs).collect()).unwrap_or_default();
+
+                        let sent = out_tx_clone.send(json!({
+                            "event": "active_users_frame",
+                            "tag": stream_tag_task,
+                            "hotspot_active_count": hotspot_active.len(),
+                            "pppoe_active_count": pppoe_active.len(),
+                            "total_active_subscribers": hotspot_active.len() + pppoe_active.len(),
+                            "hotspot_active": hotspot_active,
+                            "pppoe_active": pppoe_active,
+                            "timestamp_ms": chrono_now_ms(),
+                        }).to_string());
+
+                        if sent.is_err() {
+                            break;
+                        }
+
+                        tokio::time::sleep(tokio::time::Duration::from_millis(interval)).await;
+                    }
+                });
+
+                active_streams.insert(stream_tag, handle);
             }
 
             other => {

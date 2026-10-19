@@ -58,6 +58,17 @@ pub async fn create_user(
     headers: HeaderMap,
     Json(req): Json<AddUserReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.name, "username")?;
+    crate::routes::sanitize::validate_safe_identifier(&req.group, "group")?;
+    if req.password.len() > 128 || req.password.contains('\n') || req.password.contains('\r') {
+        return Err(ApiError::BadRequest("Password contains invalid characters or exceeds 128 characters".into()));
+    }
+    if let Some(ref c) = req.comment {
+        if c.len() > 128 || c.contains('\n') || c.contains('\r') {
+            return Err(ApiError::BadRequest("Comment contains invalid characters or exceeds 128 characters".into()));
+        }
+    }
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     let mut args = vec![
@@ -78,6 +89,8 @@ pub async fn remove_user(
     headers: HeaderMap,
     Json(req): Json<IdReq>,
 ) -> Result<Json<Value>, ApiError> {
+    crate::routes::sanitize::validate_safe_identifier(&req.id, "id")?;
+
     let (target, router_id) = AppState::parse_target(&headers, req.router, req.router_id);
     let client = st.resolve_client(target.as_ref(), router_id.as_deref()).await?;
     client.run(build_command("/user/remove", [(".id", req.id.as_str())])).await?;
