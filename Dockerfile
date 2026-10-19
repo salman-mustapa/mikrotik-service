@@ -1,8 +1,8 @@
 # ==========================================
 # Multi-Stage Build: MikroTik Universal Rust Engine
 # ==========================================
-# Stage 1: Build binary using pinned official Rust Alpine image (musl static)
-FROM rust:1.82-alpine AS builder
+# Stage 1: Build binary using official Rust Alpine image (supports Edition 2024)
+FROM rust:alpine AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN cargo build --release --locked -p routeros-gateway
 # ==========================================
 # Stage 2: Ultra-lightweight & Secure Production Runtime (< 25MB)
 # ==========================================
-FROM alpine:3.20.3 AS runtime
+FROM alpine:latest AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata wget
 
