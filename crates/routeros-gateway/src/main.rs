@@ -171,11 +171,17 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
     }
 
     // Token via query string is strictly restricted to streaming/SSE endpoints (where EventSource cannot set headers)
-    let path = req.uri().path();
-    let is_streaming_endpoint = path.starts_with("/api/v1/listen")
-        || path.starts_with("/api/v1/logs/stream")
-        || path.starts_with("/api/v1/interfaces/stream")
-        || path == "/ws";
+    let (is_streaming_endpoint, is_ticket_endpoint) = {
+        let p = req.uri().path();
+        (
+            p.starts_with("/api/v1/listen")
+                || p.starts_with("/api/v1/logs/stream")
+                || p.starts_with("/api/v1/interfaces/stream")
+                || p == "/ws",
+            p.starts_with("/api/v1/ticket")
+                || p.starts_with("/api/v1/sessions/connect"),
+        )
+    };
     let query_role = if header_role.is_none() && is_streaming_endpoint {
         query_params.get("token").and_then(|t| st.role_for_token(t))
     } else {
@@ -259,7 +265,6 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
     // 3. Ticket issuing endpoint -> Role::Admin (anyone can request ticket for their router)
     // 4. Direct router credentials provided (X-Router-Host & X-Router-User) -> Role::Admin
     // 5. Configured router target provided (X-Router-Id) -> Role::Admin
-    let is_ticket_endpoint = path.starts_with("/api/v1/ticket") || path.starts_with("/api/v1/sessions/connect");
     let has_direct_router = req.headers().contains_key("x-router-host") && req.headers().contains_key("x-router-user");
     let has_configured_router = req.headers().contains_key("x-router-id");
 
@@ -287,42 +292,11 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
         // Reset failure record on successful auth
         st.auth_rate_limiter.record_success(client_ip).await;
 
-        let headers = req.headers_mut();
-        if !headers.contains_key("x-router-host") {
-            if let Some(h) = query_params.get("host").or_else(|| query_params.get("router_host")) {
-                if let Ok(val) = header::HeaderValue::from_str(h) {
-                    headers.insert(header::HeaderName::from_static("x-router-host"), val);
-                }
-            }
-        }
-        if !headers.contains_key("x-router-port") {
-            if let Some(p) = query_params.get("port").or_else(|| query_params.get("router_port")) {
-                if let Ok(val) = header::HeaderValue::from_str(p) {
-                    headers.insert(header::HeaderName::from_static("x-router-port"), val);
-                }
-            }
-        }
-        if !headers.contains_key("x-router-user") {
-            if let Some(u) = query_params.get("user").or_else(|| query_params.get("router_user")) {
-                if let Ok(val) = header::HeaderValue::from_str(u) {
-                    headers.insert(header::HeaderName::from_static("x-router-user"), val);
-                }
-            }
-        }
-        // NOTE: Finding 6: Query parameter router password injection is removed.
-        // Router passwords must be supplied via headers (X-Router-Pass) or request body.
-
         if role == Some(state::Role::Viewer) {
             // A viewer may only use routers defined in config.toml (router_id), never ad-hoc host + credentials.
+            let headers = req.headers_mut();
             for name in ["x-router-host", "x-router-port", "x-router-user", "x-router-pass"] {
                 headers.remove(name);
-            }
-        }
-        if !headers.contains_key("x-router-id") {
-            if let Some(id) = query_params.get("router_id").or_else(|| query_params.get("id")) {
-                if let Ok(val) = header::HeaderValue::from_str(id) {
-                    headers.insert(header::HeaderName::from_static("x-router-id"), val);
-                }
             }
         }
 
