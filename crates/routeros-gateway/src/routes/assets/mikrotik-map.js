@@ -286,8 +286,9 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       this._cnt = el('span', { class: 'chip' });
       this._btnEdit = el('button', { text: 'Edit', title: 'Toggle edit mode', onclick: () => this._setEdit(!this._edit) });
       this._btnFit = el('button', { text: 'Fit', title: 'Reset zoom', onclick: () => this.fit() });
+      this._btnRelayout = el('button', { text: '⚡ Re-layout', title: 'Tata ulang posisi perangkat otomatis ke multi-kolom rapi', onclick: () => { if (confirm('Pindahkan semua perangkat ke tata letak otomatis multi-kolom yang rapi?')) this._autoPlace(true); } });
       this._tools = el('span', { class: 'tools' });
-      this._bar = el('div', { class: 'bar' }, [this._title, this._pill, this._wan, this._cnt, el('span', { class: 'sp' }), this._tools, this._btnFit, this._btnEdit]);
+      this._bar = el('div', { class: 'bar' }, [this._title, this._pill, this._wan, this._cnt, el('span', { class: 'sp' }), this._tools, this._btnRelayout, this._btnFit, this._btnEdit]);
       this._alerts = el('div', { class: 'alerts' });
       this._panel = el('aside', { class: 'panel', hidden: true });
       this._tip = el('div', { class: 'tip', hidden: true });
@@ -699,6 +700,20 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
 
     // ------------------------------------------------------------ background
     async _applyBackground(bg) {
+      if (!bg || bg.kind === 'none' || (bg.url && bg.url.includes('openstreetmap.org'))) {
+        this._bgImg.removeAttribute('href');
+        this._bgAspect = null;
+        this._bgKey = 'none';
+        if (bg && bg.url && bg.url.includes('openstreetmap.org')) {
+          this._loadLayout().then(l => {
+            if (l.background && l.background.url && l.background.url.includes('openstreetmap.org')) {
+              l.background = { kind: 'none', url: null };
+              this._api('PUT', this._lp(), l).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+        return;
+      }
       const key = `${bg.kind}|${bg.url || ''}|${bg.has_upload}`;
       if (key === this._bgKey) return;
       this._bgKey = key;

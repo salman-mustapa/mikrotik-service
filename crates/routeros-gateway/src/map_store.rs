@@ -280,6 +280,9 @@ pub fn validate_background(b: &Background) -> Result<(), String> {
         "url" => {
             let u = b.url.as_deref().unwrap_or("");
             let lower = u.to_ascii_lowercase();
+            if lower.contains("openstreetmap.org") {
+                return Err("Direct OpenStreetMap tile URLs are blocked by OSM tile usage policy. Please upload a local floor plan image or use the default blueprint grid.".into());
+            }
             if !(lower.starts_with("https://") || lower.starts_with("http://")) {
                 return Err("background.url must start with http:// or https://".into());
             }
@@ -465,6 +468,12 @@ impl MapStore {
             Ok(bytes) => serde_json::from_slice::<MapLayout>(&bytes)
                 .map(|mut l| {
                     l.id = id.to_string();
+                    if let Some(u) = &l.background.url {
+                        if u.contains("openstreetmap.org") {
+                            l.background.kind = "none".into();
+                            l.background.url = None;
+                        }
+                    }
                     Some(l)
                 })
                 .map_err(|e| StoreError::Corrupt(e.to_string())),
