@@ -63,6 +63,7 @@ pub mod allowlist;
 pub mod layer7;
 pub mod provisioning;
 pub mod quick_actions;
+pub mod ticket;
 
 use std::sync::Arc;
 use axum::routing::{get, post, put};
@@ -72,6 +73,11 @@ use crate::state::AppState;
 
 pub fn build_api_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
+        // --- Ephemeral Connection Tickets (Frontend Embed without router password leak) ---
+        .route("/api/v1/ticket/issue", post(ticket::issue_ticket))
+        .route("/api/v1/ticket/verify", get(ticket::verify_ticket))
+        .route("/api/v1/sessions/connect", post(ticket::issue_ticket))
+
         // --- Fast-Path Aggregated Snapshot & Cross-Layer Correlator ---
         .route("/api/v1/overview", get(overview::get_overview).post(overview::get_overview))
         .route("/api/v1/network/connected-devices", get(network_map::connected_devices).post(network_map::connected_devices))

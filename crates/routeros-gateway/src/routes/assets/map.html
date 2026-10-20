@@ -1,86 +1,280 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>Network Map - MikroTik Universal Gateway</title>
-  <meta name="description" content="Live network map with auto-detected device icons, animated traffic, queue-limit alerts and a floor-plan / satellite editor.">
+  <title>MikroTik Network Map - Universal Gateway</title>
+  <meta name="description" content="Peta jaringan realtime berbasis MikroTik RouterOS dengan deteksi perangkat otomatis, animasi trafik, visualizer limit queue, dan tata letak denah/satelit.">
   <style>
-    :root { color-scheme: dark; --bg:#070d19; --panel:#0f172a; --line:rgba(148,163,184,.22); --fg:#e2e8f0; --mut:#94a3b8; --acc:#38bdf8; }
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --panel-glass: rgba(255, 255, 255, 0.94);
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --fg: #0f172a;
+      --mut: #64748b;
+      --acc: #0284c7;
+      --acc-hover: #0369a1;
+      --acc-subtle: #f0f9ff;
+      --danger: #ef4444;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.12);
+    }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body { background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
-    header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, #0b1220, #0f1b33); flex-wrap: wrap; }
-    header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
-    header h1 span { color: var(--acc); }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow-sm);
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header h1 span { color: var(--acc); font-weight: 700; }
+    .header-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--acc-subtle);
+      color: var(--acc);
+      border: 1px solid #bae6fd;
+    }
     header .sp { flex: 1; }
-    header a { color: var(--mut); text-decoration: none; font-size: 13px; }
-    header a:hover { color: var(--acc); }
+    header a {
+      color: var(--mut);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 5px 10px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    header a:hover {
+      color: var(--acc);
+      background: var(--acc-subtle);
+    }
     main { flex: 1; min-height: 0; position: relative; padding: 12px; }
     mikrotik-map { height: 100%; min-height: 360px; }
-    button, input, select { font: inherit; color: var(--fg); background: rgba(148,163,184,.12); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; }
-    button { cursor: pointer; } button:hover { border-color: var(--acc); }
-    button.primary { background: var(--acc); color: #04111d; font-weight: 700; border-color: var(--acc); }
-    dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; width: min(560px, 94vw); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
-    dialog::backdrop { background: rgba(2,6,23,.72); backdrop-filter: blur(3px); }
-    dialog h2 { margin: 0 0 4px; font-size: 18px; }
-    dialog p.lead { margin: 0 0 14px; color: var(--mut); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+
+    button, input, select {
+      font: inherit;
+      color: var(--fg);
+      background: #ffffff;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 6px 12px;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    button { cursor: pointer; font-weight: 600; }
+    button:hover { border-color: var(--acc); background: #f8fafc; }
+    button.primary {
+      background: var(--acc);
+      color: #ffffff;
+      font-weight: 700;
+      border-color: var(--acc);
+      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+    }
+    button.primary:hover { background: var(--acc-hover); border-color: var(--acc-hover); }
+    input:focus, select:focus {
+      border-color: var(--acc);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+    }
+
+    dialog {
+      background: var(--panel);
+      color: var(--fg);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 24px 26px;
+      width: min(580px, 94vw);
+      box-shadow: var(--shadow-lg);
+    }
+    dialog::backdrop {
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+    }
+    dialog h2 { margin: 0 0 4px; font-size: 19px; font-weight: 800; color: var(--fg); }
+    dialog p.lead { margin: 0 0 16px; color: var(--mut); font-size: 13px; line-height: 1.5; }
+
+    /* Tabs Selector */
+    .tab-bar {
+      display: flex;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 9px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      text-align: center;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--mut);
+      border-radius: 6px;
+    }
+    .tab-btn.active {
+      background: #ffffff;
+      color: var(--acc);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
     .grid .full { grid-column: 1 / -1; }
-    label { display: block; font-size: 12px; color: var(--mut); margin-bottom: 3px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+    label .req { color: var(--danger); }
     .grid input, .grid select { width: 100%; }
-    fieldset { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px 12px; margin: 12px 0 0; }
-    legend { color: var(--mut); font-size: 12px; padding: 0 6px; }
-    .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap; }
-    .note { color: var(--mut); font-size: 12px; margin-top: 10px; }
-    pre { background: #060b16; border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto; font-size: 12px; max-height: 240px; }
+
+    /* Collapsible Advanced Section */
+    details.adv-box {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: #f8fafc;
+    }
+    details.adv-box summary {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--mut);
+      cursor: pointer;
+      user-select: none;
+    }
+    details.adv-box[open] summary { margin-bottom: 12px; color: var(--acc); }
+    .help-text {
+      font-size: 11px;
+      color: var(--mut);
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    .actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
+    .note { color: var(--mut); font-size: 12px; margin-top: 12px; }
+    pre {
+      background: #f1f5f9;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+      max-height: 240px;
+      color: var(--fg);
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>MikroTik <span>Network Map</span></h1>
+    <h1>🌐 MikroTik <span>Network Map</span></h1>
+    <span class="header-badge">Live Visualizer</span>
     <span class="sp"></span>
-    <button id="btn-connect" type="button">Connection&hellip;</button>
-    <button id="btn-embed" type="button">Embed code</button>
-    <a href="/docs">API docs</a>
-    <a href="/topology">Topology</a>
+    <button id="btn-connect" type="button">🔌 Koneksi Router&hellip;</button>
+    <button id="btn-embed" type="button">📋 Kode Embed</button>
+    <a href="/docs">📖 API Docs</a>
+    <a href="/topology">🕸️ Topology</a>
   </header>
   <main id="stage"></main>
 
   <dialog id="dlg-connect">
     <form method="dialog" id="frm-connect">
-      <h2>Connect to a router</h2>
-      <p class="lead">The map is served by this gateway. Enter the gateway token and pick the router to draw.</p>
-      <div class="grid">
-        <div class="full"><label for="f-token">Gateway token (Bearer)</label><input id="f-token" type="password" autocomplete="off" required></div>
-        <div><label for="f-layout">Layout id</label><input id="f-layout" value="default" pattern="[a-z0-9_\-]{1,64}" title="a-z 0-9 _ - (max 64)"></div>
-        <div><label for="f-interval">Refresh (ms)</label><input id="f-interval" type="number" min="1000" max="60000" step="500" value="2000"></div>
-        <div class="full"><label for="f-router-id">Router id from config.toml (leave empty to use host below)</label><input id="f-router-id" placeholder="main"></div>
+      <h2>🔌 Hubungkan ke Router MikroTik</h2>
+      <p class="lead">Pilih opsi koneksi langsung ke IP router atau pilih router yang sudah terdaftar di konfigurasi gateway.</p>
+
+      <div class="tab-bar">
+        <button type="button" class="tab-btn active" id="tab-direct">Koneksi Langsung (IP / Host)</button>
+        <button type="button" class="tab-btn" id="tab-registered">Router Terdaftar (config.toml)</button>
       </div>
-      <fieldset>
-        <legend>or a router given directly</legend>
+
+      <!-- Tab Direct Connection -->
+      <div id="panel-direct">
         <div class="grid">
-          <div><label for="f-host">Host / IP</label><input id="f-host" placeholder="192.168.88.1"></div>
-          <div><label for="f-port">API port</label><input id="f-port" type="number" min="1" max="65535" placeholder="8728"></div>
-          <div><label for="f-user">User</label><input id="f-user" autocomplete="off"></div>
-          <div><label for="f-pass">Password</label><input id="f-pass" type="password" autocomplete="off"></div>
+          <div>
+            <label for="f-host">Host / IP Router <span class="req">*</span></label>
+            <input id="f-host" placeholder="192.168.88.1" value="192.168.88.1">
+          </div>
+          <div>
+            <label for="f-port">API Port (RouterOS)</label>
+            <input id="f-port" type="number" min="1" max="65535" placeholder="8728" value="8728">
+          </div>
+          <div>
+            <label for="f-user">Username Router <span class="req">*</span></label>
+            <input id="f-user" placeholder="admin" value="admin" autocomplete="username">
+          </div>
+          <div>
+            <label for="f-pass">Password Router</label>
+            <input id="f-pass" type="password" placeholder="Kosongkan jika tanpa password" autocomplete="current-password">
+          </div>
         </div>
-      </fieldset>
-      <p class="note">Token and password are kept in this tab's session storage only and are never written to the URL.</p>
+      </div>
+
+      <!-- Tab Registered Router -->
+      <div id="panel-registered" style="display: none;">
+        <div>
+          <label for="f-router-id">ID Router dari config.toml <span class="req">*</span></label>
+          <input id="f-router-id" placeholder="main" value="main">
+          <p class="help-text">Gunakan ID router yang telah didefinisikan dalam blok <code>[[router]]</code> di config.toml server.</p>
+        </div>
+      </div>
+
+      <!-- Advanced Settings (Collapsible) -->
+      <details class="adv-box">
+        <summary>⚙️ Pengaturan Lanjutan (Layout &amp; Refresh)</summary>
+        <div class="grid" style="margin-top: 10px;">
+          <div>
+            <label for="f-layout">ID Layout Peta</label>
+            <input id="f-layout" value="default" pattern="[a-z0-9_\-]{1,64}" title="a-z 0-9 _ - (maks 64)">
+          </div>
+          <div>
+            <label for="f-interval">Interval Refresh (ms)</label>
+            <input id="f-interval" type="number" min="1000" max="60000" step="500" value="2000">
+          </div>
+        </div>
+      </details>
+
+      <p class="note">🔒 Kredensial MikroTik hanya digunakan untuk testing langsung di browser (sessionStorage) dan tidak pernah disimpan di database server.</p>
       <div class="actions">
-        <button type="button" id="btn-demo">Try with sample data</button>
-        <button type="button" id="btn-cancel">Cancel</button>
-        <button type="submit" class="primary" id="btn-go">Connect</button>
+        <button type="button" id="btn-demo">🧪 Coba Data Simulasi (Demo)</button>
+        <button type="button" id="btn-cancel">Batal</button>
+        <button type="submit" class="primary" id="btn-go">⚡ Hubungkan Sekarang</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dlg-embed">
-    <h2>Embed in your app</h2>
-    <p class="lead">Paste this into any web page (React, Vue, Flutter WebView, plain HTML).</p>
+    <h2>📋 Pasang di Aplikasi Anda</h2>
+    <p class="lead">Salin tag HTML di bawah ini ke halaman web Anda (React, Vue, Flutter WebView, atau HTML murni).</p>
     <pre id="embed-code"></pre>
-    <div class="actions"><button type="button" id="btn-copy">Copy</button><button type="button" id="btn-embed-close" class="primary">Close</button></div>
+    <div class="actions">
+      <button type="button" id="btn-copy">Salin Kode</button>
+      <button type="button" id="btn-embed-close" class="primary">Tutup</button>
+    </div>
   </dialog>
 
   <script src="/sdk/mikrotik-map.js"></script>

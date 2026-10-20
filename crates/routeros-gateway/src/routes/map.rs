@@ -494,6 +494,40 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
     let th = layout.thresholds.clone();
     let mut warnings: Vec<String> = Vec::new();
 
+    // ---- 0. merge manual / passive / custom infrastructure nodes from layout
+    let existing_ids: HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
+    for (k, pl) in &layout.nodes {
+        if !existing_ids.contains(k) {
+            let is_passive = pl.icon.as_deref().map(|i| matches!(i, "odp" | "tiang" | "closure" | "unmanaged-switch" | "port" | "olt")).unwrap_or(false)
+                || k.starts_with("odp_") || k.starts_with("tiang_") || k.starts_with("closure_") || k.starts_with("switch_");
+            let node_type = if is_passive { "infrastructure" } else { "device" };
+            let sub_type = pl.icon.clone().unwrap_or_else(|| "custom".to_string());
+            let status = if is_passive { "passive" } else { "offline" };
+            nodes.push(TopologyNode {
+                id: k.clone(),
+                label: pl.label.clone().unwrap_or_else(|| k.clone()),
+                node_type: node_type.to_string(),
+                sub_type,
+                ip: None,
+                mac: None,
+                vendor: None,
+                interface: None,
+                parent_id: pl.parent_override.clone(),
+                status: status.to_string(),
+                extra: std::collections::HashMap::new(),
+            });
+            if let Some(p) = &pl.parent_override {
+                edges.push(TopologyEdge {
+                    id: format!("edge_{p}_{k}"),
+                    source: p.clone(),
+                    target: k.clone(),
+                    edge_type: if is_passive { "physical".into() } else { "logical".into() },
+                    speed: None,
+                });
+            }
+        }
+    }
+
     // ---- 1. relay / re-parenting overrides (estafet chains: AP -> AP2, client -> specific AP)
     let ids: HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
     let ntype: HashMap<String, String> = nodes.iter().map(|n| (n.id.clone(), n.node_type.clone())).collect();
@@ -503,6 +537,13 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
     let mut overridden: HashSet<String> = HashSet::new();
     for id in &order {
         let Some(p) = layout.nodes.get(id).and_then(|pl| pl.parent_override.clone()) else { continue };
+        let p_clean = p.trim();
+        if p_clean.is_empty() || p_clean == "none" || p_clean == "disconnected" {
+            // User explicitly disconnected this node from its parent
+            parent.remove(id);
+            overridden.insert(id.clone());
+            continue;
+        }
         if !ids.contains(&p) {
             warnings.push(format!("parent_override '{p}' of '{id}' is not on this router right now (ignored)"));
             continue;
@@ -534,15 +575,16 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
     edges.retain(|e| !overridden.contains(&e.target));
     for id in &order {
         if overridden.contains(id) {
-            let p = parent[id].clone();
-            let is_ap = ntype.get(id).map(|t| t == "ap").unwrap_or(false);
-            edges.push(TopologyEdge {
-                id: format!("edge_{p}_{id}"),
-                source: p,
-                target: id.clone(),
-                edge_type: if is_ap { "relay".into() } else { "logical".into() },
-                speed: Some("Re-parented in map layout".into()),
-            });
+            if let Some(p) = parent.get(id) {
+                let is_ap = ntype.get(id).map(|t| t == "ap").unwrap_or(false);
+                edges.push(TopologyEdge {
+                    id: format!("edge_{p}_{id}"),
+                    source: p.clone(),
+                    target: id.clone(),
+                    edge_type: if is_ap { "relay".into() } else { "logical".into() },
+                    speed: Some("Re-parented in map layout".into()),
+                });
+            }
         }
     }
 
@@ -725,7 +767,15 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
             _ => {
                 // device
                 match n.status.as_str() {
-                    "online" | "active" | "bound" | "authorized" => {}
+                    "online" | "active" | "bound" | "authorized" | "passive" => {}
+                    "offline" => {
+                        base = "critical";
+                        reasons.push(Reason {
+                            kind: "device_offline",
+                            severity: "critical",
+                            message: "Perangkat offline / kabel terputus (tidak terdeteksi di MikroTik)".into(),
+                        });
+                    }
                     _ => base = "idle",
                 }
                 let own = client_rate(&n.id);
@@ -846,7 +896,9 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
         } else {
             "ok"
         };
-        let health = if tgt_health == "idle" {
+        let health = if tgt.status == "offline" || src.status == "offline" {
+            "critical"
+        } else if tgt_health == "idle" {
             "idle"
         } else if tgt_health == "critical" && tgt.node_type != "device" {
             "critical"
@@ -857,10 +909,11 @@ pub fn compose_scene(input: SceneInput) -> SceneOutput {
             own_edge_health
         };
 
-        let down_bps = own_traffic["down_bps"].as_f64().unwrap_or(0.0);
-        let up_bps = own_traffic["up_bps"].as_f64().unwrap_or(0.0);
+        let is_edge_down = health == "critical" || health == "idle" || tgt.status == "offline" || src.status == "offline";
+        let down_bps = if is_edge_down { 0.0 } else { own_traffic["down_bps"].as_f64().unwrap_or(0.0) };
+        let up_bps = if is_edge_down { 0.0 } else { own_traffic["up_bps"].as_f64().unwrap_or(0.0) };
         let inten = |bps: f64| r4(((1.0 + bps).log10() / 9.0).clamp(0.0, 1.0));
-        let (di, ui) = if own_traffic.is_null() { (0.0, 0.0) } else { (inten(down_bps), inten(up_bps)) };
+        let (di, ui) = if own_traffic.is_null() || is_edge_down { (0.0, 0.0) } else { (inten(down_bps), inten(up_bps)) };
 
         edge_values.push(json!({
             "id": e.id, "source": e.source, "target": e.target,

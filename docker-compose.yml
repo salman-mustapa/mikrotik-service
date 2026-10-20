@@ -7,15 +7,16 @@ services:
     container_name: mikrotik-universal-gateway
     restart: unless-stopped
     ports:
-      # Bind ke localhost demi keamanan; pasang reverse proxy TLS (Caddy/Nginx) untuk eksposur publik
-      - "127.0.0.1:8080:8080"
+      # Port HTTP & WebSocket Gateway (dapat diubah via GATEWAY_PORT di .env, default 8080)
+      - "${GATEWAY_PORT:-8080}:8080"
     environment:
       - GATEWAY_LISTEN=0.0.0.0:8080
-      # Wajib set GATEWAY_TOKEN di .env atau environment host (min. 32 karakter)
-      - GATEWAY_TOKEN=${GATEWAY_TOKEN:?GATEWAY_TOKEN environment variable must be set}
+      # Opsional: Master Admin Token jika gateway ingin diproteksi token (min. 32 karakter).
+      # Jika dikosongkan (default), gateway aktif dalam Public Service Mode (terbuka untuk testing & ephemeral tickets).
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:-}
       - RUST_LOG=info
-      # Opsional: token READ-ONLY (>=16 karakter, beda dari GATEWAY_TOKEN) untuk browser/aplikasi yang hanya menampilkan peta.
-      # - GATEWAY_VIEWER_TOKEN=ganti-dengan-token-viewer-acak-panjang
+      # Opsional: token READ-ONLY untuk browser/aplikasi yang hanya menampilkan peta.
+      # - GATEWAY_VIEWER_TOKEN=${GATEWAY_VIEWER_TOKEN:-}
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -277,6 +277,8 @@ pub struct AppState {
     pub maps: MapStore,
     /// Last interface/queue counter sample per `tenant|router`, used to turn counters into rates.
     pub rates: Mutex<HashMap<String, RateSnapshot>>,
+    /// Ephemeral in-memory connection tickets for frontend embedding without leaking router passwords
+    pub tickets: Mutex<HashMap<String, (RouterTarget, std::time::Instant)>>,
 
     pub allow_dynamic_routers: bool,
     pub allow_raw_command: bool,
@@ -320,6 +322,7 @@ impl AppState {
             audit_logs: Mutex::new(VecDeque::with_capacity(5000)),
             maps: MapStore::new(cfg.data_dir),
             rates: Mutex::new(HashMap::new()),
+            tickets: Mutex::new(HashMap::new()),
             allow_dynamic_routers: cfg.allow_dynamic_routers,
             allow_raw_command: cfg.allow_raw_command,
             allow_terminal_exec: cfg.allow_terminal_exec,
@@ -331,6 +334,38 @@ impl AppState {
             allow_system_reboot: cfg.allow_system_reboot,
             auth_rate_limiter: AuthRateLimiter::new(),
         }
+    }
+
+    /// Issue an ephemeral in-memory connection ticket (valid for ttl_secs, max 24h, default 1h)
+    pub async fn issue_ticket(&self, target: RouterTarget, ttl_secs: u64) -> String {
+        let ticket = format!(
+            "conn_{:016x}{:08x}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos(),
+            std::time::Instant::now().elapsed().as_nanos() as u32
+        );
+        let expires_at = std::time::Instant::now() + std::time::Duration::from_secs(ttl_secs.clamp(60, 86400));
+        let mut map = self.tickets.lock().await;
+        if map.len() >= 1000 {
+            let now = std::time::Instant::now();
+            map.retain(|_, (_, exp)| *exp > now);
+        }
+        map.insert(ticket.clone(), (target, expires_at));
+        ticket
+    }
+
+    /// Resolve an ephemeral connection ticket in RAM.
+    pub async fn resolve_ticket(&self, ticket: &str) -> Option<RouterTarget> {
+        let mut map = self.tickets.lock().await;
+        if let Some((target, exp)) = map.get(ticket) {
+            if *exp > std::time::Instant::now() {
+                return Some(target.clone());
+            }
+        }
+        map.remove(ticket);
+        None
     }
 
     /// Resolve a presented bearer token to a role, in constant time. `None` = unknown token.

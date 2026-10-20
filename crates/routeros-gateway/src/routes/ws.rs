@@ -14,12 +14,14 @@ use crate::state::{AppState, Role, RouterTarget};
 #[derive(Deserialize, Debug)]
 pub struct WsQuery {
     pub token: Option<String>,
+    pub ticket: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct WsIncoming {
     pub action: String,
     pub token: Option<String>,
+    pub ticket: Option<String>,
     pub tag: Option<String>,
     pub router: Option<RouterTarget>,
     pub router_id: Option<String>,
@@ -88,6 +90,7 @@ pub async fn ws_handler(
         ).into_response();
     }
 
+    let mut pre_target = None;
     let pre_role = if let Some(t) = query.token.as_deref() {
         if let Some(r) = st.role_for_token(t) {
             st.auth_rate_limiter.record_success(client_ip).await;
@@ -96,14 +99,28 @@ pub async fn ws_handler(
             st.auth_rate_limiter.record_failure(client_ip).await;
             None
         }
+    } else if let Some(ticket) = query.ticket.as_deref() {
+        if let Some(target) = st.resolve_ticket(ticket).await {
+            st.auth_rate_limiter.record_success(client_ip).await;
+            pre_target = Some(target);
+            Some(Role::Admin)
+        } else {
+            None
+        }
     } else {
         None
     };
 
-    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_role, client_ip))
+    ws.on_upgrade(move |socket| handle_ws(socket, st, pre_role, pre_target, client_ip))
 }
 
-async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>, client_ip: std::net::IpAddr) {
+async fn handle_ws(
+    socket: WebSocket,
+    st: Arc<AppState>,
+    mut role: Option<Role>,
+    mut session_target: Option<RouterTarget>,
+    client_ip: std::net::IpAddr,
+) {
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Channel for outbound messages to ws_sink
@@ -129,7 +146,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
     let _ = out_tx.send(json!({
         "event": "connected",
         "service": "mikrotik-universal-rust-gateway",
-        "authenticated": role.is_some(),
+        "authenticated": role.is_some() || session_target.is_some(),
         "role": role.map(Role::as_str)
     }).to_string());
 
@@ -169,21 +186,38 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
 
         // Action: auth
         if req.action == "auth" {
-            if let Some(t) = req.token {
-                if let Some(r) = st.role_for_token(&t) {
-                    st.auth_rate_limiter.record_success(client_ip).await;
-                    role = Some(r);
-                    let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": r.as_str() }).to_string());
-                } else {
-                    st.auth_rate_limiter.record_failure(client_ip).await;
-                    let locked = st.auth_rate_limiter.check(client_ip).await.is_err();
-                    let err_msg = if locked { "Too many failed attempts. IP locked out." } else { "Invalid token" };
-                    let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": err_msg }).to_string());
-                    if locked {
-                        break;
+            if let Some(t) = req.token.as_deref() {
+                if !t.is_empty() {
+                    if let Some(r) = st.role_for_token(t) {
+                        st.auth_rate_limiter.record_success(client_ip).await;
+                        role = Some(r);
+                        let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": r.as_str() }).to_string());
+                    } else {
+                        st.auth_rate_limiter.record_failure(client_ip).await;
+                        let locked = st.auth_rate_limiter.check(client_ip).await.is_err();
+                        let err_msg = if locked { "Too many failed attempts. IP locked out." } else { "Invalid token" };
+                        let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": err_msg }).to_string());
+                        if locked {
+                            break;
+                        }
                     }
+                    continue;
                 }
             }
+            if let Some(ticket) = req.ticket.as_deref() {
+                if let Some(target) = st.resolve_ticket(ticket).await {
+                    st.auth_rate_limiter.record_success(client_ip).await;
+                    session_target = Some(target);
+                    role = Some(Role::Admin);
+                    let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": "admin", "ticket": ticket }).to_string());
+                } else {
+                    let _ = out_tx.send(json!({ "event": "auth_error", "tag": tag, "error": "Invalid or expired ticket" }).to_string());
+                }
+                continue;
+            }
+            // Public open mode: auth with empty token is granted direct role
+            role = Some(Role::Admin);
+            let _ = out_tx.send(json!({ "event": "auth_ok", "tag": tag, "role": "direct" }).to_string());
             continue;
         }
 
@@ -193,8 +227,13 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
             continue;
         }
 
-        let Some(role_now) = role else {
-            let _ = out_tx.send(json!({ "event": "unauthorized", "tag": tag, "error": "Please authenticate via query ?token= or action 'auth'" }).to_string());
+        // If dynamic router credentials or ticket are present in the message, automatically allow
+        let dynamic_target = req.resolved_target().or_else(|| session_target.clone());
+        let has_target_auth = dynamic_target.is_some() || req.router_id.is_some();
+        let role_now = role.or_else(|| if has_target_auth { Some(Role::Admin) } else { None });
+
+        let Some(role_now) = role_now else {
+            let _ = out_tx.send(json!({ "event": "unauthorized", "tag": tag, "error": "Please provide router connection info (router_host, router_user), ticket, or authenticate" }).to_string());
             continue;
         };
 
@@ -205,7 +244,7 @@ async fn handle_ws(socket: WebSocket, st: Arc<AppState>, mut role: Option<Role>,
         }
 
         // A viewer may select a router only by the router_id configured on the gateway.
-        let target = if role_now == Role::Viewer { None } else { req.resolved_target() };
+        let target = if role_now == Role::Viewer { None } else { dynamic_target };
         let router_id = req.router_id.clone();
 
         match req.action.as_str() {

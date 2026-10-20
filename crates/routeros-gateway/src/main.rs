@@ -181,7 +181,97 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
     } else {
         None
     };
-    let role = header_role.or(query_role);
+
+    // Check Ephemeral Connection Ticket in header or query (?ticket=)
+    let ticket_str = req
+        .headers()
+        .get("x-connection-ticket")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .or_else(|| query_params.get("ticket").cloned());
+
+    let mut ticket_target = None;
+    if let Some(t) = &ticket_str {
+        if let Some(target) = st.resolve_ticket(t).await {
+            ticket_target = Some(target);
+        }
+    }
+
+    // Inject ticket target into headers if ticket resolved
+    if let Some(t) = &ticket_target {
+        let headers = req.headers_mut();
+        if let Some(h) = &t.host {
+            if let Ok(val) = header::HeaderValue::from_str(h) {
+                headers.insert(header::HeaderName::from_static("x-router-host"), val);
+            }
+        }
+        if let Some(p) = t.port {
+            if let Ok(val) = header::HeaderValue::from_str(&p.to_string()) {
+                headers.insert(header::HeaderName::from_static("x-router-port"), val);
+            }
+        }
+        if let Some(u) = &t.user {
+            if let Ok(val) = header::HeaderValue::from_str(u) {
+                headers.insert(header::HeaderName::from_static("x-router-user"), val);
+            }
+        }
+        if let Some(p) = &t.password {
+            if let Ok(val) = header::HeaderValue::from_str(p) {
+                headers.insert(header::HeaderName::from_static("x-router-pass"), val);
+            }
+        }
+    }
+
+    // Populate router headers from query if not already in headers
+    let headers = req.headers_mut();
+    if !headers.contains_key("x-router-host") {
+        if let Some(h) = query_params.get("host").or_else(|| query_params.get("router_host")) {
+            if let Ok(val) = header::HeaderValue::from_str(h) {
+                headers.insert(header::HeaderName::from_static("x-router-host"), val);
+            }
+        }
+    }
+    if !headers.contains_key("x-router-port") {
+        if let Some(p) = query_params.get("port").or_else(|| query_params.get("router_port")) {
+            if let Ok(val) = header::HeaderValue::from_str(p) {
+                headers.insert(header::HeaderName::from_static("x-router-port"), val);
+            }
+        }
+    }
+    if !headers.contains_key("x-router-user") {
+        if let Some(u) = query_params.get("user").or_else(|| query_params.get("router_user")) {
+            if let Ok(val) = header::HeaderValue::from_str(u) {
+                headers.insert(header::HeaderName::from_static("x-router-user"), val);
+            }
+        }
+    }
+    if !headers.contains_key("x-router-id") {
+        if let Some(id) = query_params.get("router_id").or_else(|| query_params.get("id")) {
+            if let Ok(val) = header::HeaderValue::from_str(id) {
+                headers.insert(header::HeaderName::from_static("x-router-id"), val);
+            }
+        }
+    }
+
+    // Determine authorization role:
+    // 1. Explicit Bearer token match
+    // 2. Ephemeral ticket match -> Role::Admin
+    // 3. Ticket issuing endpoint -> Role::Admin (anyone can request ticket for their router)
+    // 4. Direct router credentials provided (X-Router-Host & X-Router-User) -> Role::Admin
+    // 5. Configured router target provided (X-Router-Id) -> Role::Admin
+    let is_ticket_endpoint = path.starts_with("/api/v1/ticket") || path.starts_with("/api/v1/sessions/connect");
+    let has_direct_router = req.headers().contains_key("x-router-host") && req.headers().contains_key("x-router-user");
+    let has_configured_router = req.headers().contains_key("x-router-id");
+
+    let role = header_role
+        .or(query_role)
+        .or_else(|| {
+            if ticket_target.is_some() || is_ticket_endpoint || has_direct_router || has_configured_router {
+                Some(state::Role::Admin)
+            } else {
+                None
+            }
+        });
 
     // A viewer token is read-only: GET on the map read endpoints (or the /ws upgrade, which enforces
     // its own per-action allow-list). Everything else is refused before it reaches any handler.
@@ -312,7 +402,11 @@ async fn auth(State(st): State<Arc<AppState>>, mut req: Request, next: Next) -> 
 
         (
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "success": false, "error": "unauthorized: invalid or missing Bearer token in Authorization header" })),
+            Json(json!({
+                "success": false,
+                "error": "unauthorized: please provide router connection headers (X-Router-Host, X-Router-User) or connection ticket (?ticket=)",
+                "code": "MISSING_ROUTER_AUTH"
+            })),
         )
             .into_response()
     }
@@ -349,7 +443,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             data_dir: state::default_data_dir(),
             viewer_token: None,
             routers: vec![],
-            allow_dynamic_routers: false,
+            allow_dynamic_routers: true,
             allow_raw_command: false,
             allow_terminal_exec: false,
             allow_audit_clear: false,
@@ -377,9 +471,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(env_token) = std::env::var("GATEWAY_TOKEN") {
         cfg.api_token = env_token;
     }
+    if let Ok(env_cors) = std::env::var("GATEWAY_CORS_ORIGINS") {
+        cfg.cors_allowed_origins = env_cors
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
 
     if let Ok(env_dyn) = std::env::var("GATEWAY_ALLOW_DYNAMIC_ROUTERS") {
         cfg.allow_dynamic_routers = env_dyn == "1" || env_dyn == "true";
+    } else {
+        cfg.allow_dynamic_routers = true;
     }
     if let Ok(env_raw) = std::env::var("GATEWAY_ALLOW_RAW_COMMAND") {
         cfg.allow_raw_command = env_raw == "1" || env_raw == "true";
@@ -403,22 +506,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.allow_system_reboot = env_reboot == "1" || env_reboot == "true";
     }
 
-    // Strict rejection of weak or default token (Finding 1)
-    let insecure_dev = std::env::var("GATEWAY_INSECURE_DEV")
-        .map(|v| v == "1" || v == "true")
-        .unwrap_or(false);
-
-    if cfg.api_token == "change-me-to-a-long-random-string" || cfg.api_token.trim().len() < 32 {
-        if !insecure_dev {
-            tracing::error!(
-                "FATAL: Insecure or default api_token detected! Token must be at least 32 characters and cannot be the default placeholder. Please configure a strong GATEWAY_TOKEN or update config.toml. For local development only, set GATEWAY_INSECURE_DEV=1."
-            );
-            std::process::exit(1);
-        } else {
-            tracing::warn!(
-                "⚠️ INSECURE DEV MODE: Gateway is running with default or weak api_token because GATEWAY_INSECURE_DEV=1 is set. DO NOT use this in production!"
-            );
-        }
+    let is_public_mode = cfg.api_token == "change-me-to-a-long-random-string" || cfg.api_token.trim().len() < 32;
+    if is_public_mode {
+        tracing::info!(
+            "🌐 PUBLIC SERVICE MODE: Default or blank master token detected. Public dynamic router access, testing UI, and ephemeral session tickets are fully active."
+        );
     }
 
     if let Some(v) = &cfg.viewer_token {
@@ -432,7 +524,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listen_addr = cfg.listen.clone();
 
     // CORS configuration (Finding 11)
-    let cors = if cfg.cors_allowed_origins.is_empty() {
+    let cors = if cfg.cors_allowed_origins.iter().any(|o| o == "*") || (cfg.cors_allowed_origins.is_empty() && is_public_mode) {
+        tower_http::cors::CorsLayer::permissive()
+    } else if cfg.cors_allowed_origins.is_empty() {
         tower_http::cors::CorsLayer::new()
             .allow_origin([
                 "http://localhost:8080".parse().unwrap(),
@@ -456,9 +550,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 axum::http::HeaderName::from_static("x-router-pass"),
                 axum::http::HeaderName::from_static("x-router-id"),
                 axum::http::HeaderName::from_static("x-tenant-id"),
+                axum::http::HeaderName::from_static("x-connection-ticket"),
             ])
-    } else if cfg.cors_allowed_origins.iter().any(|o| o == "*") {
-        tower_http::cors::CorsLayer::permissive()
     } else {
         let mut origins = Vec::new();
         for o in &cfg.cors_allowed_origins {
@@ -484,6 +577,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 axum::http::HeaderName::from_static("x-router-pass"),
                 axum::http::HeaderName::from_static("x-router-id"),
                 axum::http::HeaderName::from_static("x-tenant-id"),
+                axum::http::HeaderName::from_static("x-connection-ticket"),
             ])
     };
 

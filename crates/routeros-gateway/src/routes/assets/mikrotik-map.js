@@ -2,7 +2,10 @@
  * <mikrotik-map> - ready-to-use live network map for the MikroTik Universal Gateway.
  *
  *   <script src="https://GATEWAY/sdk/mikrotik-map.js"></script>
- *   <mikrotik-map base-url="https://GATEWAY" token="..." layout-id="home" style="height:640px"></mikrotik-map>
+ *   <!-- Mode 1: Tiket Sesi (Aman untuk frontend produksi) -->
+ *   <mikrotik-map base-url="https://GATEWAY" ticket="conn_..." layout-id="home" style="height:640px"></mikrotik-map>
+ *   <!-- Mode 2: Direct Router (Testing internal) -->
+ *   <mikrotik-map base-url="https://GATEWAY" router-host="192.168.88.1" router-user="admin" router-pass="..." layout-id="home" style="height:640px"></mikrotik-map>
  *
  * No framework, no build step, no dependencies. All server data is rendered through
  * textContent / setAttribute (never innerHTML), so a hostile DHCP hostname cannot inject script.
@@ -20,8 +23,8 @@
   // Default view = whole canvas plus a margin, so icons and labels of nodes placed near the edge stay visible.
   const homeVb = (h) => ({ x: -90, y: -60, w: W + 180, h: h + 120 });
   const TAG = 'map';
-  const COLORS = { ok: '#22c55e', warning: '#f59e0b', critical: '#ef4444', idle: '#64748b', down: '#67e8f9', up: '#c4b5fd' };
-  const NODE_R = { router: 32, internet: 30, ap: 28, interface: 18, device: 22 };
+  const COLORS = { ok: '#16a34a', warning: '#d97706', critical: '#dc2626', idle: '#94a3b8', down: '#0284c7', up: '#7c3aed' };
+  const NODE_R = { router: 32, internet: 30, ap: 28, odp: 26, tiang: 22, closure: 22, 'unmanaged-switch': 24, olt: 30, ont: 24, interface: 18, device: 22 };
   const MAX_DOTS = 8;
   let uid = 0;
 
@@ -35,6 +38,12 @@
     ap: 'M2.5 9.5a14 14 0 0 1 19 0 M5.5 12.8a9.5 9.5 0 0 1 13 0 M8.6 16a5 5 0 0 1 6.8 0 M12 19.5h.01',
     repeater: 'M4 8a11 11 0 0 1 16 0 M7 11.2a6.8 6.8 0 0 1 10 0 M12 15h.01 M7 20h10 M14.5 17.5L17 20l-2.5 2.5',
     server: 'M4 4h16v6H4z M4 14h16v6H4z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6',
+    odp: 'M4 4h16v16H4z M4 9h16 M7 6.5h.01 M10 6.5h.01 M13 6.5h.01 M8 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M16 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M8 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M16 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+    tiang: 'M12 2v20 M7 6h10 M8 10h8 M9 14h6',
+    closure: 'M6 9h12a3 3 0 0 1 3 3v0a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v0a3 3 0 0 1 3-3z M3 12h-1 M21 12h1 M8 9v6 M16 9v6',
+    'unmanaged-switch': 'M3 7h18v10H3z M6 13h2v2H6z M10 13h2v2h-2z M14 13h2v2h-2z M18 13h2v2h-2z M6 9.5h.01 M10 9.5h.01 M14 9.5h.01 M18 9.5h.01',
+    olt: 'M3 5h18v14H3z M6 9h12 M6 13h12 M6 16h4 M16 16h2',
+    ont: 'M4 8h16v12H4z M17 4v4 M7 4v4 M8 14h.01 M12 14h.01 M16 14h.01',
     phone: 'M8 2h8a1.5 1.5 0 0 1 1.5 1.5v17A1.5 1.5 0 0 1 16 22H8a1.5 1.5 0 0 1-1.5-1.5v-17A1.5 1.5 0 0 1 8 2z M10.5 19h3',
     tablet: 'M5 3h14a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 19 21H5a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 5 3z M11 18h2',
     laptop: 'M5 5h14v10H5z M2 19h20l-1.5-4h-17z',
@@ -50,7 +59,7 @@
   };
 
   const ATTR_KEYS = {
-    'base-url': 'baseUrl', token: 'token', 'layout-id': 'layoutId', 'router-id': 'routerId', 'router-host': 'routerHost',
+    'base-url': 'baseUrl', token: 'token', ticket: 'ticket', 'layout-id': 'layoutId', 'router-id': 'routerId', 'router-host': 'routerHost',
     'router-port': 'routerPort', 'router-user': 'routerUser', 'router-pass': 'routerPass', 'tenant-id': 'tenantId',
     mode: 'mode', interval: 'interval', transport: 'transport', filter: 'filter', theme: 'theme', demo: 'demo', editable: 'editable',
   };
@@ -84,42 +93,42 @@
   const short = (s, n) => { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; };
 
   const CSS = `
-:host{display:block;position:relative;height:640px;min-height:320px;color:#e2e8f0;font:13px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--bg:#0b1220;--panel:rgba(15,23,42,.88);--line:rgba(148,163,184,.25);--fg:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--node:#0f172a;--node-s:#334155}
-:host([theme=light]){--bg:#eef2f7;--panel:rgba(255,255,255,.92);--line:rgba(71,85,105,.3);--fg:#0f172a;--mut:#475569;--acc:#0369a1;--node:#ffffff;--node-s:#cbd5e1;color:var(--fg)}
-.wrap{position:absolute;inset:0;background:var(--bg);overflow:hidden;border-radius:10px;border:1px solid var(--line)}
+:host{display:block;position:relative;height:640px;min-height:320px;color:#0f172a;font:13px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--bg:#f8fafc;--panel:rgba(255,255,255,.94);--line:rgba(203,213,225,.8);--fg:#0f172a;--mut:#64748b;--acc:#0284c7;--node:#ffffff;--node-s:#94a3b8;--shadow:0 4px 18px rgba(15,23,42,.08)}
+:host([theme=dark]){--bg:#0b1220;--panel:rgba(15,23,42,.88);--line:rgba(148,163,184,.25);--fg:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--node:#0f172a;--node-s:#334155;--shadow:0 4px 20px rgba(0,0,0,.4);color:var(--fg)}
+.wrap{position:absolute;inset:0;background:var(--bg);overflow:hidden;border-radius:10px;border:1px solid var(--line);box-shadow:var(--shadow)}
 svg.stage{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;user-select:none}
 svg.stage.pan{cursor:grabbing}
-.bar,.alerts,.panel,.legend,.tip,.banner{position:absolute;background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:10px;color:var(--fg)}
-.bar{top:10px;left:10px;right:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px}
-.bar .t{font-weight:700;margin-right:4px}
-.pill{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#334155;color:#fff}
-.pill.live{background:#15803d}.pill.stale,.pill.connecting{background:#b45309}.pill.error,.pill.offline{background:#b91c1c}.pill.demo{background:#6d28d9}
-.chip{color:var(--mut);font-variant-numeric:tabular-nums}
+.bar,.alerts,.panel,.legend,.tip,.banner{position:absolute;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:10px;color:var(--fg);box-shadow:var(--shadow)}
+.bar{top:10px;left:10px;right:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 12px}
+.bar .t{font-weight:700;margin-right:4px;font-size:14px;color:var(--fg)}
+.pill{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;background:#e2e8f0;color:#334155}
+.pill.live{background:#dcfce7;color:#15803d}.pill.stale,.pill.connecting{background:#fef3c7;color:#b45309}.pill.error,.pill.offline{background:#fee2e2;color:#b91c1c}.pill.demo{background:#ede9fe;color:#6d28d9}
+.chip{color:var(--mut);font-variant-numeric:tabular-nums;font-size:12px}
 .chip b{color:var(--fg)}
 .sp{flex:1}
-button,select,input{font:inherit;color:var(--fg);background:rgba(148,163,184,.14);border:1px solid var(--line);border-radius:7px;padding:4px 9px}
-button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{background:var(--acc);color:#04111d;border-color:var(--acc);font-weight:700}
+button,select,input{font:inherit;color:var(--fg);background:#ffffff;border:1px solid var(--line);border-radius:7px;padding:5px 10px;outline:none;transition:all .15s ease}
+button{cursor:pointer}button:hover{border-color:var(--acc);background:#f1f5f9}button.on{background:var(--acc);color:#ffffff;border-color:var(--acc);font-weight:700}
 button.danger:hover{border-color:#ef4444;color:#ef4444}
-.alerts{left:10px;bottom:10px;width:min(360px,60%);max-height:32%;overflow:auto;padding:6px 8px}
+.alerts{left:10px;bottom:10px;width:min(360px,60%);max-height:32%;overflow:auto;padding:8px 10px}
 .alerts:empty{display:none}
-.alerts h4,.panel h4{margin:0 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
-.al{display:flex;gap:7px;align-items:flex-start;padding:3px 2px;cursor:pointer;border-radius:5px}.al:hover{background:rgba(148,163,184,.14)}
+.alerts h4,.panel h4{margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700}
+.al{display:flex;gap:7px;align-items:flex-start;padding:4px 6px;cursor:pointer;border-radius:6px;transition:background .12s}.al:hover{background:#f1f5f9}
 .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:4px}
-.panel{top:58px;right:10px;width:260px;max-height:calc(100% - 130px);overflow:auto;padding:10px}
+.panel{top:58px;right:10px;width:280px;max-height:calc(100% - 130px);overflow:auto;padding:12px}
 .panel[hidden],.tip[hidden],.banner[hidden]{display:none}
-.panel label{display:block;margin:7px 0 2px;color:var(--mut);font-size:11px}
+.panel label{display:block;margin:8px 0 3px;color:var(--mut);font-size:11px;font-weight:600}
 .panel input[type=text],.panel input[type=number],.panel select{width:100%;box-sizing:border-box}
 .panel .row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .panel .hint{margin-top:8px;color:var(--mut);font-size:11px}
-.legend{right:10px;bottom:10px;display:flex;gap:10px;padding:5px 10px;font-size:11px;color:var(--mut);flex-wrap:wrap;max-width:60%}
+.legend{right:10px;bottom:10px;display:flex;gap:12px;padding:6px 12px;font-size:11px;color:var(--mut);flex-wrap:wrap;max-width:60%}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
-.tip{pointer-events:none;max-width:300px;padding:8px 10px;z-index:5;font-size:12px}
+.tip{pointer-events:none;max-width:300px;padding:8px 12px;z-index:5;font-size:12px}
 .tip .h{font-weight:700;margin-bottom:3px}.tip .m{color:var(--mut)}
-.banner{left:50%;transform:translateX(-50%);top:56px;padding:6px 14px;z-index:6}
-.banner.err{border-color:#ef4444}.banner.ok{border-color:#22c55e}
+.banner{left:50%;transform:translateX(-50%);top:56px;padding:6px 16px;z-index:6;font-weight:600}
+.banner.err{background:#fee2e2;border-color:#f87171;color:#b91c1c}.banner.ok{background:#dcfce7;border-color:#86efac;color:#15803d}
 .node{cursor:pointer}.node.edit{cursor:move}.node.locked.edit{cursor:not-allowed}
-.node text{pointer-events:none;fill:var(--fg);font-size:11px;text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
-.node text.rate{fill:var(--mut);font-size:9.5px;font-variant-numeric:tabular-nums}
+.node text{pointer-events:none;fill:var(--fg);font-size:11px;font-weight:600;text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3.5px}
+.node text.rate{fill:var(--mut);font-size:9.5px;font-weight:500;font-variant-numeric:tabular-nums;stroke:var(--bg);stroke-width:2.5px}
 .node.sel .body{stroke:var(--acc);stroke-width:3}
 .halo.pulse{animation:pulse 1.1s ease-in-out infinite}
 @keyframes pulse{50%{stroke-opacity:.25}}
@@ -128,7 +137,8 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
 .edge .line{fill:none;stroke-linecap:round;stroke-linejoin:round;transition:stroke .4s}
 .edge.sel .line{stroke-width:5}
 .handle{fill:#fff;stroke:var(--acc);stroke-width:2.5;cursor:move}
-.stale svg.stage{filter:grayscale(.7) opacity(.7)}
+.wrap.stale svg.stage, .wrap.offline svg.stage, .wrap.connecting svg.stage{filter:grayscale(.85) opacity(.7);transition:filter .3s ease}
+.wrap.stale .halo, .wrap.offline .halo, .wrap.connecting .halo{animation:none !important}
 @media (prefers-reduced-motion:reduce){.halo.pulse{animation:none}}
 `;
 
@@ -184,7 +194,7 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       this._edit = this._get('mode') === 'edit' && this._get('editable') !== 'false';
       this._applyEditClasses();
       this._restart();
-      if (this._edit && this._get('token') != null) this._loadLayout().catch(() => {});
+      if (this._edit) this._loadLayout().catch(() => {});
       this._raf = requestAnimationFrame((t) => this._frame(t));
       this._watch = setInterval(() => this._watchdog(), 1000);
       document.addEventListener('keydown', (this._kd = (e) => this._onKey(e)));
@@ -215,6 +225,7 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       return {
         base: String(g('base-url', SCRIPT_ORIGIN)).replace(/\/+$/, ''),
         token: g('token', ''),
+        ticket: g('ticket', ''),
         layout: g('layout-id', 'default'),
         routerId: g('router-id', ''), host: g('router-host', ''), port: g('router-port', ''),
         user: g('router-user', ''), pass: g('router-pass', ''),
@@ -225,12 +236,15 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       };
     }
     _routerFields(c) {
+      if (c.ticket) return { ticket: c.ticket };
       if (c.host && c.user) return { router_host: c.host, router_port: c.port ? +c.port : undefined, router_user: c.user, router_pass: c.pass || undefined };
       return c.routerId ? { router_id: c.routerId } : {};
     }
     async _api(method, path, body) {
       const c = this._cfg();
-      const headers = { Authorization: 'Bearer ' + c.token };
+      const headers = {};
+      if (c.token) headers.Authorization = 'Bearer ' + c.token;
+      if (c.ticket) headers['X-Connection-Ticket'] = c.ticket;
       if (c.host && c.user) {
         headers['X-Router-Host'] = c.host; headers['X-Router-User'] = c.user;
         if (c.port) headers['X-Router-Port'] = c.port;
@@ -259,7 +273,7 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       const pid = 'grid' + this._uid;
       this._svg = sv('svg', { class: 'stage', role: 'img', 'aria-label': 'Live network map', viewBox: `0 0 ${W} ${W / 1.7778}` }, [
         sv('defs', {}, sv('pattern', { id: pid, width: 40, height: 40, patternUnits: 'userSpaceOnUse' },
-          sv('path', { d: 'M40 0H0V40', fill: 'none', stroke: 'rgba(148,163,184,.12)', 'stroke-width': 1 }))),
+          sv('path', { d: 'M40 0H0V40', fill: 'none', stroke: 'rgba(203,213,225,.55)', 'stroke-width': 1 }))),
       ]);
       this._gridRect = sv('rect', { x: 0, y: 0, width: W, height: W / 1.7778, fill: `url(#${pid})` });
       this._bgImg = sv('image', { x: 0, y: 0, width: W, height: W / 1.7778, preserveAspectRatio: 'none' });
@@ -298,22 +312,86 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
     _buildTools() {
       this._tools.replaceChildren();
       if (!this._edit) return;
-      const b = (t, fn, title) => el('button', { text: t, title, onclick: fn });
+      const b = (t, fn, title, cls) => el('button', { class: cls, text: t, title, onclick: fn });
       this._tools.append(
-        b('Auto-place', () => this._autoPlace(false), 'Save automatic positions for nodes that are not placed yet'),
-        b('Re-layout', () => { if (confirm('Move every unlocked node back to the automatic layout?')) this._autoPlace(true); }, 'Overwrite all unlocked positions'),
-        b('Background', () => this._bgDialog(), 'Floor plan / satellite image'),
-        b('Thresholds', () => this._thresholdPanel(), 'Warning / limit / packet-rate thresholds'),
+        b('➕ Tambah Alat', () => this._addNodePanel(), 'Pick alat infrastruktur / pasif / ODP / Tiang / CCTV dan letakkan di peta', 'on'),
+        b('Auto-place', () => this._autoPlace(false), 'Simpan posisi otomatis alat yang belum ditempatkan'),
+        b('Re-layout', () => { if (confirm('Pindahkan semua alat yang tidak dikunci kembali ke tata letak otomatis?')) this._autoPlace(true); }, 'Tata ulang semua posisi'),
+        b('🗺️ Peta / GIS', () => this._bgDialog(), 'Ganti latar ke OpenStreetMap GIS, Citra Satelit, atau Denah Gambar'),
+        b('Thresholds', () => this._thresholdPanel(), 'Batas peringatan utilisasi link & antrean queue'),
         b('Export', () => this._export(), 'Download layout JSON'),
         b('Import', () => this._import(), 'Load layout JSON'),
       );
     }
 
+    _addNodePanel() {
+      const iconTypes = [
+        ['odp', '📦 ODP (Kotak Fiber Optic)'],
+        ['tiang', '🗼 Tiang FO / Listrik'],
+        ['closure', '🧰 Joint Closure FO'],
+        ['unmanaged-switch', '🔀 Switch Unmanaged / Hub'],
+        ['camera', '📹 CCTV Kamera'],
+        ['ap', '📶 Access Point'],
+        ['ont', '🌐 ONT / Modem Pelanggan'],
+        ['desktop', '💻 Komputer / Server'],
+      ];
+      const selIcon = el('select', {}, iconTypes.map(([val, txt]) => el('option', { value: val, text: txt })));
+      const nameIn = el('input', { type: 'text', placeholder: 'Contoh: ODP-01 Jl. Mawar' });
+      const parentSel = el('select', {}, [
+        el('option', { value: '', text: '-- Tanpa Induk / Pilih Nanti --' }),
+        ...Array.from(this._nodes.values()).map(r => el('option', { value: r.data.id, text: `${r.data.display_label || r.data.label} (${r.data.node_type})` }))
+      ]);
+
+      this._panel.hidden = false;
+      this._panel.replaceChildren(
+        el('h4', { text: '➕ Tambah Alat / Titik Pasif' }),
+        el('label', { text: 'Jenis Alat / Ikon' }), selIcon,
+        el('label', { text: 'Nama / Label Alat' }), nameIn,
+        el('label', { text: 'Terhubung ke (Kabel dari):' }), parentSel,
+        el('div', { class: 'row', style: 'margin-top:12px' }, [
+          el('button', {
+            class: 'on',
+            text: '⚡ Letakkan di Peta',
+            onclick: () => this._guard(async () => {
+              const label = nameIn.value.trim() || selIcon.value.toUpperCase();
+              const id = 'custom_' + selIcon.value + '_' + Math.random().toString(36).substring(2, 8);
+              const parent = parentSel.value || undefined;
+              const cx = (this._vb.x + this._vb.w / 2) / W;
+              const cy = (this._vb.y + this._vb.h / 2) / this._H;
+              const x = Math.min(0.95, Math.max(0.05, r4(cx)));
+              const y = Math.min(0.95, Math.max(0.05, r4(cy)));
+
+              await this._api('PUT', this._lp('/nodes/' + encodeURIComponent(id)), {
+                x, y, icon: selIcon.value, label, parent_override: parent
+              });
+              this._toast(`Alat "${label}" berhasil diletakkan di peta`, 'ok');
+              this._reload();
+            })
+          }),
+          el('button', { text: 'Tutup', onclick: () => { this._panel.hidden = true; } })
+        ])
+      );
+    }
+
     // ------------------------------------------------------------ connection
+    _hideAllDots() {
+      for (const r of this._edges.values()) {
+        r.n.down = 0;
+        r.n.up = 0;
+        r.sp.down = 0;
+        r.sp.up = 0;
+        for (const k of ['down', 'up']) {
+          for (const d of r.dots[k]) {
+            d.c.setAttribute('display', 'none');
+          }
+        }
+      }
+    }
     _stop() {
       clearTimeout(this._rc); clearInterval(this._poll);
       if (this._ws) { const w = this._ws; this._ws = null; try { w.close(); } catch (_) { /* ignore */ } }
       this._stopped = true;
+      this._hideAllDots();
     }
     _restart() {
       this._stop();
@@ -322,7 +400,6 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       this._btnEdit.hidden = this._get('editable') === 'false';
       const c = this._cfg();
       if (c.demo) { this._startDemo(); return; }
-      if (!c.token) { this._setStatus('error', 'Missing token (attribute token="...")'); return; }
       this._setStatus('connecting');
       if (c.transport === 'poll') this._startPoll(); else this._startWs();
     }
@@ -332,20 +409,36 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       this._pill.className = 'pill ' + s;
       this._pill.textContent = s;
       this._pill.title = msg || '';
+      const isDown = s === 'stale' || s === 'error' || s === 'offline' || s === 'connecting';
       this._wrap.classList.toggle('stale', s === 'stale');
+      this._wrap.classList.toggle('offline', s === 'offline' || s === 'error');
+      this._wrap.classList.toggle('connecting', s === 'connecting');
+      this._wrap.classList.toggle('live', s === 'live');
+      if (isDown && !this._cfg().demo) {
+        this._hideAllDots();
+      }
       if (s === 'error' && msg && msg !== this._lastErr) this._toast(msg, 'err');
       this._lastErr = s === 'error' ? msg : null;
       if (changed) this.dispatchEvent(new CustomEvent('status', { detail: { status: s, message: msg || '' } }));
     }
     _watchdog() {
-      if (this._status === 'live' && this._lastFrame && Date.now() - this._lastFrame > Math.max(6000, this._cfg().interval * 3)) this._setStatus('stale');
+      if (this._status === 'live' && this._lastFrame && Date.now() - this._lastFrame > Math.max(6000, this._cfg().interval * 3)) {
+        this._hideAllDots();
+        this._setStatus('stale', 'Koneksi terputus / tidak ada pembaruan data');
+      }
     }
     _startWs() {
       const c = this._cfg();
       let ws;
-      try { ws = new WebSocket(c.base.replace(/^http/i, 'ws') + '/ws'); } catch (e) { this._startPoll(); return; }
+      let wsUrl = c.base.replace(/^http/i, 'ws') + '/ws';
+      const q = [];
+      if (c.ticket) q.push('ticket=' + encodeURIComponent(c.ticket));
+      else if (c.token) q.push('token=' + encodeURIComponent(c.token));
+      if (q.length) wsUrl += '?' + q.join('&');
+
+      try { ws = new WebSocket(wsUrl); } catch (e) { this._startPoll(); return; }
       this._ws = ws;
-      ws.onopen = () => ws.send(JSON.stringify({ action: 'auth', token: c.token, tag: 'auth' }));
+      ws.onopen = () => ws.send(JSON.stringify({ action: 'auth', token: c.token || '', ticket: c.ticket || undefined, tag: 'auth' }));
       ws.onmessage = (ev) => {
         let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
         if (m.event === 'auth_ok') {
@@ -355,21 +448,28 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
             tenant_id: c.tenant || undefined, ...this._routerFields(c),
           }));
         } else if (m.event === 'auth_error' || m.event === 'unauthorized') {
-          this._stopped = true; this._setStatus('error', 'Invalid gateway token'); ws.close();
+          this._stopped = true;
+          this._hideAllDots();
+          this._setStatus('error', 'Otentikasi ditolak. Periksa kredensial router atau tiket koneksi.');
+          ws.close();
         } else if (m.event === 'map_frame' && m.tag === TAG) {
           this._wsFails = 0; this._onScene(m.data); this._setStatus('live');
         } else if (m.event === 'stream_error' && m.tag === TAG) {
+          this._hideAllDots();
           this._setStatus('error', m.error || 'stream error');
         }
       };
       ws.onclose = () => {
         if (this._ws !== ws || this._stopped) return;
         this._ws = null; this._wsFails++;
+        this._hideAllDots();
         if (!this._wsAuthed && this._wsFails >= 3 && c.transport === 'auto') { this._startPoll(); return; }
         this._setStatus(this._lastFrame ? 'stale' : 'connecting');
         this._rc = setTimeout(() => this._startWs(), Math.min(15000, 1000 * 2 ** this._wsFails));
       };
-      ws.onerror = () => { /* onclose handles retry */ };
+      ws.onerror = () => {
+        this._hideAllDots();
+      };
     }
     _startPoll() {
       const c = this._cfg();
@@ -384,7 +484,8 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
         const s = await this._api('GET', `/api/v1/map/scene?layout_id=${encodeURIComponent(c.layout)}&filter=${encodeURIComponent(c.filter)}`);
         this._onScene(s); this._setStatus('live');
       } catch (e) {
-        if (e.status === 401) { this._stop(); this._setStatus('error', 'Invalid gateway token'); } else this._setStatus('error', e.message);
+        this._hideAllDots();
+        if (e.status === 401) { this._stop(); this._setStatus('error', 'Otentikasi ditolak (HTTP 401). Periksa IP/Akun router atau tiket koneksi.'); } else this._setStatus('error', e.message);
       } finally { this._polling = false; }
     }
 
@@ -526,7 +627,7 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
         const pg = sv('g', { 'pointer-events': 'none' });
         const dots = { down: [], up: [] };
         for (const k of ['down', 'up']) for (let i = 0; i < MAX_DOTS; i++) {
-          const c = sv('circle', { r: 3.4, fill: k === 'down' ? COLORS.down : COLORS.up, stroke: 'rgba(2,6,23,.55)', 'stroke-width': 1, display: 'none' });
+          const c = sv('circle', { r: 3.5, fill: k === 'down' ? COLORS.down : COLORS.up, stroke: '#ffffff', 'stroke-width': 1.2, display: 'none' });
           pg.append(c); dots[k].push({ c, off: (i / MAX_DOTS) * 400 });
         }
         g.append(hit, line, path, pg);
@@ -540,22 +641,44 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       if (!(this._drag && this._drag.kind === 'wp' && this._drag.id === e.id)) r.wps = (e.path.waypoints || []).map((p) => ({ x: p.x, y: p.y }));
       r.style = e.path.style || 'straight';
       this._geom(r);
-      const c = col(e.health);
+
+      const srcData = this._nodes.get(e.source)?.data;
+      const tgtData = this._nodes.get(e.target)?.data;
+      const isDisconnected = e.health === 'critical' || srcData?.status === 'offline' || tgtData?.status === 'offline';
+      const isInactive = isDisconnected || e.health === 'idle' || (this._status !== 'live' && !this._cfg().demo);
+
+      const c = isDisconnected ? COLORS.critical : col(e.health);
       r.line.setAttribute('stroke', c);
-      r.line.setAttribute('stroke-dasharray', e.edge_type === 'relay' || e.edge_type === 'logical' ? '9 6' : '');
+      if (isDisconnected) {
+        r.line.setAttribute('stroke-dasharray', '6 5');
+        r.line.setAttribute('stroke-opacity', '0.55');
+      } else {
+        r.line.setAttribute('stroke-dasharray', e.edge_type === 'relay' || e.edge_type === 'logical' ? '9 6' : '');
+        r.line.setAttribute('stroke-opacity', '0.85');
+      }
       r.g.classList.toggle('edit', this._edit);
       const f = e.flow || {};
       r.rev = f.down_direction === 'reverse';
       for (const k of ['down', 'up']) {
-        const inten = f[k + '_intensity'] || 0;
-        r.n[k] = inten > 0 ? Math.min(MAX_DOTS, 1 + Math.round(inten * (MAX_DOTS - 1))) : 0;
-        r.sp[k] = 30 + 230 * inten;
-        r.dots[k].forEach((d, i) => d.c.setAttribute('display', i < r.n[k] && !this._reduce ? '' : 'none'));
+        if (isInactive) {
+          r.n[k] = 0;
+          r.sp[k] = 0;
+          r.dots[k].forEach((d) => d.c.setAttribute('display', 'none'));
+        } else {
+          const inten = f[k + '_intensity'] || 0;
+          r.n[k] = inten > 0 ? Math.min(MAX_DOTS, 1 + Math.round(inten * (MAX_DOTS - 1))) : 0;
+          r.sp[k] = 30 + 230 * inten;
+          r.dots[k].forEach((d, i) => d.c.setAttribute('display', i < r.n[k] && !this._reduce ? '' : 'none'));
+        }
       }
     }
     _frame(ts) {
       this._raf = requestAnimationFrame((t) => this._frame(t));
       if (document.hidden || this._reduce) { this._last = ts; return; }
+      if (this._status !== 'live' && !this._cfg().demo) {
+        this._last = ts;
+        return;
+      }
       const dt = Math.min(0.1, ((ts - (this._last || ts)) / 1000) || 0);
       this._last = ts;
       for (const r of this._edges.values()) {
@@ -839,24 +962,72 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       const label = el('input', { type: 'text', maxlength: 80, value: n.icon && n.display_label !== n.label ? n.display_label : '', placeholder: n.label });
       const icon = el('select', {}, [el('option', { value: '', text: `Auto-detect (${n.icon.auto_id})` })]);
       for (const id of Object.keys(ICONS)) icon.append(el('option', { value: id, text: id, selected: n.icon.source === 'custom' && n.icon.id === id }));
-      const parent = el('select', {}, [el('option', { value: '', text: 'Auto (as reported by router)' })]);
+      const parent = el('select', {}, [
+        el('option', { value: '', text: 'Auto (as reported by router)' }),
+        el('option', { value: 'none', text: '❌ Terputus / Tanpa Kabel' })
+      ]);
       for (const m of this._nodes.values()) {
         const d = m.data;
-        if (d.id !== n.id && ['ap', 'router', 'interface'].includes(d.node_type)) parent.append(el('option', { value: d.id, text: short(d.display_label || d.label, 34), selected: n.parent_source === 'override' && n.parent_id === d.id }));
+        if (d.id !== n.id && ['ap', 'router', 'interface', 'infrastructure'].includes(d.node_type)) {
+          parent.append(el('option', { value: d.id, text: short(d.display_label || d.label, 34), selected: n.parent_source === 'override' && n.parent_id === d.id }));
+        }
+      }
+      if (n.parent_source === 'override' && (!n.parent_id || n.parent_id === 'none')) {
+        parent.value = 'none';
       }
       const lock = el('input', { type: 'checkbox', checked: n.locked });
       const save = () => this._saveNode(n.id, { label: label.value.trim(), icon: icon.value, parent_override: parent.value, locked: lock.checked });
+
+      const actionsRow = el('div', { class: 'row', style: 'margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)' });
+      if (n.ip) {
+        actionsRow.append(el('button', {
+          class: 'danger',
+          text: '🚫 Blokir IP di Firewall',
+          title: 'Drop IP perangkat ini di Firewall Filter MikroTik',
+          onclick: () => this._blockFirewallIp(n.ip, n.display_label || n.label)
+        }));
+      }
+      actionsRow.append(el('button', {
+        text: '✂️ Putus Relasi Kabel',
+        title: 'Putuskan koneksi kabel ke induk',
+        onclick: () => this._guard(async () => {
+          const p = this._pos.get(n.id) || { x: 0.5, y: 0.5 };
+          await this._api('PUT', this._lp('/nodes/' + encodeURIComponent(n.id)), {
+            x: p.x, y: p.y, parent_override: 'none'
+          });
+          this._toast('Relasi kabel diputuskan', 'ok');
+          this._reload();
+        })
+      }));
+      if (n.id.startsWith('custom_') || n.id.startsWith('manual_')) {
+        actionsRow.append(el('button', {
+          class: 'danger',
+          text: '🗑️ Hapus Titik Ini',
+          title: 'Hapus alat kustom ini dari peta',
+          onclick: () => this._guard(async () => {
+            if (!confirm(`Hapus alat "${n.display_label || n.label}" dari peta?`)) return;
+            await this._api('DELETE', this._lp('/nodes/' + encodeURIComponent(n.id)));
+            this._select(null);
+            this._toast('Alat berhasil dihapus', 'ok');
+            this._reload();
+          })
+        }));
+      }
+
       this._panel.replaceChildren(
-        el('h4', { text: 'Device' }), el('div', { text: n.label }), el('div', { class: 'hint', text: [n.ip, n.mac, n.vendor].filter(Boolean).join(' \u00b7 ') }),
-        el('label', { text: 'Display name' }), label,
-        el('label', { text: 'Icon' }), icon,
-        el('label', { text: 'Connected to (relay / estafet)' }), parent,
-        el('label', {}, [lock, ' Lock position']),
+        el('h4', { text: 'Perangkat / Titik' }),
+        el('div', { text: n.display_label || n.label, style: 'font-weight:700;font-size:14px;color:var(--fg)' }),
+        el('div', { class: 'hint', text: [n.ip, n.mac, n.vendor].filter(Boolean).join(' \u00b7 ') }),
+        el('label', { text: 'Nama Tampilan (Display Name)' }), label,
+        el('label', { text: 'Jenis Ikon' }), icon,
+        el('label', { text: 'Terhubung ke Induk (Relay / ODP / Switch):' }), parent,
+        el('label', {}, [lock, ' Kunci posisi (cegah geser)']),
         el('div', { class: 'row' }, [
-          el('button', { class: 'on', text: 'Save', onclick: save }),
-          el('button', { class: 'danger', text: 'Reset position', onclick: () => this._guard(async () => { await this._api('DELETE', this._lp('/nodes/' + encodeURIComponent(n.id))); this._reload(); this._toast('Back to automatic position', 'ok'); }) }),
+          el('button', { class: 'on', text: 'Simpan', onclick: save }),
+          el('button', { class: 'danger', text: 'Reset Posisi', onclick: () => this._guard(async () => { await this._api('DELETE', this._lp('/nodes/' + encodeURIComponent(n.id))); this._reload(); this._toast('Kembali ke posisi otomatis', 'ok'); }) }),
         ]),
-        el('div', { class: 'hint', text: 'Drag the node on the map to move it. Moves are saved immediately.' }),
+        actionsRow,
+        el('div', { class: 'hint', text: 'Geser titik pada peta untuk memindahkannya. Perubahan posisi tersimpan otomatis.' }),
       );
     }
     _edgePanel(r) {
@@ -864,14 +1035,14 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       const cap = (this._layout && this._layout.paths && this._layout.paths[r.id] && this._layout.paths[r.id].capacity_bps) || null;
       const capIn = el('input', { type: 'number', min: 0, step: 'any', value: cap ? cap / 1e6 : '', placeholder: 'Mbps (empty = auto)' });
       this._panel.replaceChildren(
-        el('h4', { text: 'Link' }), el('div', { text: `${r.data.source} \u2192 ${r.data.target}` }),
-        el('label', { text: 'Line style' }), style,
-        el('label', { text: 'Link capacity (Mbps) - used for limit alerts' }), capIn,
+        el('h4', { text: 'Jalur Kabel' }), el('div', { text: `${r.data.source} \u2192 ${r.data.target}` }),
+        el('label', { text: 'Gaya Garis Kabel' }), style,
+        el('label', { text: 'Kapasitas Link (Mbps) - untuk ambang batas limit' }), capIn,
         el('div', { class: 'row' }, [
-          el('button', { class: 'on', text: 'Save', onclick: () => { r.style = style.value; const v = parseFloat(capIn.value); this._saveEdge(r, { capacity_bps: v > 0 ? Math.round(v * 1e6) : null }); } }),
-          el('button', { class: 'danger', text: 'Clear waypoints', onclick: () => { r.wps = []; this._geom(r); this._drawHandles(); this._saveEdge(r); } }),
+          el('button', { class: 'on', text: 'Simpan', onclick: () => { r.style = style.value; const v = parseFloat(capIn.value); this._saveEdge(r, { capacity_bps: v > 0 ? Math.round(v * 1e6) : null }); } }),
+          el('button', { class: 'danger', text: 'Hapus Waypoint', onclick: () => { r.wps = []; this._geom(r); this._drawHandles(); this._saveEdge(r); } }),
         ]),
-        el('div', { class: 'hint', text: 'Double-click the line to add a waypoint (road corner, roof crossing). Drag the white handles. Alt+click or double-click a handle removes it.' }),
+        el('div', { class: 'hint', text: 'Double-click garis kabel untuk menambah titik belok (tikungan jalan, atap). Geser titik putih untuk membelokkan.' }),
       );
     }
     _thresholdPanel() {
@@ -882,39 +1053,93 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
         const w = num(t.warn_pct), c = num(t.crit_pct), p = num(t.high_pps), b = num(t.high_bps ? t.high_bps / 1e6 : '', 'Mbps (optional)');
         this._panel.hidden = false;
         this._panel.replaceChildren(
-          el('h4', { text: 'Alert thresholds' }),
-          el('label', { text: 'Warning at (% of limit / capacity)' }), w,
-          el('label', { text: 'Limit reached at (%)' }), c,
-          el('label', { text: 'High packet rate (packets/s)' }), p,
-          el('label', { text: 'High throughput (Mbps)' }), b,
-          el('div', { class: 'row' }, [el('button', { class: 'on', text: 'Save', onclick: () => this._guard(async () => {
+          el('h4', { text: 'Batas Peringatan (Thresholds)' }),
+          el('label', { text: 'Peringatan kuning (% batas antrean / link)' }), w,
+          el('label', { text: 'Batas kritis merah (% limit reached)' }), c,
+          el('label', { text: 'Beban paket tinggi (packets/detik)' }), p,
+          el('label', { text: 'Trafik throughput tinggi (Mbps)' }), b,
+          el('div', { class: 'row' }, [el('button', { class: 'on', text: 'Simpan Ambang', onclick: () => this._guard(async () => {
             const body = { ...l, thresholds: { warn_pct: +w.value, crit_pct: +c.value, high_pps: Math.round(+p.value), high_bps: +b.value > 0 ? Math.round(+b.value * 1e6) : null } };
             const res = await this._api('PUT', this._lp(), body);
-            this._layout = res.layout; this._toast('Thresholds saved', 'ok'); this._reload();
+            this._layout = res.layout; this._toast('Ambang batas berhasil disimpan', 'ok'); this._reload();
           }) })]),
         );
       });
     }
     _bgDialog() {
-      const url = el('input', { type: 'text', placeholder: 'https://.../satellite.png' });
+      const url = el('input', { type: 'text', placeholder: 'https://.../map.png' });
       this._panel.hidden = false;
       this._panel.replaceChildren(
-        el('h4', { text: 'Background (floor plan / satellite)' }),
-        el('div', { class: 'row' }, [el('button', { class: 'on', text: 'Upload image\u2026', onclick: () => this._pickFile('image/png,image/jpeg,image/webp', async (f) => {
-          if (f.size > 4 * 1024 * 1024) { this._toast('Image is larger than 4 MB', 'err'); return; }
-          await this._guard(async () => { await this._api('PUT', this._lp('/background'), f); this._bgKey = null; this._toast('Background uploaded', 'ok'); this._reload(); });
-        }) })]),
-        el('label', { text: 'or use an image URL (http/https)' }), url,
+        el('h4', { text: '🗺️ Peta Latar (GIS / Denah)' }),
+        el('label', { text: 'Preset Peta Geografis Dunia (GIS):' }),
         el('div', { class: 'row' }, [
-          el('button', { text: 'Use URL', onclick: () => this._guard(async () => {
+          el('button', {
+            class: 'on',
+            text: '🗺️ OpenStreetMap',
+            title: 'Gunakan peta jalanan OpenStreetMap dunia',
+            onclick: () => this._guard(async () => {
+              const l = await this._loadLayout();
+              const osmUrl = 'https://tile.openstreetmap.org/15/26359/16664.png';
+              const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: osmUrl } });
+              this._layout = res.layout; this._bgKey = null; this._reload();
+              this._toast('Latar OpenStreetMap terpasang', 'ok');
+            })
+          }),
+          el('button', {
+            text: '🛰️ Satelit ESRI',
+            title: 'Gunakan citra satelit bumi ESRI World Imagery',
+            onclick: () => this._guard(async () => {
+              const l = await this._loadLayout();
+              const esriUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/16664/26359';
+              const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: esriUrl } });
+              this._layout = res.layout; this._bgKey = null; this._reload();
+              this._toast('Latar Satelit ESRI terpasang', 'ok');
+            })
+          }),
+        ]),
+        el('label', { text: 'Upload Gambar Denah / Citra Wilayah Sendiri:' }),
+        el('div', { class: 'row' }, [el('button', { text: '📁 Upload File Gambar\u2026', onclick: () => this._pickFile('image/png,image/jpeg,image/webp', async (f) => {
+          if (f.size > 4 * 1024 * 1024) { this._toast('Ukuran gambar melebihi 4 MB', 'err'); return; }
+          await this._guard(async () => { await this._api('PUT', this._lp('/background'), f); this._bgKey = null; this._toast('Gambar denah berhasil diupload', 'ok'); this._reload(); });
+        }) })]),
+        el('label', { text: 'Atau masukkan URL gambar peta kustom (http/https):' }), url,
+        el('div', { class: 'row' }, [
+          el('button', { text: 'Terapkan URL', onclick: () => this._guard(async () => {
             const l = await this._loadLayout();
             const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: url.value.trim() } });
             this._layout = res.layout; this._bgKey = null; this._reload();
           }) }),
-          el('button', { class: 'danger', text: 'Remove', onclick: () => this._guard(async () => { await this._api('DELETE', this._lp('/background')); const l = await this._loadLayout(); if (l.background && l.background.kind === 'url') { await this._api('PUT', this._lp(), { ...l, background: { ...l.background, kind: 'none', url: null } }); } this._bgKey = null; this._reload(); }) }),
+          el('button', { class: 'danger', text: 'Hapus Latar', onclick: () => this._guard(async () => { await this._api('DELETE', this._lp('/background')); const l = await this._loadLayout(); if (l.background && l.background.kind === 'url') { await this._api('PUT', this._lp(), { ...l, background: { ...l.background, kind: 'none', url: null } }); } this._bgKey = null; this._reload(); }) }),
         ]),
-        el('div', { class: 'hint', text: 'PNG, JPEG or WebP, max 4 MB. SVG is refused for safety. Node positions are stored as percentages, so a new image keeps your layout.' }),
+        el('div', { class: 'hint', text: 'Format PNG, JPEG, atau WebP (maks 4 MB). Koordinat tersimpan otomatis sebagai persentase denah/peta.' }),
       );
+    }
+    async _blockFirewallIp(ip, label) {
+      if (!confirm(`Yakin ingin memblokir akses internet untuk perangkat "${label}" (IP: ${ip}) di firewall MikroTik?`)) return;
+      try {
+        const c = this._cfg();
+        const headers = { 'Content-Type': 'application/json' };
+        if (c.token) headers.Authorization = 'Bearer ' + c.token;
+        if (c.ticket) headers['X-Connection-Ticket'] = c.ticket;
+        if (c.host && c.user) {
+          headers['X-Router-Host'] = c.host; headers['X-Router-User'] = c.user;
+          if (c.port) headers['X-Router-Port'] = c.port;
+          if (c.pass) headers['X-Router-Pass'] = c.pass;
+        } else if (c.routerId) headers['X-Router-Id'] = c.routerId;
+        const res = await fetch(c.base + '/api/v1/firewall/block-ip', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ address: ip, list: 'Blacklist' })
+        });
+        const json = await res.json();
+        if (json.success) {
+          this._toast(`IP ${ip} berhasil diblokir di firewall!`, 'ok');
+        } else {
+          this._toast(`Gagal memblokir: ${json.error || 'Unknown error'}`, 'err');
+        }
+      } catch (e) {
+        this._toast(`Gagal memblokir: ${e.message}`, 'err');
+      }
     }
     _pickFile(accept, cb) {
       this._file.value = ''; this._file.accept = accept;
