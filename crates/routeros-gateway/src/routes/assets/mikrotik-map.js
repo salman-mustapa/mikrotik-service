@@ -715,6 +715,12 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       this._bgImg.removeAttribute('href'); this._bgAspect = null;
     }
     _setBgSource(url) {
+      if (!url) {
+        this._bgImg.removeAttribute('href');
+        this._bgAspect = null;
+        if (this._scene) this._render(this._scene);
+        return;
+      }
       const img = new Image();
       img.referrerPolicy = 'no-referrer';
       img.onload = () => {
@@ -722,7 +728,11 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
         this._bgImg.setAttribute('href', url);
         if (this._scene) this._render(this._scene);
       };
-      img.onerror = () => this._toast('Background image could not be loaded', 'err');
+      img.onerror = () => {
+        console.warn('Network map background image failed to load or CORS restricted:', url);
+        this._bgImg.removeAttribute('href');
+        this._bgAspect = null;
+      };
       img.src = url;
     }
 
@@ -1067,51 +1077,61 @@ button.danger:hover{border-color:#ef4444;color:#ef4444}
       });
     }
     _bgDialog() {
-      const url = el('input', { type: 'text', placeholder: 'https://.../map.png' });
+      const url = el('input', { type: 'text', placeholder: 'https://.../denah-kantor.png' });
       this._panel.hidden = false;
       this._panel.replaceChildren(
-        el('h4', { text: '🗺️ Peta Latar (GIS / Denah)' }),
-        el('label', { text: 'Preset Peta Geografis Dunia (GIS):' }),
-        el('div', { class: 'row' }, [
-          el('button', {
-            class: 'on',
-            text: '🗺️ OpenStreetMap',
-            title: 'Gunakan peta jalanan OpenStreetMap dunia',
-            onclick: () => this._guard(async () => {
-              const l = await this._loadLayout();
-              const osmUrl = 'https://tile.openstreetmap.org/15/26359/16664.png';
-              const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: osmUrl } });
-              this._layout = res.layout; this._bgKey = null; this._reload();
-              this._toast('Latar OpenStreetMap terpasang', 'ok');
-            })
-          }),
-          el('button', {
-            text: '🛰️ Satelit ESRI',
-            title: 'Gunakan citra satelit bumi ESRI World Imagery',
-            onclick: () => this._guard(async () => {
-              const l = await this._loadLayout();
-              const esriUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/16664/26359';
-              const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: esriUrl } });
-              this._layout = res.layout; this._bgKey = null; this._reload();
-              this._toast('Latar Satelit ESRI terpasang', 'ok');
-            })
-          }),
-        ]),
+        el('h4', { text: '🗺️ Peta Latar (Denah / GIS)' }),
         el('label', { text: 'Upload Gambar Denah / Citra Wilayah Sendiri:' }),
-        el('div', { class: 'row' }, [el('button', { text: '📁 Upload File Gambar\u2026', onclick: () => this._pickFile('image/png,image/jpeg,image/webp', async (f) => {
+        el('div', { class: 'row' }, [el('button', { class: 'on', text: '📁 Upload File Denah (PNG/JPG)\u2026', onclick: () => this._pickFile('image/png,image/jpeg,image/webp', async (f) => {
           if (f.size > 4 * 1024 * 1024) { this._toast('Ukuran gambar melebihi 4 MB', 'err'); return; }
           await this._guard(async () => { await this._api('PUT', this._lp('/background'), f); this._bgKey = null; this._toast('Gambar denah berhasil diupload', 'ok'); this._reload(); });
         }) })]),
-        el('label', { text: 'Atau masukkan URL gambar peta kustom (http/https):' }), url,
+        el('label', { text: 'Preset Latar Topology:' }),
+        el('div', { class: 'row' }, [
+          el('button', {
+            text: '📐 Grid Arsitektur (Bawaan)',
+            title: 'Gunakan kisi-kisi vektor arsitektur bersih offline',
+            onclick: () => this._guard(async () => {
+              await this._api('DELETE', this._lp('/background'));
+              const l = await this._loadLayout();
+              await this._api('PUT', this._lp(), { ...l, background: { kind: 'none', url: null } });
+              this._bgKey = null; this._reload();
+              this._toast('Kembali ke grid arsitektur bersih', 'ok');
+            })
+          }),
+          el('button', {
+            text: '🛰️ Citra Satelit ESRI',
+            title: 'Citra satelit bumi ESRI World Imagery',
+            onclick: () => this._guard(async () => {
+              const l = await this._loadLayout();
+              const esriUrl = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/4/8/12';
+              const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: esriUrl } });
+              this._layout = res.layout; this._bgKey = null; this._reload();
+              this._toast('Latar Citra Satelit diterapkan', 'ok');
+            })
+          }),
+        ]),
+        el('label', { text: 'Atau masukkan URL gambar denah kustom (http/https):' }), url,
         el('div', { class: 'row' }, [
           el('button', { text: 'Terapkan URL', onclick: () => this._guard(async () => {
+            const v = url.value.trim();
+            if (!v) return;
             const l = await this._loadLayout();
-            const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: url.value.trim() } });
+            const res = await this._api('PUT', this._lp(), { ...l, background: { ...(l.background || {}), kind: 'url', url: v } });
             this._layout = res.layout; this._bgKey = null; this._reload();
+            this._toast('URL denah berhasil diterapkan', 'ok');
           }) }),
-          el('button', { class: 'danger', text: 'Hapus Latar', onclick: () => this._guard(async () => { await this._api('DELETE', this._lp('/background')); const l = await this._loadLayout(); if (l.background && l.background.kind === 'url') { await this._api('PUT', this._lp(), { ...l, background: { ...l.background, kind: 'none', url: null } }); } this._bgKey = null; this._reload(); }) }),
+          el('button', { class: 'danger', text: 'Hapus Latar', onclick: () => this._guard(async () => {
+            await this._api('DELETE', this._lp('/background'));
+            const l = await this._loadLayout();
+            if (l.background && l.background.kind === 'url') {
+              await this._api('PUT', this._lp(), { ...l, background: { ...l.background, kind: 'none', url: null } });
+            }
+            this._bgKey = null; this._reload();
+            this._toast('Latar gambar dihapus', 'ok');
+          }) }),
         ]),
-        el('div', { class: 'hint', text: 'Format PNG, JPEG, atau WebP (maks 4 MB). Koordinat tersimpan otomatis sebagai persentase denah/peta.' }),
+        el('div', { class: 'hint', text: 'Format PNG, JPEG, atau WebP (maks 4 MB). Koordinat perangkat tersimpan otomatis sebagai persentase denah/peta.' }),
       );
     }
     async _blockFirewallIp(ip, label) {

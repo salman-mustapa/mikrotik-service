@@ -267,12 +267,21 @@
     </form>
   </dialog>
 
-  <dialog id="dlg-embed">
-    <h2>📋 Pasang di Aplikasi Anda</h2>
-    <p class="lead">Salin tag HTML di bawah ini ke halaman web Anda (React, Vue, Flutter WebView, atau HTML murni).</p>
-    <pre id="embed-code"></pre>
+  <dialog id="dlg-embed" style="width: min(840px, 95vw); max-height: 88vh;">
+    <h2>🚀 Panduan Integrasi Developer &amp; API Realtime</h2>
+    <p class="lead">Gunakan komponen web siap pakai atau konsumsi REST API &amp; WebSocket langsung untuk membangun canvas/UI peta kustom di aplikasi Anda (React, Vue, Flutter, Next.js, Mobile, atau Backend).</p>
+
+    <div class="tab-bar">
+      <button type="button" class="tab-btn active" id="tab-embed-widget">🌐 Web Component</button>
+      <button type="button" class="tab-btn" id="tab-embed-rest">⚡ REST API (Scene JSON)</button>
+      <button type="button" class="tab-btn" id="tab-embed-ws">🔄 WebSocket Realtime</button>
+      <button type="button" class="tab-btn" id="tab-embed-custom">🛠️ Layout &amp; Node Customizer</button>
+    </div>
+
+    <pre id="embed-code" style="max-height: 380px; font-size: 12px; line-height: 1.5;"></pre>
+
     <div class="actions">
-      <button type="button" id="btn-copy">Salin Kode</button>
+      <button type="button" id="btn-copy">📋 Salin Kode / Contoh</button>
       <button type="button" id="btn-embed-close" class="primary">Tutup</button>
     </div>
   </dialog>

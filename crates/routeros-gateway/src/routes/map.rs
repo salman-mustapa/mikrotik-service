@@ -411,34 +411,79 @@ fn auto_layout(nodes: &[TopologyNode], parent: &HashMap<String, String>, edges: 
 
     let mut depth: HashMap<&str, usize> = HashMap::new();
     let mut ypos: HashMap<&str, f64> = HashMap::new();
+    let mut x_offset: HashMap<&str, f64> = HashMap::new();
     let mut slot = 0usize;
     let mut visited: HashSet<&str> = HashSet::new();
 
-    // iterative post-order DFS
+    // Assign hierarchy depths via BFS
     for root in &roots {
-        let mut stack: Vec<(&str, usize, bool)> = vec![(root, 1, false)];
-        while let Some((id, d, done)) = stack.pop() {
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back((root, 1usize));
+        visited.insert(root);
+        depth.insert(root, 1);
+
+        while let Some((curr, d)) = queue.pop_front() {
+            if let Some(kids) = children.get(curr) {
+                for k in kids {
+                    if visited.insert(k) {
+                        depth.insert(k, d + 1);
+                        queue.push_back((k, d + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    // Now compute Y positions with multi-column fanout for dense child nodes
+    visited.clear();
+    for root in &roots {
+        let mut stack: Vec<(&str, bool)> = vec![(root, false)];
+        while let Some((id, done)) = stack.pop() {
             if done {
                 let kids = children.get(id).cloned().unwrap_or_default();
-                let ys: Vec<f64> = kids.iter().filter_map(|k| ypos.get(k).copied()).collect();
-                let y = if ys.is_empty() {
+                if kids.is_empty() {
                     let y = slot as f64;
                     slot += 1;
-                    y
+                    ypos.insert(id, y);
+                } else if kids.len() > 5 {
+                    // Multi-column fan-out for dense leaf devices (e.g. 10-30 connected clients on an AP/router)
+                    let num_cols = if kids.len() > 16 { 3 } else { 2 };
+                    let base_slot = slot;
+                    let rows = (kids.len() + num_cols - 1) / num_cols;
+                    slot += rows;
+
+                    for (idx, kid) in kids.iter().enumerate() {
+                        let c = idx % num_cols;
+                        let r = idx / num_cols;
+                        let y = base_slot as f64 + r as f64;
+                        ypos.insert(kid, y);
+                        let offset = (c as f64 - (num_cols - 1) as f64 / 2.0) * 0.10;
+                        x_offset.insert(kid, offset);
+                    }
+                    let parent_y = base_slot as f64 + (rows as f64 - 1.0) / 2.0;
+                    ypos.insert(id, parent_y);
                 } else {
-                    ys.iter().sum::<f64>() / ys.len() as f64
-                };
-                ypos.insert(id, y);
+                    let ys: Vec<f64> = kids.iter().filter_map(|k| ypos.get(k).copied()).collect();
+                    let y = if ys.is_empty() {
+                        let y = slot as f64;
+                        slot += 1;
+                        y
+                    } else {
+                        ys.iter().sum::<f64>() / ys.len() as f64
+                    };
+                    ypos.insert(id, y);
+                }
                 continue;
             }
             if !visited.insert(id) {
                 continue;
             }
-            depth.insert(id, d);
-            stack.push((id, d, true));
+            stack.push((id, true));
             if let Some(kids) = children.get(id) {
-                for k in kids.iter().rev() {
-                    stack.push((k, d + 1, false));
+                if kids.len() <= 5 {
+                    for k in kids.iter().rev() {
+                        stack.push((k, false));
+                    }
                 }
             }
         }
@@ -458,9 +503,15 @@ fn auto_layout(nodes: &[TopologyNode], parent: &HashMap<String, String>, edges: 
     for n in nodes {
         let d = depth.get(n.id.as_str()).copied().unwrap_or(1) as f64;
         let y = ypos.get(n.id.as_str()).copied().unwrap_or(0.0);
+        let x_off = x_offset.get(n.id.as_str()).copied().unwrap_or(0.0);
+        let raw_x = 0.08 + d * (0.82 / max_depth) + x_off;
+        let raw_y = 0.08 + (y / max_slot).min(1.0) * 0.82;
         out.insert(
             n.id.clone(),
-            Point { x: r4(0.06 + d * (0.88 / max_depth)), y: r4(0.06 + (y / max_slot).min(1.0) * 0.88) },
+            Point {
+                x: r4(raw_x.clamp(0.04, 0.96)),
+                y: r4(raw_y.clamp(0.04, 0.96)),
+            },
         );
     }
     out

@@ -97,6 +97,73 @@ return <mikrotik-map ref={ref} style={{ height: 640 }} />;
 Menampilkan rumah contoh: relay AP→AP, CCTV yang mencapai limit (merah), laptop mendekati limit (kuning),
 perangkat idle (abu), jalur kabel berbelok & melintasi atap.
 
+### D. Panduan Lengkap Integrasi Developer Eksternal (Custom App / Mobile / Dashboard)
+
+Peta jaringan ini **didesain penuh untuk digunakan oleh developer di luar project ini**, baik dengan menyematkan komponen web siap pakai maupun mengonsumsi data mentah (JSON scene) untuk dirender di canvas kustom Anda sendiri (misal React, Vue, Next.js, Flutter, D3.js, Cytoscape, atau Vis.js).
+
+#### 1. Alur Autentikasi Aman untuk Frontend (Ephemeral Connection Ticket)
+Agar password router tidak pernah terekspos di browser client:
+1. Backend Anda memanggil gateway untuk membuat tiket sesi:
+   ```bash
+   curl -X POST "http://GATEWAY:8080/api/v1/ticket/issue" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "host": "192.168.88.1",
+       "port": 8728,
+       "user": "admin",
+       "pass": "password_router",
+       "ttl_secs": 3600
+     }'
+   # Response: {"success": true, "ticket": "conn_xyz123...", "expires_in_secs": 3600}
+   ```
+2. Frontend Anda (React / Vue / Mobile) cukup menggunakan `ticket` tersebut:
+   ```html
+   <script src="http://GATEWAY:8080/sdk/mikrotik-map.js"></script>
+   <mikrotik-map base-url="http://GATEWAY:8080" ticket="conn_xyz123..." layout-id="default" style="height:640px"></mikrotik-map>
+   ```
+
+#### 2. Konsumsi REST API Langsung (Untuk Render di Canvas / Mobile Anda Sendiri)
+Jika developer ingin membuat visualisasi sendiri tanpa Web Component bawaan:
+- **Endpoint**: `GET /api/v1/map/scene?layout_id=default`
+- **Headers / Query**:
+  - `X-Connection-Ticket: conn_xyz123...` (atau `?ticket=...`)
+  - Atau kredensial langsung: `X-Router-Host`, `X-Router-User`, `X-Router-Pass`
+- **Data yang Dikembalikan (JSON)**:
+  - `nodes`: Array perangkat (`id`, `label`, `ip`, `mac`, `vendor`, `position: {x, y}`, `status`, `traffic: {rx_bps, tx_bps}`, `queue_limit`).
+  - `edges`: Array jalur kabel (`source`, `target`, `style`, `waypoints: [{x, y}]`, `traffic: {bps}`).
+  - `alerts`: Array peringatan aktif (link putus, limit queue tercapai).
+  - `summary`: Ringkasan total bandwidth WAN, node sehat/kritis.
+
+#### 3. Realtime Streaming via WebSocket (ws://GATEWAY/ws)
+Untuk pembaruan realtime detik-demi-detik tanpa overhead polling HTTP berulang:
+```javascript
+const ws = new WebSocket('ws://GATEWAY:8080/ws?ticket=conn_xyz123...');
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    action: "subscribe_map",
+    layout_id: "default",
+    interval_ms: 2000 // Frekuensi frame realtime (1000 - 60000 ms)
+  }));
+};
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.event === "map_frame") {
+    const scene = msg.data;
+    // Hubungkan data scene ke engine visualizer Anda (D3, Vis.js, Pixi, dll)
+    renderMyCustomTopology(scene.nodes, scene.edges, scene.alerts);
+  }
+};
+```
+
+#### 4. Kustomisasi Posisi & Kabel Programmatik via REST
+Developer dapat mengedit posisi atau jalur kabel lewat API:
+- Ubah posisi atau ikon node: `PUT /api/v1/map/layouts/:id/nodes/:node_id`
+- Ubah belokan kabel (waypoint): `PUT /api/v1/map/layouts/:id/paths/:edge_id`
+- Upload gambar denah kantor: `PUT /api/v1/map/layouts/:id/background` (PNG/JPG maks 4 MB)
+- Auto-place bersih: `POST /api/v1/map/layouts/:id/auto-place`
+
+---
+
 ## 3. Konsep inti: layout vs scene
 
 | | **Layout** | **Scene** |

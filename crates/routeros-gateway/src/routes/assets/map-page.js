@@ -97,63 +97,230 @@
     stage.append(m);
   }
 
-  function embedSnippet() {
+  let currentEmbedTab = 'widget';
+
+  function getSnippetContent(tab) {
     const id = (field('layout') && field('layout').value) || 'default';
     const host = (field('host') && field('host').value) || '192.168.88.1';
     const port = (field('port') && field('port').value) || '8728';
     const user = (field('user') && field('user').value) || 'admin';
     const pass = (field('pass') && field('pass').value) || 'password';
+    const base = location.origin;
+    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProto}//${location.host}/ws`;
 
-    const lines = [
-      '<!-- ===================================================================== -->',
-      '<!-- OPSI 1: INTEGRASI AMAN DENGAN TIKET (DIREKOMENDASIKAN UNTUK PRODUKSI)  -->',
-      '<!-- Backend Anda membuat tiket via POST /api/v1/ticket/issue lalu kirim ke frontend -->',
-      '<!-- Password router TIDAK PERNAH terekspos di browser / source code client! -->',
-      '<!-- ===================================================================== -->',
-      `<script src="${location.origin}/sdk/mikrotik-map.js"></` + 'script>',
-      '<mikrotik-map',
-      `  base-url="${location.origin}"`,
-      '  ticket="conn_xyz123abc..."',
-      `  layout-id="${id}"`,
-      '  theme="light"',
-      '  style="height:640px">',
-      '</mikrotik-map>',
-      '',
-      '<!-- ===================================================================== -->',
-      '<!-- OPSI 2: TESTING LANGSUNG / INTERNAL DASHBOARD (TANPA BACKEND)          -->',
-      '<!-- ===================================================================== -->',
-      '<mikrotik-map',
-      `  base-url="${location.origin}"`,
-      `  router-host="${host}"`,
-      port !== '8728' ? `  router-port="${port}"` : null,
-      `  router-user="${user}"`,
-      `  router-pass="${pass}"`,
-      `  layout-id="${id}"`,
-      '  theme="light"',
-      '  style="height:640px">',
-      '</mikrotik-map>',
-      '',
-      '<!-- PANDUAN INTEGRASI REST API & WEBSOCKET:',
-      `  1. Issue Tiket Sesi (Backend):`,
-      `     POST ${location.origin}/api/v1/ticket/issue`,
-      `     Content-Type: application/json`,
-      `     Body: {"host":"${host}", "port":${port}, "user":"${user}", "pass":"..."}`,
-      `     Response: {"ticket": "conn_...", "expires_in": 3600}`,
-      '',
-      `  2. WebSocket Real-time Stream:`,
-      `     URL: ws://${location.host}/ws?ticket=conn_...`,
-      `     Kirim Pesan: {"action":"subscribe_map", "layout_id":"${id}"}`,
-      '',
-      `  3. Atribut Tambahan:`,
-      `     - mode="edit" : Aktifkan mode penataan posisi alat, tiang/ODP, & belokan kabel`,
-      `     - interval="2000" : Frekuensi refresh real-time (ms)`,
-      '-->'
-    ].filter(Boolean);
-    return lines.join('\n');
+    if (tab === 'widget') {
+      return [
+        '<!-- ================================================================= -->',
+        '<!-- 1. INTEGRASI WEB COMPONENT (HTML, REACT, VUE, SVELTE, FLUTTER WEB) -->',
+        '<!-- ================================================================= -->',
+        '',
+        '<!-- Opsi A: Menggunakan Ephemeral Connection Ticket (Disarankan untuk Produksi) -->',
+        '<!-- Password router aman di server backend, frontend hanya menerima ticket RAM -->',
+        `<script src="${base}/sdk/mikrotik-map.js"></script>`,
+        '<mikrotik-map',
+        `  base-url="${base}"`,
+        '  ticket="conn_tiket_dari_backend..."',
+        `  layout-id="${id}"`,
+        '  theme="light"',
+        '  interval="2000"',
+        '  style="width:100%; height:640px; display:block;">',
+        '</mikrotik-map>',
+        '',
+        '<!-- Opsi B: Testing Internal Langsung (Tanpa Backend Tiket) -->',
+        '<mikrotik-map',
+        `  base-url="${base}"`,
+        `  router-host="${host}"`,
+        port !== '8728' ? `  router-port="${port}"` : null,
+        `  router-user="${user}"`,
+        `  router-pass="${pass}"`,
+        `  layout-id="${id}"`,
+        '  theme="light"',
+        '  style="width:100%; height:640px; display:block;">',
+        '</mikrotik-map>',
+        '',
+        '<!-- Menangkap Event Interaksi & Peringatan di JavaScript/React -->',
+        '<script>',
+        '  const map = document.querySelector("mikrotik-map");',
+        '  map.addEventListener("alert", (e) => {',
+        '    console.warn("⚠️ Peringatan Jaringan MikroTik:", e.detail);',
+        '  });',
+        '  map.addEventListener("select", (e) => {',
+        '    console.log("Perangkat dipilih:", e.detail);',
+        '  });',
+        '</script>'
+      ].filter(Boolean).join('\n');
+    }
+
+    if (tab === 'rest') {
+      return [
+        '# =================================================================',
+        '# 2. REST API: MENGAMBIL DATA SCENE TOPOLOGI (JSON RAW)',
+        '# Gunakan endpoint ini jika Anda membangun UI/Canvas kustom sendiri',
+        '# =================================================================',
+        '',
+        '# A. Menggunakan cURL dengan Kredensial Router di Header:',
+        `curl -X GET "${base}/api/v1/map/scene?layout_id=${id}" \\`,
+        `  -H "X-Router-Host: ${host}" \\`,
+        `  -H "X-Router-Port: ${port}" \\`,
+        `  -H "X-Router-User: ${user}" \\`,
+        `  -H "X-Router-Pass: ${pass}"`,
+        '',
+        '# B. Menggunakan cURL dengan Tiket Sesi (Aman untuk Frontend):',
+        `curl -X GET "${base}/api/v1/map/scene?layout_id=${id}&ticket=conn_abc123"`,
+        '',
+        '// C. Contoh Fetch di JavaScript / Node.js / React Native:',
+        `const res = await fetch("${base}/api/v1/map/scene?layout_id=${id}", {`,
+        '  headers: {',
+        '    "X-Connection-Ticket": "conn_abc123",',
+        '  }',
+        '});',
+        'const data = await res.json();',
+        '',
+        '// Struktur Response Data JSON:',
+        '// {',
+        '//   "nodes": [',
+        '//     {',
+        '//       "id": "dev_192_168_88_254",',
+        '//       "label": "Galaxy-A50",',
+        '//       "display_label": "HP Kasir Utama",',
+        '//       "node_type": "device",',
+        '//       "ip": "192.168.88.254",',
+        '//       "mac": "AA:BB:CC:DD:EE:FF",',
+        '//       "vendor": "Samsung Electronics",',
+        '//       "status": "ok", // "ok" | "warning" | "critical" | "idle"',
+        '//       "position": { "x": 0.45, "y": 0.32, "source": "saved" },',
+        '//       "traffic": { "rx_bps": 1250000, "tx_bps": 85000, "rx_formatted": "1.25 MB/s" },',
+        '//       "queue_limit": { "warn": false, "crit": false }',
+        '//     }',
+        '//   ],',
+        '//   "edges": [',
+        '//     {',
+        '//       "id": "edge_wlan1_dev1",',
+        '//       "source": "wlan1",',
+        '//       "target": "dev_192_168_88_254",',
+        '//       "traffic": { "bps": 1335000, "formatted": "1.34 MB/s" },',
+        '//       "style": "smooth", // "straight" | "orthogonal" | "smooth"',
+        '//       "waypoints": [{ "x": 0.3, "y": 0.35 }]',
+        '//     }',
+        '//   ],',
+        '//   "alerts": [ /* Outage / overload warnings */ ]',
+        '// }'
+      ].join('\n');
+    }
+
+    if (tab === 'ws') {
+      return [
+        '// =================================================================',
+        '// 3. WEBSOCKET REALTIME STREAM: LIVE TRAFIK & STATUS DETIK-DEMI-DETIK',
+        '// Mengalirkan pembaruan scene setiap 1-2 detik tanpa polling berulang',
+        '// =================================================================',
+        '',
+        `const ws = new WebSocket("${wsUrl}?ticket=conn_tiket_dari_backend");`,
+        '',
+        'ws.onopen = () => {',
+        '  console.log("Terhubung ke MikroTik Gateway WebSocket");',
+        '  // Langganan stream peta jaringan real-time',
+        '  ws.send(JSON.stringify({',
+        '    action: "subscribe_map",',
+        `    layout_id: "${id}",`,
+        '    interval_ms: 2000,',
+        '    filter_type: "all"',
+        '  }));',
+        '};',
+        '',
+        'ws.onmessage = (event) => {',
+        '  const msg = JSON.parse(event.data);',
+        '  if (msg.event === "map_frame") {',
+        '    const scene = msg.data;',
+        '    console.log("Frame Peta Realtime:", scene.timestamp);',
+        '    console.log("Total Nodes Aktif:", scene.nodes.length);',
+        '    console.log("Total Throughput WAN:", scene.wan_rate);',
+        '',
+        '    // Hubungkan data scene ke engine render Anda (D3.js / Vis.js / Canvas)',
+        '    updateMyCustomCanvas(scene);',
+        '  }',
+        '};',
+        '',
+        'ws.onerror = (err) => console.error("WS Error:", err);',
+        'ws.onclose = () => console.log("Koneksi WS Terputus, coba reconnect...");'
+      ].join('\n');
+    }
+
+    if (tab === 'custom') {
+      return [
+        '# =================================================================',
+        '# 4. REST API: KUSTOMISASI POSISI, IKON, JALUR KABEL, & DENAH',
+        '# Semua kustomisasi tersimpan permanen di gateway per-layout',
+        '# =================================================================',
+        '',
+        '# A. Simpan Posisi / Ikon / Label Kustom Perangkat:',
+        `curl -X PUT "${base}/api/v1/map/layouts/${id}/nodes/dev_192_168_88_254" \\`,
+        '  -H "Content-Type: application/json" \\',
+        '  -H "X-Connection-Ticket: conn_abc123" \\',
+        '  -d \'{',
+        '    "x": 0.4500,',
+        '    "y": 0.3200,',
+        '    "label": "Kamera CCTV Parkir",',
+        '    "icon": "cctv",',
+        '    "parent_override": "sw_lt1",',
+        '    "locked": true',
+        '  }\'',
+        '',
+        '# B. Kustomisasi Jalur Kabel (Waypoints / Belokan Jalan / Kapasitas):',
+        `curl -X PUT "${base}/api/v1/map/layouts/${id}/paths/edge_sw1_cctv1" \\`,
+        '  -H "Content-Type: application/json" \\',
+        '  -H "X-Connection-Ticket: conn_abc123" \\',
+        '  -d \'{',
+        '    "style": "orthogonal",',
+        '    "capacity_bps": 100000000,',
+        '    "waypoints": [',
+        '      { "x": 0.25, "y": 0.20 },',
+        '      { "x": 0.45, "y": 0.20 }',
+        '    ]',
+        '  }\'',
+        '',
+        '# C. Upload Gambar Denah Kantor / Gedung Sendiri (PNG/JPG/WebP maks 4 MB):',
+        `curl -X PUT "${base}/api/v1/map/layouts/${id}/background" \\`,
+        '  -H "Content-Type: image/png" \\',
+        '  -H "X-Connection-Ticket: conn_abc123" \\',
+        '  --data-binary "@denah_kantor_lt1.png"',
+        '',
+        '# D. Jalankan Auto-Place Bersih Secara Otomatis:',
+        `curl -X POST "${base}/api/v1/map/layouts/${id}/auto-place" \\`,
+        '  -H "Content-Type: application/json" \\',
+        '  -H "X-Connection-Ticket: conn_abc123" \\',
+        '  -d \'{"overwrite": false}\''
+      ].join('\n');
+    }
+
+    return '';
+  }
+
+  function setupEmbedTabs() {
+    const tabs = [
+      { id: 'tab-embed-widget', name: 'widget' },
+      { id: 'tab-embed-rest', name: 'rest' },
+      { id: 'tab-embed-ws', name: 'ws' },
+      { id: 'tab-embed-custom', name: 'custom' },
+    ];
+    for (const t of tabs) {
+      const btn = $(t.id);
+      if (!btn) continue;
+      btn.addEventListener('click', () => {
+        currentEmbedTab = t.name;
+        for (const o of tabs) {
+          const ob = $(o.id);
+          if (ob) ob.classList.toggle('active', o.id === t.id);
+        }
+        $('embed-code').textContent = getSnippetContent(currentEmbedTab);
+      });
+    }
   }
 
   const dlg = $('dlg-connect');
   setupTabs();
+  setupEmbedTabs();
 
   $('btn-connect').addEventListener('click', () => dlg.showModal());
   $('btn-cancel').addEventListener('click', () => dlg.close());
@@ -164,16 +331,19 @@
     dlg.close();
     mount(false);
   });
-  $('btn-embed').addEventListener('click', () => { $('embed-code').textContent = embedSnippet(); $('dlg-embed').showModal(); });
+  $('btn-embed').addEventListener('click', () => {
+    $('embed-code').textContent = getSnippetContent(currentEmbedTab);
+    $('dlg-embed').showModal();
+  });
   $('btn-embed-close').addEventListener('click', () => $('dlg-embed').close());
   $('btn-copy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('embed-code').textContent);
-      $('btn-copy').textContent = '✅ Tersalin!';
+      $('btn-copy').textContent = '✅ Berhasil Disalin!';
     } catch (_) {
-      $('btn-copy').textContent = 'Salin Manual';
+      $('btn-copy').textContent = 'Silakan Salin Manual';
     }
-    setTimeout(() => { $('btn-copy').textContent = 'Salin Kode'; }, 1800);
+    setTimeout(() => { $('btn-copy').textContent = '📋 Salin Kode / Contoh'; }, 1800);
   });
 
   load();
